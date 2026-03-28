@@ -64,7 +64,7 @@ const Index = () => {
     <Layout>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-cusp-teal/3 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-b from-cusp-teal/3 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16 md:pt-28 md:pb-24">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
@@ -343,7 +343,7 @@ const Index = () => {
 
       {/* Final CTA */}
       <section className="border-t border-border relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/5 via-transparent to-transparent" />
+        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/5 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 text-center relative">
           <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3">
             Stop leaving yield on the table.
