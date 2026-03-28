@@ -1,0 +1,155 @@
+@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Geist+Mono:wght@100..900&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    --font-body: 'DM Sans', sans-serif;
+    --font-mono: 'Geist Mono', monospace;
+
+    --background: 220 20% 4%;
+    --foreground: 228 33% 96%;
+
+    --card: 225 18% 6%;
+    --card-foreground: 228 33% 96%;
+
+    --popover: 225 20% 8%;
+    --popover-foreground: 228 33% 96%;
+
+    --primary: 171 100% 45%;
+    --primary-foreground: 220 20% 4%;
+
+    --secondary: 225 20% 8%;
+    --secondary-foreground: 228 33% 96%;
+
+    --muted: 225 18% 12%;
+    --muted-foreground: 226 14% 47%;
+
+    --accent: 225 20% 10%;
+    --accent-foreground: 228 33% 96%;
+
+    --destructive: 0 84% 60%;
+    --destructive-foreground: 228 33% 96%;
+
+    --border: 226 22% 16%;
+    --border-subtle: 227 19% 19%;
+    --border-active: 171 100% 45%;
+    --input: 226 22% 16%;
+    --ring: 171 100% 45%;
+
+    --radius: 6px;
+
+    /* Cusp accent system */
+    --cusp-teal: 171 100% 45%;
+    --cusp-amber: 38 92% 50%;
+    --cusp-green: 160 84% 39%;
+    --cusp-red: 0 84% 60%;
+    --cusp-purple: 258 90% 66%;
+
+    /* Background layers */
+    --bg-0: 225 25% 3%;
+    --bg-1: 225 18% 6%;
+    --bg-2: 225 20% 8%;
+    --bg-3: 225 19% 15%;
+
+    /* Sidebar */
+    --sidebar-background: 225 18% 6%;
+    --sidebar-foreground: 228 33% 96%;
+    --sidebar-primary: 171 100% 45%;
+    --sidebar-primary-foreground: 220 20% 4%;
+    --sidebar-accent: 225 20% 10%;
+    --sidebar-accent-foreground: 228 33% 96%;
+    --sidebar-border: 226 22% 16%;
+    --sidebar-ring: 171 100% 45%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-body antialiased;
+  }
+}
+
+@layer utilities {
+  .font-mono-data {
+    font-family: var(--font-mono);
+  }
+
+  .text-teal {
+    color: hsl(var(--cusp-teal));
+  }
+
+  .text-amber-yield {
+    color: hsl(var(--cusp-amber));
+  }
+
+  .text-cusp-green {
+    color: hsl(var(--cusp-green));
+  }
+
+  .text-cusp-red {
+    color: hsl(var(--cusp-red));
+  }
+
+  .text-cusp-purple {
+    color: hsl(var(--cusp-purple));
+  }
+
+  .bg-bg-0 {
+    background-color: hsl(var(--bg-0));
+  }
+
+  .bg-bg-1 {
+    background-color: hsl(var(--bg-1));
+  }
+
+  .bg-bg-2 {
+    background-color: hsl(var(--bg-2));
+  }
+
+  .bg-bg-3 {
+    background-color: hsl(var(--bg-3));
+  }
+
+  .border-active {
+    border-color: hsl(var(--border-active) / 0.4);
+  }
+
+  .glow-teal {
+    box-shadow: 0 0 20px hsl(var(--cusp-teal) / 0.15), 0 0 60px hsl(var(--cusp-teal) / 0.05);
+  }
+
+  .glow-teal-sm {
+    box-shadow: 0 0 10px hsl(var(--cusp-teal) / 0.2);
+  }
+}
+
+/* Phantom Connect modal - compact sizing */
+div[style*="z-index: 9999"] > div {
+  max-height: min(85vh, 420px) !important;
+  overflow-y: auto !important;
+}
+
+/* Live indicator pulse */
+@keyframes live-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+.animate-live-pulse {
+  animation: live-pulse 2s ease-in-out infinite;
+}
+
+/* Flash on update */
+@keyframes flash-update {
+  0% { background-color: hsl(var(--cusp-teal) / 0.15); }
+  100% { background-color: transparent; }
+}
+.animate-flash {
+  animation: flash-update 0.6s ease-out;
+}
