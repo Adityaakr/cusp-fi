@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
 import { useModal, usePhantom } from "@phantom/react-sdk";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { SOLANA_RPC_URL, USDC_MINT_ADDRESS } from "@/lib/network-config";
+import { Menu, X } from "lucide-react";
 
 const RPC_URL = SOLANA_RPC_URL;
 const USDC_MINT = USDC_MINT_ADDRESS;
@@ -80,6 +81,7 @@ const Navbar = () => {
   const { open } = useModal();
   const { isConnected, isLoading, addresses } = usePhantom();
   const location = useLocation();
+  const [mobileOpen, setMobileOpen] = useState(false);
 
   const solanaAddress =
     addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ??
@@ -87,6 +89,10 @@ const Navbar = () => {
     null;
 
   const { sol, usdc } = useWalletBalance(isConnected ? solanaAddress : null);
+
+  const closeMobile = useCallback(() => setMobileOpen(false), []);
+
+  useEffect(() => { closeMobile(); }, [location.pathname, closeMobile]);
 
   return (
     <nav className="fixed top-0 left-0 right-0 z-40 bg-bg-0/80 backdrop-blur-md border-b border-border">
@@ -142,8 +148,51 @@ const Navbar = () => {
                   : "Connected"
                 : "Connect Wallet"}
           </button>
+
+          <button
+            onClick={() => setMobileOpen((v) => !v)}
+            className="md:hidden p-1.5 rounded-md text-muted-foreground hover:text-foreground hover:bg-bg-2 transition-colors"
+            aria-label="Toggle menu"
+          >
+            {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
+          </button>
         </div>
       </div>
+
+      {mobileOpen && (
+        <div className="md:hidden border-t border-border bg-bg-0/95 backdrop-blur-md">
+          <div className="px-4 py-3 flex flex-col gap-1">
+            {navLinks.map((link) => (
+              <Link
+                key={link.path}
+                to={link.path}
+                className={`px-3 py-2.5 text-sm rounded-lg transition-colors ${
+                  location.pathname === link.path
+                    ? "text-cusp-teal bg-cusp-teal/10 font-medium"
+                    : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                }`}
+              >
+                {link.label}
+              </Link>
+            ))}
+          </div>
+          {isConnected && sol !== null && (
+            <div className="px-4 pb-3 pt-1 border-t border-border/50">
+              <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
+                <span className="text-foreground/80">{sol.toFixed(3)}</span>
+                <span>SOL</span>
+                {usdc !== null && usdc > 0 && (
+                  <>
+                    <span className="text-border">|</span>
+                    <span className="text-foreground/80">{usdc.toFixed(2)}</span>
+                    <span>USDC</span>
+                  </>
+                )}
+              </div>
+            </div>
+          )}
+        </div>
+      )}
     </nav>
   );
 };
