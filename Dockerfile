@@ -30,7 +30,7 @@ WORKDIR /app
 COPY --from=build /app/dist ./dist
 COPY --from=build /app/server.js ./server.js
 
-RUN npm init -y && npm install express
+RUN echo '{"type":"module","dependencies":{"express":"^4.21.0"}}' > package.json && npm install
 
 EXPOSE 3000
 CMD ["node", "server.js"]
