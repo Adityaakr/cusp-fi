@@ -1,0 +1,9 @@
+node_modules
+dist
+.git
+.env
+.env.local
+vault-keypair.json
+.devnet-config.json
+programs/target
+target
