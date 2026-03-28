@@ -8,12 +8,14 @@
     "build": "vite build",
     "build:coming-soon": "cd coming-soon && npm install && npm run build",
     "build:dev": "vite build --mode development",
+    "start": "node server.js",
     "lint": "eslint .",
     "preview": "vite preview",
     "test": "vitest run",
     "test:watch": "vitest"
   },
   "dependencies": {
+    "express": "^4.21.0",
     "@coral-xyz/anchor": "^0.30.1",
     "@hookform/resolvers": "^3.10.0",
     "@phantom/react-sdk": "^1.0.7",
