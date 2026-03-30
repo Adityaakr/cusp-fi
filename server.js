@@ -9,7 +9,7 @@ const app = express();
 const PORT = process.env.PORT || 3000;
 const DFLOW_API_KEY = process.env.DFLOW_API_KEY;
 const DFLOW_BASE = "https://prediction-markets-api.dflow.net";
-const DFLOW_TRADE_BASE = "https://trade-api.dflow.net";
+const DFLOW_TRADE_BASE = "https://quote-api.dflow.net";
 
 app.use(express.json());
 
