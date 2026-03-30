@@ -96,6 +96,9 @@ export function useLeveragedTrade() {
     }
 
     try {
+      console.log("[leveragedTrade] Wallet:", solanaAddress);
+      console.log("[leveragedTrade] Params:", JSON.stringify(params));
+
       // 1. Risk check
       setStatus("risk_check");
 
@@ -154,6 +157,13 @@ export function useLeveragedTrade() {
       setStatus("signing");
 
       const totalAtomic = Math.round(tradeUsdc * 1e6);
+      console.log("[leveragedTrade] DFlow order:", {
+        wallet: solanaAddress,
+        inputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+        outputMint: params.outputMint,
+        amount: totalAtomic,
+        tradeUsdc,
+      });
       const { transaction } = await fetchOrderQuote({
         userPublicKey: solanaAddress,
         inputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",

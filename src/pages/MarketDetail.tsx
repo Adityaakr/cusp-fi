@@ -243,6 +243,10 @@ const MarketDetail = () => {
       setTradeError("Connect your wallet to trade");
       return;
     }
+
+    console.log("[trade] Connected wallet:", solanaAddress);
+    console.log("[trade] Mode:", tradeMode, "| Side:", tradeSide, "| Amount:", amountNum);
+
     if (!isValidAmount) {
       setTradeError("Enter a valid amount");
       return;
@@ -258,6 +262,10 @@ const MarketDetail = () => {
       setTradeError("Market not initialized");
       return;
     }
+
+    console.log("[trade] Market:", market.ticker, "| Output mint:", outputMint);
+    console.log("[trade] Settlement mint:", market.settlementMint);
+    console.log("[trade] KYC verified:", kycVerified);
 
     // DFlow markets operate on mainnet — verify the user has enough mainnet USDC
     const userMainnetUsdc = portfolio?.mainnet_usdc_balance ?? 0;
