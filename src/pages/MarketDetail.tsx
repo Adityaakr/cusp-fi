@@ -78,13 +78,13 @@ const MarketDetail = () => {
   const { ticker } = useParams<{ ticker: string }>();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
   const { data: market, isLoading, error } = useDflowMarket(ticker, {
-    refetchInterval: 10_000,
+    refetchInterval: isLive ? 30_000 : 10_000,
   });
   const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(ticker, timeframe, {
     refetchInterval: timeframe === "1D" || timeframe === "1W" ? 15_000 : 30_000,
   });
   const { data: restOrderbook, isLoading: orderbookLoading } = useDflowOrderbook(ticker, {
-    refetchInterval: 3_000,
+    refetchInterval: isLive ? false : 3_000,
   });
   const { isLive, prices: livePrices, orderbook: liveOrderbook, orderbookUpdatedAt, recentTrades } = useDflowWebSocket(ticker);
   const { isConnected, addresses } = usePhantom();
@@ -933,11 +933,9 @@ const MarketDetail = () => {
             </h3>
             {orderbook &&
               (orderbookFromWs && orderbookUpdatedAt ? (
-                <span className="text-[10px] text-muted-foreground">
-                  Updated {Math.floor((Date.now() - orderbookUpdatedAt) / 1000)}s ago
-                </span>
+                <span className="text-[10px] text-cusp-green font-mono">Real-time</span>
               ) : (
-                <span className="text-[10px] text-muted-foreground">Refreshing every 3s</span>
+                <span className="text-[10px] text-muted-foreground">Polling every 3s</span>
               ))}
           </div>
           {orderbookLoading && !orderbook ? (
