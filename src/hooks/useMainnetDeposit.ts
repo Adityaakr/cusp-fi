@@ -137,6 +137,27 @@ export function useMainnetDeposit() {
               status: "confirmed",
               deposit_type: "trading_pool",
             });
+
+            // Sync protocol_state so edge functions (risk-check, open-position) see updated pool
+            const { data: currentState } = await supabase
+              .from("protocol_state")
+              .select("reserve_usdc, total_tvl")
+              .eq("id", 1)
+              .single();
+
+            if (currentState) {
+              const newReserve = Number(currentState.reserve_usdc || 0) + amountUsdc;
+              const newTvl = Number(currentState.total_tvl || 0) + amountUsdc;
+              await supabase
+                .from("protocol_state")
+                .update({
+                  reserve_usdc: newReserve,
+                  total_tvl: newTvl,
+                  updated_at: new Date().toISOString(),
+                })
+                .eq("id", 1);
+            }
+
             console.log("[mainnetDeposit] Recorded in Supabase:", { userId, amountUsdc, signature });
           }
         } catch (dbErr) {
