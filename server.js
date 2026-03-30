@@ -38,6 +38,10 @@ async function proxyDflow(req, res, baseUrl) {
     const contentType = upstream.headers.get("content-type") ?? "application/json";
     const body = await upstream.text();
 
+    if (!upstream.ok) {
+      console.error(`DFlow ${upstream.status} for ${target.split("?")[0]}:`, body.slice(0, 500));
+    }
+
     res.setHeader("Content-Type", contentType);
     res.setHeader("Cache-Control", "s-maxage=5, stale-while-revalidate=10");
     return res.status(upstream.status).send(body);

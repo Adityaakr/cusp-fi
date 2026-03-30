@@ -116,7 +116,16 @@ async function fetchJson<T>(url: string, options?: RequestInit): Promise<T> {
     ...options,
     headers: { Accept: "application/json", ...options?.headers },
   });
-  if (!res.ok) throw new Error(`DFlow API error: ${res.status} ${res.statusText}`);
+  if (!res.ok) {
+    let detail = "";
+    try {
+      const body = await res.json();
+      detail = body?.error || body?.message || JSON.stringify(body);
+    } catch {
+      detail = await res.text().catch(() => "");
+    }
+    throw new Error(detail || `DFlow API error: ${res.status}`);
+  }
   return res.json();
 }
 
