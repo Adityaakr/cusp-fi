@@ -77,6 +77,7 @@ function computeDepthData(
 const MarketDetail = () => {
   const { ticker } = useParams<{ ticker: string }>();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
+  const { isLive, prices: livePrices, orderbook: liveOrderbook, orderbookUpdatedAt, recentTrades } = useDflowWebSocket(ticker);
   const { data: market, isLoading, error } = useDflowMarket(ticker, {
     refetchInterval: isLive ? 30_000 : 10_000,
   });
@@ -86,7 +87,6 @@ const MarketDetail = () => {
   const { data: restOrderbook, isLoading: orderbookLoading } = useDflowOrderbook(ticker, {
     refetchInterval: isLive ? false : 3_000,
   });
-  const { isLive, prices: livePrices, orderbook: liveOrderbook, orderbookUpdatedAt, recentTrades } = useDflowWebSocket(ticker);
   const { isConnected, addresses } = usePhantom();
   const { solana, isAvailable } = useSolana();
   const [tradeSide, setTradeSide] = useState<"YES" | "NO">("YES");
