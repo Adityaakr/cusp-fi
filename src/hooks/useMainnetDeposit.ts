@@ -14,6 +14,7 @@ import {
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { PublicKey, VersionedTransaction, TransactionMessage, TransactionInstruction } from "@solana/web3.js";
+import { supabase } from "@/lib/supabase";
 
 export type MainnetDepositStatus =
   | "idle"
@@ -119,9 +120,39 @@ export function useMainnetDeposit() {
 
       await connection.confirmTransaction(signature, "confirmed");
 
+      // Record deposit in Supabase so portfolio & realtime pick it up
+      if (supabase) {
+        try {
+          const { data: userId } = await supabase.rpc("get_or_create_user", {
+            p_wallet_address: solanaAddress,
+          });
+
+          if (userId) {
+            await supabase.from("deposits").insert({
+              user_id: userId,
+              amount_usdc: amountUsdc,
+              cusdc_minted: 0,
+              exchange_rate: 1,
+              tx_signature: signature,
+              status: "confirmed",
+              deposit_type: "trading_pool",
+            });
+            console.log("[mainnetDeposit] Recorded in Supabase:", { userId, amountUsdc, signature });
+          }
+        } catch (dbErr) {
+          console.warn("[mainnetDeposit] Supabase recording failed (non-fatal):", dbErr);
+        }
+      }
+
       setStatus("success");
-      queryClient.invalidateQueries({ queryKey: ["protocolState"] });
-      queryClient.invalidateQueries({ queryKey: ["userPortfolio"] });
+
+      // Immediate refetch so UI updates without waiting for polling interval
+      await Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
+        queryClient.refetchQueries({ queryKey: ["protocolState"] }),
+        queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Mainnet deposit failed");
       setStatus("error");

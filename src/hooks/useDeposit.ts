@@ -17,6 +17,7 @@ import {
   SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
 import { SOLANA_NETWORK } from "@/lib/network-config";
+import { supabase } from "@/lib/supabase";
 
 const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
@@ -131,9 +132,45 @@ export function useDeposit() {
       // Wait for confirmation
       await connection.confirmTransaction(signature, "confirmed");
 
+      // Record deposit in Supabase so portfolio & realtime pick it up
+      if (supabase && solanaAddress) {
+        try {
+          const { data: userId } = await supabase.rpc("get_or_create_user", {
+            p_wallet_address: solanaAddress,
+          });
+
+          const cusdcMinted = amountUsdc; // 1:1 at launch exchange rate
+          if (userId) {
+            await supabase.from("deposits").insert({
+              user_id: userId,
+              amount_usdc: amountUsdc,
+              cusdc_minted: cusdcMinted,
+              exchange_rate: 1,
+              tx_signature: signature,
+              status: "confirmed",
+              deposit_type: "vault",
+            });
+
+            await supabase.rpc("update_protocol_after_deposit", {
+              p_amount_usdc: amountUsdc,
+              p_cusdc_minted: cusdcMinted,
+            });
+
+            console.log("[vaultDeposit] Recorded in Supabase:", { userId, amountUsdc, signature });
+          }
+        } catch (dbErr) {
+          console.warn("[vaultDeposit] Supabase recording failed (non-fatal):", dbErr);
+        }
+      }
+
       setStatus("success");
-      queryClient.invalidateQueries({ queryKey: ["protocolState"] });
-      queryClient.invalidateQueries({ queryKey: ["userPortfolio"] });
+
+      await Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
+        queryClient.refetchQueries({ queryKey: ["protocolState"] }),
+        queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),
+      ]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Deposit failed");
       setStatus("error");
