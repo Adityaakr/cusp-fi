@@ -1,4 +1,6 @@
 import express from "express";
+import { createServer } from "http";
+import { WebSocket, WebSocketServer } from "ws";
 import { fileURLToPath } from "url";
 import { dirname, join } from "path";
 
@@ -10,6 +12,7 @@ const PORT = process.env.PORT || 3000;
 const DFLOW_API_KEY = process.env.DFLOW_API_KEY;
 const DFLOW_BASE = "https://prediction-markets-api.dflow.net";
 const DFLOW_TRADE_BASE = "https://quote-api.dflow.net";
+const DFLOW_WS_URL = "wss://prediction-markets-api.dflow.net/api/v1/ws";
 
 app.use(express.json());
 
@@ -60,6 +63,56 @@ app.get("*", (_req, res) => {
   res.sendFile(join(__dirname, "dist", "index.html"));
 });
 
-app.listen(PORT, () => {
+// --- WebSocket proxy for DFlow live data ---
+const server = createServer(app);
+const wss = new WebSocketServer({ noServer: true });
+
+server.on("upgrade", (req, socket, head) => {
+  if (req.url === "/ws/dflow") {
+    wss.handleUpgrade(req, socket, head, (clientWs) => {
+      const headers = {};
+      if (DFLOW_API_KEY) headers["x-api-key"] = DFLOW_API_KEY;
+
+      const upstream = new WebSocket(DFLOW_WS_URL, { headers });
+
+      upstream.on("open", () => {
+        console.log("[ws] Connected to DFlow WebSocket");
+      });
+
+      upstream.on("message", (data) => {
+        if (clientWs.readyState === WebSocket.OPEN) {
+          clientWs.send(data);
+        }
+      });
+
+      upstream.on("close", () => {
+        clientWs.close();
+      });
+
+      upstream.on("error", (err) => {
+        console.error("[ws] DFlow upstream error:", err.message);
+        clientWs.close();
+      });
+
+      clientWs.on("message", (data) => {
+        if (upstream.readyState === WebSocket.OPEN) {
+          upstream.send(data);
+        }
+      });
+
+      clientWs.on("close", () => {
+        upstream.close();
+      });
+
+      clientWs.on("error", () => {
+        upstream.close();
+      });
+    });
+  } else {
+    socket.destroy();
+  }
+});
+
+server.listen(PORT, () => {
   console.log(`Cusp server running on port ${PORT}`);
 });

@@ -29,7 +29,7 @@ export const DFLOW_METADATA_API = "/api/dflow";
 export const DFLOW_TRADE_API = "/api/dflow-trade";
 export const DFLOW_WS_URL = isDev
   ? `ws://${window.location.host}/ws/dflow`
-  : import.meta.env.VITE_DFLOW_WS_URL || "wss://prediction-markets-api.dflow.net/api/v1/ws";
+  : `${window.location.protocol === "https:" ? "wss:" : "ws:"}//${window.location.host}/ws/dflow`;
 
 // ── Solana network ───────────────────────────────────────────────────────────
 
