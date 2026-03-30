@@ -14,6 +14,7 @@ import {
   TransactionInstruction,
 } from "@solana/web3.js";
 import { SOLANA_NETWORK } from "@/lib/network-config";
+import { supabase } from "@/lib/supabase";
 
 const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
@@ -110,11 +111,44 @@ export function useWithdraw() {
 
       await connection.confirmTransaction(signature, "confirmed");
 
+      // Record withdrawal in Supabase
+      if (supabase && solanaAddress) {
+        try {
+          const { data: userId } = await supabase.rpc("get_or_create_user", {
+            p_wallet_address: solanaAddress,
+          });
+
+          if (userId) {
+            const usdcReceived = cusdcAmount; // 1:1 at launch
+            await supabase.from("withdrawals").insert({
+              user_id: userId,
+              cusdc_amount: cusdcAmount,
+              usdc_amount: usdcReceived,
+              exchange_rate: 1,
+              withdrawal_type: "vault",
+              status: "completed",
+              tx_signature: signature,
+              completed_at: new Date().toISOString(),
+            });
+            console.log("[withdraw] Recorded in Supabase:", { userId, cusdcAmount, signature });
+          }
+        } catch (dbErr) {
+          console.warn("[withdraw] Supabase recording failed (non-fatal):", dbErr);
+        }
+      }
+
       setStatus("success");
-      queryClient.invalidateQueries({ queryKey: ["protocolState"] });
-      queryClient.invalidateQueries({ queryKey: ["userPortfolio"] });
+
+      await Promise.allSettled([
+        queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
+        queryClient.refetchQueries({ queryKey: ["protocolState"] }),
+        queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),
+      ]);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Withdrawal failed");
+      const msg = err instanceof Error ? err.message : "Withdrawal failed";
+      console.error("[withdraw] Failed:", msg);
+      setError(msg);
       setStatus("error");
     }
   }
