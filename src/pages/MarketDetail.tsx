@@ -302,8 +302,9 @@ const MarketDetail = () => {
       return;
     }
 
-    // Direct trade: use the market's actual settlement mint (DFlow resolves the correct one per market)
-    const inputMint = market.settlementMint || MAINNET_USDC_MINT;
+    // DFlow Trade API always takes mainnet USDC as input — the settlement mint
+    // (e.g. CASH) is internal to the on-chain program, not used by the quote API.
+    const inputMint = MAINNET_USDC_MINT;
     const amountAtomic = Math.round(amountNum * 1_000_000);
     setTradeStatus("loading");
     setTradeError(null);
