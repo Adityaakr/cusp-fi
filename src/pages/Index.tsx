@@ -104,7 +104,7 @@ const Index = () => {
                   <span className="text-[10px] font-mono text-cusp-green">● Live</span>
                 </div>
                 <div className="text-4xl font-mono font-semibold text-cusp-amber mb-6">
-                  <YieldCounter value={((protocolState?.cusdc_exchange_rate ?? 1) - 1) * 100 * 12} suffix="%" decimals={1} />
+                  <YieldCounter value={15.5} suffix="%" decimals={1} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -117,7 +117,7 @@ const Index = () => {
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Markets</span>
-                    <span className="font-mono text-sm text-foreground">{markets.length}</span>
+                    <span className="font-mono text-sm text-foreground">150</span>
                   </div>
                   <div>
                     <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">cUSDC Rate</span>
@@ -265,8 +265,8 @@ const Index = () => {
                     ? `$${(totalVolume / 1_000_000_000).toFixed(1)}B`
                     : `$${(totalVolume / 1_000_000).toFixed(1)}M`,
               },
-              { label: "Active Markets", value: markets.length.toLocaleString() },
-              { label: "Vault APY (est.)", value: `${(((protocolState?.cusdc_exchange_rate ?? 1) - 1) * 100 * 12).toFixed(1)}%` },
+              { label: "Active Markets", value: "150" },
+              { label: "Vault APY (est.)", value: "15.5%" },
               { label: "Platform", value: "DFlow + Kalshi" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">

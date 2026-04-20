@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>CUSP - Technical Documentation</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#0a0b0f;--bg1:#0e1017;--bg2:#141720;--bg3:#1c2030;--border:#1e2235;--border2:#252a3a;--text:#f0f2f8;--text2:#8b92a8;--text3:#4a5068;--teal:#00e5cc;--teal2:#00c4b4;--tealBg:#00e5cc12;--amber:#f59e0b;--amberBg:#f59e0b10;--green:#10b981;--greenBg:#10b98110;--red:#ef4444;--redBg:#ef444410;--purple:#8b5cf6;--purpleBg:#8b5cf610;--blue:#3b82f6;--blueBg:#3b82f610;--hand:'Caveat',cursive;--body:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace}
+*{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--text);font-family:var(--body);line-height:1.7;font-size:15px}
+.container{max-width:900px;margin:0 auto;padding:0 24px}
+nav{position:sticky;top:0;z-index:100;background:var(--bg)ee;backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 0}nav .container{display:flex;align-items:center;justify-content:space-between}.logo{font-family:var(--body);font-weight:700;font-size:22px;color:var(--text);letter-spacing:-1px}.logo span{color:var(--teal)}nav a{color:var(--text2);text-decoration:none;font-size:13px;margin-left:24px;transition:color 0.2s}nav a:hover{color:var(--teal)}
+.hero{padding:80px 0 60px;border-bottom:1px solid var(--border)}.hero h1{font-size:42px;font-weight:700;letter-spacing:-1.5px;line-height:1.15;margin-bottom:16px}.hero h1 span{color:var(--teal)}.hero p{color:var(--text2);font-size:17px;max-width:680px;margin-bottom:24px}.badge-row{display:flex;gap:10px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text2)}.badge .dot{width:6px;height:6px;border-radius:50%}
+section{padding:60px 0;border-bottom:1px solid var(--border)}section:last-child{border-bottom:none}h2{font-size:28px;font-weight:700;letter-spacing:-0.5px;margin-bottom:8px}h2 .num{color:var(--teal);font-family:var(--mono);font-size:14px;margin-right:8px}h3{font-size:19px;font-weight:600;margin:32px 0 12px;color:var(--text)}p{color:var(--text2);margin-bottom:16px}p strong{color:var(--text);font-weight:600}
+.diagram{background:var(--bg1);border:1.5px solid var(--border);border-radius:10px;padding:20px;margin:24px 0;overflow-x:auto}.diagram svg text{font-family:'Caveat',cursive}.diagram-label{font-size:11px;color:var(--text3);font-family:var(--mono);margin-bottom:8px;text-transform:uppercase;letter-spacing:2px}
+.callout{border-left:3px solid var(--teal);background:var(--tealBg);padding:16px 20px;border-radius:0 8px 8px 0;margin:20px 0}.callout.amber{border-color:var(--amber);background:var(--amberBg)}.callout.red{border-color:var(--red);background:var(--redBg)}.callout.green{border-color:var(--green);background:var(--greenBg)}.callout.purple{border-color:var(--purple);background:var(--purpleBg)}.callout .label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:2px;margin-bottom:6px}.callout.amber .label{color:var(--amber)}.callout.red .label{color:var(--red)}.callout.green .label{color:var(--green)}.callout.purple .label{color:var(--purple)}.callout p{margin-bottom:8px}.callout p:last-child{margin-bottom:0}
+table{width:100%;border-collapse:collapse;margin:20px 0;font-size:13.5px}th{background:var(--bg3);color:var(--text);font-weight:600;text-align:left;padding:10px 14px;border:1px solid var(--border);font-size:12px;text-transform:uppercase;letter-spacing:1px}td{padding:10px 14px;border:1px solid var(--border);color:var(--text2);vertical-align:top}tr:nth-child(even) td{background:var(--bg1)}td:first-child{color:var(--text);font-weight:500}
+code{font-family:var(--mono);background:var(--bg2);padding:2px 6px;border-radius:4px;font-size:13px;color:var(--teal)}pre{background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:16px 20px;overflow-x:auto;margin:16px 0;font-size:13px;line-height:1.6}pre code{background:none;padding:0;color:var(--text2)}
+ul,ol{padding-left:24px;margin:12px 0}li{color:var(--text2);margin-bottom:8px}li strong{color:var(--text)}
+.toc{background:var(--bg1);border:1px solid var(--border);border-radius:10px;padding:24px 28px;margin:32px 0}.toc h3{margin:0 0 16px;font-size:16px;color:var(--text3);text-transform:uppercase;letter-spacing:2px;font-weight:600}.toc a{display:block;color:var(--text2);text-decoration:none;padding:5px 0;font-size:14px;border-bottom:1px solid var(--border);transition:color 0.2s}.toc a:last-child{border-bottom:none}.toc a:hover{color:var(--teal)}.toc a span{color:var(--teal);font-family:var(--mono);font-size:12px;margin-right:8px}
+.formula{background:var(--bg2);border:1px solid var(--teal)33;border-radius:8px;padding:20px;text-align:center;margin:20px 0;font-family:var(--mono);font-size:14px}.formula .eq{color:var(--teal);font-weight:600;font-size:15px}.formula .desc{color:var(--text3);font-size:12px;margin-top:8px}
+footer{padding:40px 0;text-align:center;color:var(--text3);font-size:13px}footer a{color:var(--teal);text-decoration:none}
+.flow{display:flex;gap:12px;margin:20px 0;flex-wrap:wrap}.flow-step{flex:1;min-width:150px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}.flow-step .num{font-family:var(--mono);font-size:11px;color:var(--teal);margin-bottom:4px}.flow-step .title{font-weight:600;font-size:13px;color:var(--text);margin-bottom:4px}.flow-step .desc{font-size:12px;color:var(--text3)}.flow-arrow{display:flex;align-items:center;color:var(--text3);font-size:18px}
+@media(max-width:768px){.hero h1{font-size:28px}h2{font-size:22px}.flow{flex-direction:column}.flow-arrow{justify-content:center;transform:rotate(90deg)}nav a{display:none}}
+</style>
+</head>
+<body>
+<nav>
+<div class="container">
+<div class="logo">CUSP<span>.</span></div>
+<div>
+<a href="#overview">Overview</a>
+<a href="#architecture">Architecture</a>
+<a href="#vault">Vault</a>
+<a href="#lending">Lending</a>
+<a href="#liquidation">Liquidation</a>
+<a href="#risk">Risk</a>
+<a href="#contracts">Contracts</a>
+<a href="#fees">Fees</a>
+</div>
+</div>
+</nav>
+<div class="container">
+<div class="hero">
+<h1>Technical <span>Documentation</span></h1>
+<p>The DeFi capital layer for prediction markets on Solana. End-to-end protocol architecture covering vault mechanics, lending, liquidation, risk management, and smart contract design.</p>
+<div class="badge-row">
+<div class="badge"><div class="dot" style="background:var(--teal)"></div>Solana Native</div>
+<div class="badge"><div class="dot" style="background:var(--amber)"></div>DFlow Powered</div>
+<div class="badge"><div class="dot" style="background:var(--green)"></div>Kalshi Regulated</div>
+<div class="badge"><div class="dot" style="background:var(--purple)"></div>v1.0 - March 2026</div>
+</div>
+</div>
+<div class="toc">
+<h3>Contents</h3>
+<a href="#overview"><span>01</span> Protocol Overview</a>
+<a href="#architecture"><span>02</span> System Architecture</a>
+<a href="#vault"><span>03</span> Vault System - LP Deposits and Yield</a>
+<a href="#lending"><span>04</span> Lending System - Borrow Against Outcome Tokens</a>
+<a href="#liquidation"><span>05</span> Liquidation Architecture - The Three Lines of Defense</a>
+<a href="#settlement"><span>06</span> Settlement Waterfall</a>
+<a href="#dflow"><span>07</span> DFlow Integration Layer</a>
+<a href="#risk"><span>08</span> Protocol Risk Management</a>
+<a href="#contracts"><span>09</span> Smart Contract Architecture</a>
+<a href="#fees"><span>10</span> Fee Model and Revenue Distribution</a>
+<a href="#example"><span>11</span> End-to-End Worked Example</a>
+</div>
+<section id="overview">
+<h2><span class="num">01</span> Protocol Overview</h2>
+<p>CUSP is the DeFi capital layer for prediction markets on Solana. The protocol makes prediction market positions productive by enabling yield, lending, borrowing, and leverage on outcome tokens - the tokenized YES/NO positions issued by DFlow representing Kalshi markets.</p>
+<p>The protocol serves <strong>two sides</strong>: LPs who deposit USDC and earn yield from protocol activity, and traders who gain capital efficiency on high-conviction prediction market positions without closing their exposure.</p>
+<div class="callout">
+<div class="label" style="color:var(--teal)">Core thesis</div>
+<p><strong>Combined Kalshi and Polymarket open interest exceeds $800M.</strong> Every dollar of it earns 0%. CUSP is the protocol that makes it productive. We do not replace prediction markets - we make them financially complete.</p>
+</div>
+<h3>What CUSP is not</h3>
+<ul>
+<li><strong>Not a prediction market.</strong> We do not compete with Kalshi or Polymarket.</li>
+<li><strong>Not an oracle provider.</strong> We consume DFlow's price and resolution data.</li>
+<li><strong>Not a consumer trading interface.</strong> We are infrastructure for capital efficiency.</li>
+</ul>
+<div class="diagram">
+<div class="diagram-label">Protocol positioning</div>
+<svg width="100%" viewBox="0 0 820 280">
+<rect x="20" y="20" width="180" height="70" rx="10" fill="#1c2030" stroke="#252a3a" stroke-width="2"/>
+<text x="110" y="48" text-anchor="middle" fill="#8b92a8" font-size="13">Regulated Exchange</text>
+<text x="110" y="72" text-anchor="middle" fill="#f0f2f8" font-size="18" font-weight="600">Kalshi</text>
+<rect x="240" y="20" width="180" height="70" rx="10" fill="#1c2030" stroke="#252a3a" stroke-width="2"/>
+<text x="330" y="48" text-anchor="middle" fill="#8b92a8" font-size="13">Tokenization Layer</text>
+<text x="330" y="72" text-anchor="middle" fill="#f0f2f8" font-size="18" font-weight="600">DFlow</text>
+<line x1="200" y1="55" x2="238" y2="55" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="240" y="120" width="340" height="140" rx="12" fill="#00e5cc08" stroke="#00e5cc" stroke-width="2" stroke-dasharray="6 4"/>
+<text x="410" y="148" text-anchor="middle" fill="#00e5cc" font-size="14" font-weight="600">CUSP PROTOCOL</text>
+<rect x="260" y="165" width="140" height="50" rx="8" fill="#1c2030" stroke="#f59e0b" stroke-width="2"/>
+<text x="330" y="185" text-anchor="middle" fill="#f59e0b" font-size="14">Vault</text>
+<text x="330" y="202" text-anchor="middle" fill="#8b92a8" font-size="12">USDC Yield</text>
+<rect x="420" y="165" width="140" height="50" rx="8" fill="#1c2030" stroke="#8b5cf6" stroke-width="2"/>
+<text x="490" y="185" text-anchor="middle" fill="#8b5cf6" font-size="14">Lend</text>
+<text x="490" y="202" text-anchor="middle" fill="#8b92a8" font-size="12">Borrow + Leverage</text>
+<line x1="330" y1="90" x2="330" y2="118" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<text x="340" y="108" fill="#4a5068" font-size="11">SPL Tokens</text>
+<rect x="20" y="150" width="180" height="60" rx="10" fill="#1c2030" stroke="#10b981" stroke-width="2"/>
+<text x="110" y="175" text-anchor="middle" fill="#10b981" font-size="14">LPs</text>
+<text x="110" y="195" text-anchor="middle" fill="#8b92a8" font-size="12">Deposit USDC, earn yield</text>
+<line x1="200" y1="180" x2="258" y2="190" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="620" y="150" width="180" height="60" rx="10" fill="#1c2030" stroke="#3b82f6" stroke-width="2"/>
+<text x="710" y="175" text-anchor="middle" fill="#3b82f6" font-size="14">Traders</text>
+<text x="710" y="195" text-anchor="middle" fill="#8b92a8" font-size="12">Borrow, leverage, yield</text>
+<line x1="562" y1="190" x2="618" y2="180" stroke="#3b82f6" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="620" y="20" width="180" height="70" rx="10" fill="#1c2030" stroke="#252a3a" stroke-width="2"/>
+<text x="710" y="48" text-anchor="middle" fill="#8b92a8" font-size="13">Settlement Layer</text>
+<text x="710" y="72" text-anchor="middle" fill="#f0f2f8" font-size="18" font-weight="600">Solana</text>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1L8 5L1 9" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round"/></marker></defs>
+</svg>
+</div>
+</section>
+<section id="architecture">
+<h2><span class="num">02</span> System Architecture</h2>
+<p>CUSP is built as a layered system. External infrastructure (DFlow, Kalshi, Solana) provides data and execution. CUSP programs manage capital, risk, and yield. Off-chain services handle strategy execution and monitoring.</p>
+<div class="diagram">
+<div class="diagram-label">Full system architecture</div>
+<svg width="100%" viewBox="0 0 820 520">
+<text x="15" y="35" fill="#4a5068" font-size="11" transform="rotate(-90, 15, 35)" text-anchor="end">EXTERNAL</text>
+<text x="15" y="195" fill="#4a5068" font-size="11" transform="rotate(-90, 15, 195)" text-anchor="end">ON-CHAIN</text>
+<text x="15" y="385" fill="#4a5068" font-size="11" transform="rotate(-90, 15, 385)" text-anchor="end">OFF-CHAIN</text>
+<line x1="30" y1="100" x2="800" y2="100" stroke="#1e2235" stroke-width="1" stroke-dasharray="4 4"/>
+<line x1="30" y1="310" x2="800" y2="310" stroke="#1e2235" stroke-width="1" stroke-dasharray="4 4"/>
+<rect x="40" y="20" width="160" height="60" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="120" y="45" text-anchor="middle" fill="#f0f2f8" font-size="15" font-weight="600">DFlow APIs</text><text x="120" y="65" text-anchor="middle" fill="#4a5068" font-size="11">Metadata + Trade</text>
+<rect x="230" y="20" width="160" height="60" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="310" y="45" text-anchor="middle" fill="#f0f2f8" font-size="15" font-weight="600">Kalshi</text><text x="310" y="65" text-anchor="middle" fill="#4a5068" font-size="11">CFTC Regulated</text>
+<rect x="420" y="20" width="160" height="60" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="500" y="45" text-anchor="middle" fill="#f0f2f8" font-size="15" font-weight="600">Kamino / Aave</text><text x="500" y="65" text-anchor="middle" fill="#4a5068" font-size="11">Base Yield</text>
+<rect x="610" y="20" width="160" height="60" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="690" y="45" text-anchor="middle" fill="#f0f2f8" font-size="15" font-weight="600">Jito Bundles</text><text x="690" y="65" text-anchor="middle" fill="#4a5068" font-size="11">MEV Protection</text>
+<rect x="40" y="120" width="175" height="70" rx="8" fill="#00e5cc10" stroke="#00e5cc" stroke-width="2"/><text x="128" y="147" text-anchor="middle" fill="#00e5cc" font-size="14" font-weight="600">cusp_vault.so</text><text x="128" y="167" text-anchor="middle" fill="#4a5068" font-size="11">USDC vault + cUSDC</text><text x="128" y="180" text-anchor="middle" fill="#4a5068" font-size="11">NAV + strategies</text>
+<rect x="235" y="120" width="175" height="70" rx="8" fill="#8b5cf610" stroke="#8b5cf6" stroke-width="2"/><text x="323" y="147" text-anchor="middle" fill="#8b5cf6" font-size="14" font-weight="600">cusp_lend.so</text><text x="323" y="167" text-anchor="middle" fill="#4a5068" font-size="11">Loans + health factor</text><text x="323" y="180" text-anchor="middle" fill="#4a5068" font-size="11">Liquidation logic</text>
+<rect x="430" y="120" width="175" height="70" rx="8" fill="#f59e0b10" stroke="#f59e0b" stroke-width="2"/><text x="518" y="147" text-anchor="middle" fill="#f59e0b" font-size="14" font-weight="600">collateral_registry</text><text x="518" y="167" text-anchor="middle" fill="#4a5068" font-size="11">Market whitelist</text><text x="518" y="180" text-anchor="middle" fill="#4a5068" font-size="11">Risk parameters</text>
+<rect x="625" y="120" width="155" height="70" rx="8" fill="#10b98110" stroke="#10b981" stroke-width="2"/><text x="703" y="147" text-anchor="middle" fill="#10b981" font-size="14" font-weight="600">fee_router.so</text><text x="703" y="167" text-anchor="middle" fill="#4a5068" font-size="11">Fee collection</text><text x="703" y="180" text-anchor="middle" fill="#4a5068" font-size="11">LP + treasury split</text>
+<rect x="40" y="210" width="175" height="70" rx="8" fill="#ef444410" stroke="#ef4444" stroke-width="2"/><text x="128" y="237" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="600">hard_expiry.so</text><text x="128" y="257" text-anchor="middle" fill="#4a5068" font-size="11">Time-based force close</text><text x="128" y="270" text-anchor="middle" fill="#4a5068" font-size="11">Binary jump defense</text>
+<rect x="235" y="210" width="175" height="70" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="323" y="237" text-anchor="middle" fill="#f0f2f8" font-size="14" font-weight="600">insurance_fund</text><text x="323" y="257" text-anchor="middle" fill="#4a5068" font-size="11">2% of all fees</text><text x="323" y="270" text-anchor="middle" fill="#4a5068" font-size="11">5-of-9 multisig</text>
+<rect x="430" y="210" width="175" height="70" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="518" y="237" text-anchor="middle" fill="#f0f2f8" font-size="14" font-weight="600">circuit_breaker</text><text x="518" y="257" text-anchor="middle" fill="#4a5068" font-size="11">Auto-pause on stress</text><text x="518" y="270" text-anchor="middle" fill="#4a5068" font-size="11">Protocol-wide halt</text>
+<rect x="625" y="210" width="155" height="70" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="703" y="237" text-anchor="middle" fill="#f0f2f8" font-size="14" font-weight="600">multisig.so</text><text x="703" y="257" text-anchor="middle" fill="#4a5068" font-size="11">5-of-9 emergency</text><text x="703" y="270" text-anchor="middle" fill="#4a5068" font-size="11">Pause + upgrade</text>
+<rect x="40" y="330" width="175" height="70" rx="8" fill="#1c2030" stroke="#3b82f6" stroke-width="2"/><text x="128" y="357" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="600">Strategy Engine</text><text x="128" y="377" text-anchor="middle" fill="#4a5068" font-size="11">Python + DFlow APIs</text><text x="128" y="390" text-anchor="middle" fill="#4a5068" font-size="11">10-min cycle</text>
+<rect x="235" y="330" width="175" height="70" rx="8" fill="#1c2030" stroke="#3b82f6" stroke-width="2"/><text x="323" y="357" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="600">Keeper Bot</text><text x="323" y="377" text-anchor="middle" fill="#4a5068" font-size="11">TypeScript + Jito</text><text x="323" y="390" text-anchor="middle" fill="#4a5068" font-size="11">60s health checks</text>
+<rect x="430" y="330" width="175" height="70" rx="8" fill="#1c2030" stroke="#3b82f6" stroke-width="2"/><text x="518" y="357" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="600">Rebalancer</text><text x="518" y="377" text-anchor="middle" fill="#4a5068" font-size="11">Position exit + reserve</text><text x="518" y="390" text-anchor="middle" fill="#4a5068" font-size="11">NAV tracking</text>
+<rect x="625" y="330" width="155" height="70" rx="8" fill="#1c2030" stroke="#3b82f6" stroke-width="2"/><text x="703" y="357" text-anchor="middle" fill="#3b82f6" font-size="14" font-weight="600">Frontend</text><text x="703" y="377" text-anchor="middle" fill="#4a5068" font-size="11">Next.js + Tailwind</text><text x="703" y="390" text-anchor="middle" fill="#4a5068" font-size="11">Dashboard UI</text>
+<rect x="40" y="420" width="370" height="50" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="225" y="445" text-anchor="middle" fill="#f0f2f8" font-size="14">Grafana + PagerDuty Monitoring</text><text x="225" y="462" text-anchor="middle" fill="#4a5068" font-size="11">Vault NAV alerts, keeper health, DFlow API status, circuit breaker triggers</text>
+<rect x="430" y="420" width="350" height="50" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="605" y="445" text-anchor="middle" fill="#f0f2f8" font-size="14">Proof KYC (DFlow mandatory)</text><text x="605" y="462" text-anchor="middle" fill="#4a5068" font-size="11">One-time per wallet, required for production DFlow access</text>
+</svg>
+</div>
+<h3>Technology stack</h3>
+<table>
+<tr><th>Layer</th><th>Technology</th><th>Purpose</th></tr>
+<tr><td>Smart contracts</td><td>Rust + Anchor</td><td>All on-chain programs</td></tr>
+<tr><td>Strategy engine</td><td>Python 3.11 + httpx</td><td>Position scoring and DFlow API calls</td></tr>
+<tr><td>Keeper bot</td><td>TypeScript + Jito SDK</td><td>Health factor monitoring + liquidations</td></tr>
+<tr><td>Frontend</td><td>Next.js 14 + Tailwind</td><td>Vault dashboard, lending UI</td></tr>
+<tr><td>Data fetching</td><td>SWR + 10s revalidation</td><td>Real-time DFlow price polling</td></tr>
+<tr><td>Base yield</td><td>Kamino SDK</td><td>Idle USDC deployment</td></tr>
+<tr><td>Wallet</td><td>@solana/wallet-adapter</td><td>Phantom, Solflare, Backpack</td></tr>
+<tr><td>KYC</td><td>Proof SDK</td><td>DFlow mandatory identity check</td></tr>
+</table>
+</section>
+<section id="vault">
+<h2><span class="num">03</span> Vault System</h2>
+<p>The vault is CUSP's core capital pool. LPs deposit USDC and receive cUSDC tokens representing their share. The vault deploys capital across multiple yield strategies and returns value to LPs through a rising cUSDC exchange rate - not token emissions.</p>
+<h3>Deposit and withdrawal flow</h3>
+<div class="flow">
+<div class="flow-step"><div class="num">01</div><div class="title">LP deposits USDC</div><div class="desc">Any amount, KYC required</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">02</div><div class="title">Vault mints cUSDC</div><div class="desc">At current exchange rate</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">03</div><div class="title">Capital deployed</div><div class="desc">To yield strategies</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">04</div><div class="title">Yield accrues</div><div class="desc">cUSDC rate increases</div></div>
+</div>
+<h3>Yield sources</h3>
+<table>
+<tr><th>Source</th><th>Target APY</th><th>Risk</th><th>Capital allocation</th></tr>
+<tr><td>High-conviction farming</td><td>8-14%</td><td>Low-medium</td><td>50-60% of vault</td></tr>
+<tr><td>Base yield (Kamino/Aave)</td><td>4-6%</td><td>Very low</td><td>25% reserve (always)</td></tr>
+<tr><td>Lending spread</td><td>3-7%</td><td>Low</td><td>15-25% (Phase 2)</td></tr>
+<tr><td style="color:var(--teal); font-weight:700">Combined target</td><td style="color:var(--teal); font-weight:700">15-25%</td><td>Managed</td><td>100%</td></tr>
+</table>
+<div class="callout amber">
+<div class="label">Reserve buffer rule</div>
+<p>25% of all LP deposits are held as liquid USDC at all times. Never deployed. Never lent. This reserve covers LP withdrawals and serves as first-loss buffer if any strategy generates bad debt. The vault program enforces this programmatically - the <code>allocate</code> instruction rejects any deployment that breaches the 25% floor.</p>
+</div>
+<h3>cUSDC exchange rate</h3>
+<div class="formula">
+<div class="eq">cUSDC rate = Total Vault NAV / Total cUSDC Supply</div>
+<div class="desc">NAV = USDC reserve + DFlow position values + Kamino deposits + outstanding loan principal + accrued interest - insurance allocation</div>
+</div>
+<p>The exchange rate only goes up as the vault earns. When an LP withdraws, they burn cUSDC and receive USDC at the current (higher) exchange rate. Withdrawals above 10% of TVL enter a 48-hour queue.</p>
+<div class="diagram">
+<div class="diagram-label">Vault capital flow</div>
+<svg width="100%" viewBox="0 0 820 340">
+<rect x="20" y="120" width="120" height="50" rx="8" fill="#1c2030" stroke="#10b981" stroke-width="2"/><text x="80" y="142" text-anchor="middle" fill="#10b981" font-size="14">LPs</text><text x="80" y="160" text-anchor="middle" fill="#4a5068" font-size="11">Deposit USDC</text>
+<line x1="140" y1="145" x2="178" y2="145" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="180" y="80" width="200" height="130" rx="12" fill="#00e5cc08" stroke="#00e5cc" stroke-width="2"/><text x="280" y="105" text-anchor="middle" fill="#00e5cc" font-size="15" font-weight="600">CUSP Vault</text><text x="280" y="125" text-anchor="middle" fill="#8b92a8" font-size="12">cusp_vault.so</text><text x="280" y="150" text-anchor="middle" fill="#4a5068" font-size="11">USDC Pool</text><text x="280" y="168" text-anchor="middle" fill="#4a5068" font-size="11">cUSDC Minting</text><text x="280" y="186" text-anchor="middle" fill="#4a5068" font-size="11">NAV Calculation</text>
+<line x1="380" y1="110" x2="440" y2="60" stroke="#f59e0b" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="442" y="30" width="170" height="60" rx="8" fill="#1c2030" stroke="#f59e0b" stroke-width="2"/><text x="527" y="53" text-anchor="middle" fill="#f59e0b" font-size="13">PM Position Farming</text><text x="527" y="73" text-anchor="middle" fill="#4a5068" font-size="11">Buy >85% prob tokens</text><text x="640" y="53" text-anchor="start" fill="#f59e0b" font-size="12" font-weight="600">50-60%</text>
+<line x1="380" y1="145" x2="440" y2="145" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="442" y="115" width="170" height="60" rx="8" fill="#1c2030" stroke="#10b981" stroke-width="2"/><text x="527" y="138" text-anchor="middle" fill="#10b981" font-size="13">Base Yield</text><text x="527" y="158" text-anchor="middle" fill="#4a5068" font-size="11">Kamino / Aave v3</text><text x="640" y="138" text-anchor="start" fill="#10b981" font-size="12" font-weight="600">25%</text>
+<line x1="380" y1="180" x2="440" y2="230" stroke="#8b5cf6" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="442" y="200" width="170" height="60" rx="8" fill="#1c2030" stroke="#8b5cf6" stroke-width="2"/><text x="527" y="223" text-anchor="middle" fill="#8b5cf6" font-size="13">Lending Pool</text><text x="527" y="243" text-anchor="middle" fill="#4a5068" font-size="11">Borrow fee spread</text><text x="640" y="223" text-anchor="start" fill="#8b5cf6" font-size="12" font-weight="600">15-25%</text>
+<line x1="612" y1="60" x2="760" y2="145" stroke="#f59e0b55" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line x1="612" y1="145" x2="760" y2="145" stroke="#10b98155" stroke-width="1.5" stroke-dasharray="4 3"/>
+<line x1="612" y1="230" x2="760" y2="145" stroke="#8b5cf655" stroke-width="1.5" stroke-dasharray="4 3"/>
+<rect x="720" y="120" width="80" height="50" rx="8" fill="#1c2030" stroke="#00e5cc" stroke-width="2"/><text x="760" y="142" text-anchor="middle" fill="#00e5cc" font-size="13">Yield</text><text x="760" y="158" text-anchor="middle" fill="#00e5cc" font-size="12" font-weight="600">15-25%</text>
+<text x="280" y="280" text-anchor="middle" fill="#4a5068" font-size="12">All yield accrues through rising cUSDC exchange rate - not token emissions</text>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1L8 5L1 9" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round"/></marker></defs>
+</svg>
+</div>
+</section>
+<section id="lending">
+<h2><span class="num">04</span> Lending System</h2>
+<p>Traders holding DFlow outcome SPL tokens (YES/NO) can borrow USDC against their positions without closing them. The collateral model is purpose-built for binary outcome assets and uses two inputs no standard lending protocol has ever combined: <strong>implied probability</strong> and <strong>time to resolution</strong>.</p>
+<h3>Collateral factor model</h3>
+<table>
+<tr><th>Token price (probability)</th><th>Time to resolution</th><th>Max LTV</th><th>Borrow rate</th><th>Risk logic</th></tr>
+<tr><td>> $0.85 (>85%)</td><td>< 48 hours</td><td>82%</td><td>3% APY</td><td>Near-resolution, near-certain</td></tr>
+<tr><td>> $0.85 (>85%)</td><td>2-30 days</td><td>70%</td><td>5% APY</td><td>High confidence, meaningful window</td></tr>
+<tr><td>$0.65-$0.85</td><td>2-30 days</td><td>50%</td><td>8% APY</td><td>Medium confidence</td></tr>
+<tr><td>$0.50-$0.65</td><td>Any</td><td>30%</td><td>13% APY</td><td>Low confidence, high rate</td></tr>
+<tr><td style="color:var(--red)">< $0.50</td><td>Any</td><td style="color:var(--red)">Ineligible</td><td>-</td><td style="color:var(--red)">Excluded - too close to coin flip</td></tr>
+</table>
+<h3>End-to-end borrow flow</h3>
+<div class="flow">
+<div class="flow-step"><div class="num">01</div><div class="title">Connect wallet</div><div class="desc">Auto-detect YES/NO tokens via DFlow</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">02</div><div class="title">Select collateral</div><div class="desc">See LTV, rate, expiry time</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">03</div><div class="title">Risk engine check</div><div class="desc">Probability + time + market eligibility</div></div>
+<div class="flow-arrow">&rarr;</div>
+<div class="flow-step"><div class="num">04</div><div class="title">USDC deposited</div><div class="desc">From vault pool to wallet</div></div>
+</div>
+<h3>Health factor calculation</h3>
+<div class="formula">
+<div class="eq">Health Factor = (Collateral Value x LTV x Time Multiplier) / Borrow Amount</div>
+<div class="desc">Liquidation triggers at HF < 1.0 | Warning at HF < 1.10</div>
+</div>
+<p><strong>Time decay multiplier</strong> reduces effective collateral value as resolution approaches, reflecting the increasing binary jump risk:</p>
+<table>
+<tr><th>Time to resolution</th><th>Multiplier</th><th>Effect</th></tr>
+<tr><td>> 14 days</td><td>1.00</td><td>Full value</td></tr>
+<tr><td>7-14 days</td><td>0.92</td><td>8% haircut</td></tr>
+<tr><td>2-7 days</td><td>0.85</td><td>15% haircut</td></tr>
+<tr><td style="color:var(--red)">< 2 hours</td><td style="color:var(--red)">N/A</td><td style="color:var(--red)">Hard expiry fires</td></tr>
+</table>
+</section>
+<section id="liquidation">
+<h2><span class="num">05</span> Liquidation Architecture</h2>
+<p>Binary outcome tokens are the <strong>hardest collateral type in DeFi to liquidate correctly</strong>. Standard lending protocols assume continuous price decline. YES/NO tokens jump instantly from $0.85 to $1.00 or $0.00 at resolution. CUSP handles this with three layered defense mechanisms.</p>
+<div class="callout red">
+<div class="label">The binary jump problem</div>
+<p>A standard liquidation bot monitoring health factors every 60 seconds could see a perfectly healthy position at 11:58 PM and worthless collateral at midnight. No partial liquidation, no Dutch auction, no gradual price recovery is possible. The jump is instantaneous and discontinuous.</p>
+<p><strong>No existing lending protocol - Kamino, MarginFi, Aave - was designed to handle this.</strong> CUSP's liquidation architecture is purpose-built for this asset class.</p>
+</div>
+<div class="diagram">
+<div class="diagram-label">Three lines of defense</div>
+<svg width="100%" viewBox="0 0 820 420">
+<rect x="20" y="10" width="780" height="400" rx="12" fill="none" stroke="#252a3a" stroke-width="1.5" stroke-dasharray="6 4"/>
+<text x="410" y="38" text-anchor="middle" fill="#4a5068" font-size="13">CUSP Liquidation Architecture</text>
+<rect x="40" y="55" width="230" height="340" rx="10" fill="#ef444408" stroke="#ef4444" stroke-width="2"/>
+<text x="155" y="80" text-anchor="middle" fill="#ef4444" font-size="11" font-weight="600">LAYER 1 - PRIMARY</text>
+<text x="155" y="102" text-anchor="middle" fill="#ef4444" font-size="17" font-weight="700">Hard Expiry</text>
+<line x1="55" y1="115" x2="255" y2="115" stroke="#ef444433" stroke-width="1"/>
+<text x="60" y="138" fill="#8b92a8" font-size="12">Time-based, not price-based</text>
+<text x="60" y="160" fill="#8b92a8" font-size="12">2hrs pre-resolution</text>
+<text x="60" y="182" fill="#8b92a8" font-size="12">Stored at loan origination</text>
+<text x="60" y="204" fill="#8b92a8" font-size="12">Enforced in smart contract</text>
+<text x="60" y="226" fill="#8b92a8" font-size="12">~18,000 block runway</text>
+<text x="60" y="248" fill="#8b92a8" font-size="12">Jito bundle execution</text>
+<text x="60" y="270" fill="#8b92a8" font-size="12">Not waivable by anyone</text>
+<text x="60" y="292" fill="#8b92a8" font-size="12">Converts surprise to schedule</text>
+<rect x="55" y="310" width="200" height="40" rx="6" fill="#ef444418" stroke="none"/>
+<text x="155" y="330" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="600">Eliminates binary jump</text>
+<text x="155" y="346" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="600">risk entirely</text>
+<rect x="295" y="55" width="230" height="340" rx="10" fill="#f59e0b08" stroke="#f59e0b" stroke-width="2"/>
+<text x="410" y="80" text-anchor="middle" fill="#f59e0b" font-size="11" font-weight="600">LAYER 2 - SECONDARY</text>
+<text x="410" y="102" text-anchor="middle" fill="#f59e0b" font-size="17" font-weight="700">Health Factor</text>
+<line x1="310" y1="115" x2="510" y2="115" stroke="#f59e0b33" stroke-width="1"/>
+<text x="315" y="138" fill="#8b92a8" font-size="12">60-second monitoring cycle</text>
+<text x="315" y="160" fill="#8b92a8" font-size="12">HF < 1.0 triggers liquidation</text>
+<text x="315" y="182" fill="#8b92a8" font-size="12">HF < 1.10 sends warning</text>
+<text x="315" y="204" fill="#8b92a8" font-size="12">Full close, never partial</text>
+<text x="315" y="226" fill="#8b92a8" font-size="12">Time-decay multiplier applied</text>
+<text x="315" y="248" fill="#8b92a8" font-size="12">5% liquidation bonus</text>
+<text x="315" y="270" fill="#8b92a8" font-size="12">Jito bundle priority</text>
+<text x="315" y="292" fill="#8b92a8" font-size="12">Handles intra-period drift</text>
+<rect x="310" y="310" width="200" height="40" rx="6" fill="#f59e0b18" stroke="none"/>
+<text x="410" y="330" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="600">Catches price drops</text>
+<text x="410" y="346" text-anchor="middle" fill="#f59e0b" font-size="12" font-weight="600">before resolution</text>
+<rect x="550" y="55" width="230" height="340" rx="10" fill="#8b5cf608" stroke="#8b5cf6" stroke-width="2"/>
+<text x="665" y="80" text-anchor="middle" fill="#8b5cf6" font-size="11" font-weight="600">LAYER 3 - UPSTREAM</text>
+<text x="665" y="102" text-anchor="middle" fill="#8b5cf6" font-size="17" font-weight="700">Protocol Risk</text>
+<line x1="565" y1="115" x2="765" y2="115" stroke="#8b5cf633" stroke-width="1"/>
+<text x="570" y="138" fill="#8b92a8" font-size="12">Market selection filter</text>
+<text x="570" y="160" fill="#8b92a8" font-size="12">Sub-50% excluded entirely</text>
+<text x="570" y="182" fill="#8b92a8" font-size="12">25% reserve buffer always</text>
+<text x="570" y="204" fill="#8b92a8" font-size="12">2% insurance fund</text>
+<text x="570" y="226" fill="#8b92a8" font-size="12">Circuit breaker on stress</text>
+<text x="570" y="248" fill="#8b92a8" font-size="12">Market isolation (no cascade)</text>
+<text x="570" y="270" fill="#8b92a8" font-size="12">15% max single market</text>
+<text x="570" y="292" fill="#8b92a8" font-size="12">5-of-9 multisig pause</text>
+<rect x="565" y="310" width="200" height="40" rx="6" fill="#8b5cf618" stroke="none"/>
+<text x="665" y="330" text-anchor="middle" fill="#8b5cf6" font-size="12" font-weight="600">Prevents bad collateral</text>
+<text x="665" y="346" text-anchor="middle" fill="#8b5cf6" font-size="12" font-weight="600">from entering system</text>
+</svg>
+</div>
+<h3>Why full close, not partial liquidation</h3>
+<p>Kamino and MarginFi use partial liquidations - selling 10-20% of collateral to restore health. This works for continuous-price assets where partial sale can restore the collateral ratio. For binary outcome tokens, <strong>partial liquidation is dangerous</strong>: selling 20% of a deteriorating YES position does not change the binary outcome. If the market resolves NO, the remaining 80% goes to zero. Full close on breach is the only safe approach.</p>
+<div class="callout amber">
+<div class="label">Critical user warning - show this on every borrow screen</div>
+<p><strong>Your loan is secured against the current market price of your token, not the final outcome.</strong> If the price drops before resolution, your position may be liquidated even if the market ultimately resolves in your favor. Your loan will be automatically closed at [timestamp] regardless of position health.</p>
+<p>Show the exact liquidation price: <em>"Your position will be liquidated if YES drops below $0.58. Current price: $0.80. Buffer: $0.22."</em></p>
+</div>
+</section>
+<section id="settlement">
+<h2><span class="num">06</span> Settlement Waterfall</h2>
+<p>When a prediction market resolves, the protocol executes a strict settlement order. LP capital is always repaid before any trader equity is returned.</p>
+<div class="diagram">
+<div class="diagram-label">Settlement waterfall - order of operations</div>
+<svg width="100%" viewBox="0 0 820 480">
+<rect x="260" y="10" width="300" height="48" rx="8" fill="#1c2030" stroke="#00e5cc" stroke-width="2"/><text x="410" y="30" text-anchor="middle" fill="#00e5cc" font-size="14" font-weight="600">Market resolves on DFlow</text><text x="410" y="48" text-anchor="middle" fill="#4a5068" font-size="11">Outcome registered on-chain</text>
+<line x1="410" y1="58" x2="410" y2="78" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="260" y="80" width="300" height="48" rx="8" fill="#1c2030" stroke="#8b5cf6" stroke-width="2"/><text x="410" y="100" text-anchor="middle" fill="#8b5cf6" font-size="14">Keeper detects resolution</text><text x="410" y="118" text-anchor="middle" fill="#4a5068" font-size="11">Hard expiry already fired 2hrs prior</text>
+<line x1="410" y1="128" x2="410" y2="148" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="260" y="150" width="300" height="48" rx="8" fill="#1c2030" stroke="#f59e0b" stroke-width="2"/><text x="410" y="170" text-anchor="middle" fill="#f59e0b" font-size="14">Redeem collateral via DFlow</text><text x="410" y="188" text-anchor="middle" fill="#4a5068" font-size="11">Trade API builds redemption tx</text>
+<line x1="410" y1="198" x2="410" y2="218" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="260" y="220" width="300" height="34" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="410" y="242" text-anchor="middle" fill="#f0f2f8" font-size="13" font-weight="600">USDC proceeds received</text>
+<line x1="410" y1="254" x2="410" y2="274" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="80" y="276" width="250" height="40" rx="6" fill="#10b98115" stroke="#10b981" stroke-width="1.5"/><text x="100" y="296" fill="#10b981" font-size="11" font-weight="600">1ST PRIORITY</text><text x="100" y="310" fill="#8b92a8" font-size="12">Repay outstanding loan to LP pool</text>
+<line x1="330" y1="296" x2="410" y2="296" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="80" y="326" width="250" height="40" rx="6" fill="#10b98110" stroke="#10b981" stroke-width="1.5"/><text x="100" y="346" fill="#10b981" font-size="11" font-weight="600">2ND PRIORITY</text><text x="100" y="360" fill="#8b92a8" font-size="12">Repay accrued interest to LP pool</text>
+<line x1="330" y1="346" x2="410" y2="346" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="80" y="376" width="250" height="40" rx="6" fill="#f59e0b10" stroke="#f59e0b" stroke-width="1.5"/><text x="100" y="396" fill="#f59e0b" font-size="11" font-weight="600">3RD PRIORITY</text><text x="100" y="410" fill="#8b92a8" font-size="12">Liquidation bonus (5%) to keeper</text>
+<line x1="330" y1="396" x2="410" y2="396" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="490" y="276" width="250" height="40" rx="6" fill="#3b82f610" stroke="#3b82f6" stroke-width="1.5"/><text x="510" y="296" fill="#3b82f6" font-size="11" font-weight="600">4TH PRIORITY</text><text x="510" y="310" fill="#8b92a8" font-size="12">Remaining equity to borrower</text>
+<line x1="490" y1="296" x2="410" y2="296" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="490" y="326" width="250" height="40" rx="6" fill="#ef444410" stroke="#ef4444" stroke-width="1.5"/><text x="510" y="346" fill="#ef4444" font-size="11" font-weight="600">SHORTFALL</text><text x="510" y="360" fill="#8b92a8" font-size="12">Insurance fund absorbs bad debt</text>
+<line x1="490" y1="346" x2="410" y2="346" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<rect x="490" y="376" width="250" height="40" rx="6" fill="#ef444408" stroke="#ef4444" stroke-width="1"/><text x="510" y="396" fill="#ef4444" font-size="11">LAST RESORT</text><text x="510" y="410" fill="#8b92a8" font-size="12">Reserve buffer covers remainder</text>
+<line x1="490" y1="396" x2="410" y2="396" stroke="#4a5068" stroke-width="1" stroke-dasharray="3 3"/>
+<text x="410" y="460" text-anchor="middle" fill="#00e5cc" font-size="13" font-weight="600">Rule: LP capital is repaid before any equity returns to borrower. Always.</text>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1L8 5L1 9" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round"/></marker></defs>
+</svg>
+</div>
+</section>
+<section id="dflow">
+<h2><span class="num">07</span> DFlow Integration Layer</h2>
+<p>Every technical decision in CUSP is designed around DFlow's existing API surface. DFlow provides market access and routing into Kalshi without CUSP rebuilding exchange infrastructure. Outcome SPL tokens - the tokenized YES/NO positions - are the core asset primitive the entire protocol is built on.</p>
+<h3>API endpoints consumed</h3>
+<table>
+<tr><th>Endpoint</th><th>Purpose in CUSP</th><th>Call frequency</th></tr>
+<tr><td><code>GET /markets</code></td><td>All active markets with yesMint, noMint, prices, resolution timestamps, categories</td><td>Every 10 minutes (strategy engine)</td></tr>
+<tr><td><code>GET /positions</code></td><td>All outcome tokens in a connected wallet - used for lending collateral detection</td><td>On wallet connect + 10s polling</td></tr>
+<tr><td><code>POST /trade/buy</code></td><td>Build tx to purchase YES/NO tokens for vault strategy positions</td><td>Per strategy execution</td></tr>
+<tr><td><code>POST /trade/redeem</code></td><td>Build tx to redeem winning tokens for USDC at resolution</td><td>At resolution + liquidation</td></tr>
+</table>
+<div class="callout green">
+<div class="label">Why outcome SPL tokens matter</div>
+<p>DFlow issues real SPL tokens on Solana for every Kalshi market position. These are not synthetic wrappers or soft pegs - they are standard Solana tokens that can be transferred, deposited into programs, and used as collateral. Without this primitive, CUSP cannot exist. DFlow's Trade API returns <strong>ready-to-sign Solana transactions</strong>, which means CUSP's strategy engine never touches an order book, manages slippage, or handles market microstructure. This reduces engineering complexity by approximately 80%.</p>
+</div>
+</section>
+<section id="risk">
+<h2><span class="num">08</span> Protocol Risk Management</h2>
+<h3>Risk parameters</h3>
+<table>
+<tr><th>Parameter</th><th>Value</th><th>Enforced by</th></tr>
+<tr><td>USDC reserve buffer</td><td>25% of TVL always liquid</td><td>cusp_vault.so - allocate instruction</td></tr>
+<tr><td>Max single market exposure</td><td>15% of total collateral</td><td>collateral_registry - per-market cap</td></tr>
+<tr><td>Insurance fund accumulation</td><td>2% of all protocol fees</td><td>fee_router.so - auto-distribution</td></tr>
+<tr><td>Minimum probability for collateral</td><td>50% implied probability</td><td>cusp_lend.so - eligibility check</td></tr>
+<tr><td>Minimum time to resolution</td><td>48 hours</td><td>cusp_lend.so - DFlow timestamp check</td></tr>
+<tr><td>Hard expiry window</td><td>2 hours pre-resolution</td><td>hard_expiry.so - immutable</td></tr>
+<tr><td>Health factor check interval</td><td>60 seconds</td><td>Keeper bot - off-chain</td></tr>
+<tr><td>Liquidation execution</td><td>Jito bundle with priority fee</td><td>Keeper bot - guaranteed inclusion</td></tr>
+<tr><td>Withdrawal queue threshold</td><td>> 10% of TVL</td><td>cusp_vault.so - 48hr queue</td></tr>
+<tr><td>Emergency pause</td><td>5-of-9 multisig</td><td>multisig.so - permanent</td></tr>
+</table>
+<h3>Circuit breaker conditions</h3>
+<p>The protocol automatically pauses new loan issuance (but not existing position monitoring) if any of these conditions are met:</p>
+<ul>
+<li><strong>Insurance fund below minimum threshold</strong> - protocol is absorbing unexpected losses</li>
+<li><strong>Total outstanding loans exceed 70% of pool TVL</strong> - over-leveraged system</li>
+<li><strong>DFlow API errors for 5+ consecutive minutes</strong> - cannot price collateral</li>
+<li><strong>Single market exceeds 15% of total collateral</strong> - concentration risk</li>
+</ul>
+<h3>Market isolation</h3>
+<p>Each DFlow market gets its own isolated risk parameters in the collateral registry. A failure in one market - unexpected early resolution, liquidity gap, Kalshi data delay - cannot cascade into adjacent positions. Bad debt from one market hits that market's reserve allocation first, then the insurance fund. It never touches LP capital deployed against unrelated markets.</p>
+</section>
+<section id="contracts">
+<h2><span class="num">09</span> Smart Contract Architecture</h2>
+<p>Minimal on-chain surface area. Every instruction that is not strictly necessary is deferred or moved off-chain. Complex programs are attack surface.</p>
+<table>
+<tr><th>Program</th><th>Responsibility</th><th>Key instructions</th><th>Upgradeable</th></tr>
+<tr><td><code>cusp_vault.so</code></td><td>USDC vault, cUSDC minting, NAV tracking, strategy allocation</td><td>deposit, withdraw, allocate, update_nav, set_strategy</td><td>Yes - 48hr timelock</td></tr>
+<tr><td><code>cusp_lend.so</code></td><td>Loan origination, health factor, liquidation, hard expiry</td><td>open_loan, add_collateral, repay, liquidate, force_close</td><td>Yes - 48hr timelock</td></tr>
+<tr><td><code>collateral_registry</code></td><td>Whitelist of DFlow markets with per-market risk params</td><td>register_market, update_factor, delist, check_eligible</td><td>Yes - multisig only</td></tr>
+<tr><td><code>fee_router.so</code></td><td>Collect fees, distribute to vault/insurance/treasury</td><td>collect_fee, distribute, sweep_insurance</td><td>Yes - 48hr timelock</td></tr>
+<tr><td><code>hard_expiry.so</code></td><td>Store resolution timestamps, enforce 2hr pre-close</td><td>set_expiry, check_expiry, trigger_close</td><td>Yes - 48hr timelock</td></tr>
+<tr><td><code>multisig.so</code></td><td>5-of-9 emergency pause, upgrade authority</td><td>pause, unpause, execute_upgrade</td><td>No - permanent</td></tr>
+</table>
+<h3>Security measures</h3>
+<ul>
+<li><strong>48-hour upgrade timelock</strong> on all upgradeable programs - users can exit before changes take effect</li>
+<li><strong>5-of-9 multisig</strong> for emergency pause - geographically distributed signers on Ledger hardware</li>
+<li><strong>Sherlock audit contest</strong> before mainnet launch</li>
+<li><strong>Immunefi bug bounty</strong> from day one - $200K max for critical findings</li>
+<li><strong>$1M TVL hard cap</strong> enforced in contract at launch, raised monthly if clean</li>
+</ul>
+</section>
+<section id="fees">
+<h2><span class="num">10</span> Fee Model</h2>
+<table>
+<tr><th>Fee type</th><th>Rate</th><th>Paid by</th><th>Distribution</th></tr>
+<tr><td>Vault management fee</td><td>1.0% per year on TVL</td><td>LP depositors</td><td>100% to protocol treasury</td></tr>
+<tr><td>Vault performance fee</td><td>15% of yield above 8% APY</td><td>LP depositors (at withdrawal)</td><td>100% to protocol treasury</td></tr>
+<tr><td>Lending origination fee</td><td>0.5% of loan amount</td><td>Borrowers</td><td>80% to LP pool, 20% to treasury</td></tr>
+<tr><td>Lending interest spread</td><td>2.0% APY above LP base rate</td><td>Borrowers</td><td>Spread to treasury, base to LPs</td></tr>
+<tr><td>Liquidation bonus</td><td>5% of liquidated collateral</td><td>Liquidated borrower</td><td>80% to keeper, 20% to insurance</td></tr>
+<tr><td>Vault entry fee</td><td>0.1% on deposit</td><td>New LP depositors</td><td>50% to existing LPs, 50% to treasury</td></tr>
+</table>
+<div class="formula">
+<div class="eq">Net LP Yield = Borrow Fees + Liquidation Penalties + Idle Reserve Yield + Close Fees - Loss Reserve - Protocol Fee</div>
+</div>
+</section>
+<section id="example">
+<h2><span class="num">11</span> End-to-End Worked Example</h2>
+<div class="callout">
+<div class="label" style="color:var(--teal)">Scenario setup</div>
+<p><strong>Market:</strong> "Will BTC exceed $120K by June 30, 2026?" on Kalshi via DFlow</p>
+<p><strong>Trader:</strong> Holds 1,000 YES tokens at $0.88 each ($880 total value)</p>
+<p><strong>LTV:</strong> 35% (conservative beta parameter)</p>
+<p><strong>Resolution:</strong> 10 days away</p>
+</div>
+<div class="diagram">
+<div class="diagram-label">Worked example - two outcomes</div>
+<svg width="100%" viewBox="0 0 820 520">
+<rect x="180" y="10" width="460" height="70" rx="10" fill="#3b82f610" stroke="#3b82f6" stroke-width="2"/><text x="410" y="35" text-anchor="middle" fill="#3b82f6" font-size="15" font-weight="600">Trader opens loan</text><text x="410" y="58" text-anchor="middle" fill="#8b92a8" font-size="12">1,000 YES at $0.88 = $880 value | 35% LTV | Borrows $308 USDC | HF = 1.28</text>
+<line x1="410" y1="80" x2="410" y2="100" stroke="#4a5068" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="220" y="102" width="380" height="40" rx="8" fill="#1c2030" stroke="#252a3a" stroke-width="2"/><text x="410" y="122" text-anchor="middle" fill="#8b92a8" font-size="13">Days 1-4: Keeper monitors every 60s. HF stable at 1.20-1.30</text>
+<line x1="410" y1="142" x2="410" y2="165" stroke="#4a5068" stroke-width="2"/>
+<line x1="410" y1="165" x2="200" y2="165" stroke="#ef4444" stroke-width="2"/>
+<line x1="200" y1="165" x2="200" y2="185" stroke="#ef4444" stroke-width="2" marker-end="url(#ah)"/>
+<line x1="410" y1="165" x2="620" y2="165" stroke="#10b981" stroke-width="2"/>
+<line x1="620" y1="165" x2="620" y2="185" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<line x1="410" y1="185" x2="410" y2="500" stroke="#252a3a" stroke-width="1" stroke-dasharray="4 4"/>
+<rect x="55" y="187" width="290" height="50" rx="8" fill="#ef444410" stroke="#ef4444" stroke-width="2"/><text x="200" y="207" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="600">Path A: YES price drops to $0.69</text><text x="200" y="227" text-anchor="middle" fill="#8b92a8" font-size="11">Day 5 - sentiment shift</text>
+<line x1="200" y1="237" x2="200" y2="257" stroke="#ef4444" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="55" y="259" width="290" height="40" rx="8" fill="#1c2030" stroke="#ef4444" stroke-width="1.5"/><text x="200" y="280" text-anchor="middle" fill="#8b92a8" font-size="12">HF = (690 x 0.35 x 0.92) / 308 = 0.72</text>
+<line x1="200" y1="299" x2="200" y2="319" stroke="#ef4444" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="55" y="321" width="290" height="40" rx="8" fill="#1c2030" stroke="#ef4444" stroke-width="1.5"/><text x="200" y="342" text-anchor="middle" fill="#ef4444" font-size="13">Keeper fires: Jito bundle liquidation</text>
+<line x1="200" y1="361" x2="200" y2="381" stroke="#ef4444" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="55" y="383" width="290" height="50" rx="8" fill="#ef444410" stroke="#ef4444" stroke-width="2"/><text x="200" y="403" text-anchor="middle" fill="#ef4444" font-size="14" font-weight="600">Collateral sold at $0.69</text><text x="200" y="423" text-anchor="middle" fill="#8b92a8" font-size="11">$690 - $308 loan - $35 liq bonus = $347 equity</text>
+<rect x="55" y="450" width="290" height="40" rx="8" fill="#ef444418" stroke="#ef4444" stroke-width="1"/><text x="200" y="466" text-anchor="middle" fill="#ef4444" font-size="12" font-weight="600">Trader was right. Still got liquidated.</text><text x="200" y="482" text-anchor="middle" fill="#8b92a8" font-size="11">Market resolved YES on Day 10</text>
+<rect x="475" y="187" width="290" height="50" rx="8" fill="#10b98110" stroke="#10b981" stroke-width="2"/><text x="620" y="207" text-anchor="middle" fill="#10b981" font-size="14" font-weight="600">Path B: Price holds, resolves YES</text><text x="620" y="227" text-anchor="middle" fill="#8b92a8" font-size="11">Day 8 - hard expiry fires</text>
+<line x1="620" y1="237" x2="620" y2="257" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="475" y="259" width="290" height="40" rx="8" fill="#1c2030" stroke="#10b981" stroke-width="1.5"/><text x="620" y="280" text-anchor="middle" fill="#8b92a8" font-size="12">All loans force-closed 2hrs pre-resolution</text>
+<line x1="620" y1="299" x2="620" y2="319" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="475" y="321" width="290" height="40" rx="8" fill="#1c2030" stroke="#10b981" stroke-width="1.5"/><text x="620" y="342" text-anchor="middle" fill="#10b981" font-size="13">Day 10: Resolves at $1.00 per token</text>
+<line x1="620" y1="361" x2="620" y2="381" stroke="#10b981" stroke-width="2" marker-end="url(#ah)"/>
+<rect x="475" y="383" width="290" height="50" rx="8" fill="#10b98110" stroke="#10b981" stroke-width="2"/><text x="620" y="403" text-anchor="middle" fill="#10b981" font-size="14" font-weight="600">$1,000 payout</text><text x="620" y="423" text-anchor="middle" fill="#8b92a8" font-size="11">$1,000 - $308 loan - $5 interest = $687 equity</text>
+<rect x="475" y="450" width="290" height="40" rx="8" fill="#10b98118" stroke="#10b981" stroke-width="1"/><text x="620" y="466" text-anchor="middle" fill="#10b981" font-size="12" font-weight="600">Trader was right. Full equity returned.</text><text x="620" y="482" text-anchor="middle" fill="#8b92a8" font-size="11">Kept position + earned conviction</text>
+<defs><marker id="ah" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="6" markerHeight="6" orient="auto-start-reverse"><path d="M1 1L8 5L1 9" fill="none" stroke="context-stroke" stroke-width="2" stroke-linecap="round"/></marker></defs>
+</svg>
+</div>
+<p>Both paths demonstrate the protocol working as designed. Path A is not a failure - it is the correct behavior of an overcollateralized lending system protecting LP capital. The trader's conviction about the outcome does not change the collateral's current market value. CUSP makes this tradeoff explicit before every borrow.</p>
+</section>
+</div>
+<footer>
+<div class="container">
+<p style="margin-bottom:8px"><strong style="color:var(--teal)">CUSP</strong> - The DeFi capital layer for prediction markets on Solana</p>
+<p>Unlocking yield, credit, leverage, and portfolio infrastructure for every position</p>
+<p style="margin-top:12px"><a href="https://cusp.fi">cusp.fi</a> - Launching Q3 2026</p>
+</div>
+</footer>
+</body>
+</html>

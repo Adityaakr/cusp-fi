@@ -8,6 +8,7 @@ const RPC_URL = SOLANA_RPC_URL;
 const USDC_MINT = USDC_MINT_ADDRESS;
 
 const navLinks = [
+  { path: "/overview.html", label: "Overview", external: true },
   { path: "/vault", label: "Vault" },
   { path: "/lend", label: "Lend" },
   { path: "/markets", label: "Markets" },
@@ -104,19 +105,29 @@ const Navbar = () => {
           </Link>
 
           <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                  location.pathname === link.path
-                    ? "text-cusp-teal bg-cusp-teal/5"
-                    : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) =>
+              (link as any).external ? (
+                <a
+                  key={link.path}
+                  href={link.path}
+                  className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
+                    location.pathname === link.path
+                      ? "text-cusp-teal bg-cusp-teal/5"
+                      : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
           </div>
         </div>
 
@@ -162,19 +173,29 @@ const Navbar = () => {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-bg-0/95 backdrop-blur-md">
           <div className="px-4 py-3 flex flex-col gap-1">
-            {navLinks.map((link) => (
-              <Link
-                key={link.path}
-                to={link.path}
-                className={`px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                  location.pathname === link.path
-                    ? "text-cusp-teal bg-cusp-teal/10 font-medium"
-                    : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
-                }`}
-              >
-                {link.label}
-              </Link>
-            ))}
+            {navLinks.map((link) =>
+              (link as any).external ? (
+                <a
+                  key={link.path}
+                  href={link.path}
+                  className="px-3 py-2.5 text-sm rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                >
+                  {link.label}
+                </a>
+              ) : (
+                <Link
+                  key={link.path}
+                  to={link.path}
+                  className={`px-3 py-2.5 text-sm rounded-lg transition-colors ${
+                    location.pathname === link.path
+                      ? "text-cusp-teal bg-cusp-teal/10 font-medium"
+                      : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                  }`}
+                >
+                  {link.label}
+                </Link>
+              )
+            )}
           </div>
           {isConnected && sol !== null && (
             <div className="px-4 pb-3 pt-1 border-t border-border/50">
