@@ -104,7 +104,7 @@ const Index = () => {
                   <span className="text-[10px] font-mono text-cusp-green">● Live</span>
                 </div>
                 <div className="text-4xl font-mono font-semibold text-cusp-amber mb-6">
-                  <YieldCounter value={15.5} suffix="%" decimals={1} />
+                  <YieldCounter value={19.4} suffix="%" decimals={1} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
@@ -186,9 +186,8 @@ const Index = () => {
               <button
                 key={t}
                 onClick={() => setActiveTab(t)}
-                className={`px-4 py-2 text-sm rounded-md transition-colors ${
-                  activeTab === t ? "bg-bg-2 text-cusp-teal border border-active" : "text-muted-foreground hover:text-foreground"
-                }`}
+                className={`px-4 py-2 text-sm rounded-md transition-colors ${activeTab === t ? "bg-bg-2 text-cusp-teal border border-active" : "text-muted-foreground hover:text-foreground"
+                  }`}
               >
                 {t === "vault" ? "Cusp Vault" : "Cusp Lend"}
               </button>
@@ -266,7 +265,7 @@ const Index = () => {
                     : `$${(totalVolume / 1_000_000).toFixed(1)}M`,
               },
               { label: "Active Markets", value: "150" },
-              { label: "Vault APY (est.)", value: "15.5%" },
+              { label: "Vault APY (est.)", value: "19.4%" },
               { label: "Platform", value: "DFlow + Kalshi" },
             ].map((stat) => (
               <div key={stat.label} className="text-center">
