@@ -11,7 +11,7 @@ const Footer = () => {
               <span className="font-semibold text-foreground text-sm">Cusp</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed">
-              The yield and lending layer for prediction market outcome tokens.
+              The DeFi layer for prediction markets on @Solana. Earn yield, Lend, borrow & leverage outcome tokens
             </p>
           </div>
 
