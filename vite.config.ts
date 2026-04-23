@@ -44,26 +44,58 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
-  server: {
-    host: "::",
-    port: 8080,
-    hmr: {
-      overlay: false,
+    server: {
+      host: "::",
+      port: 8080,
+      hmr: {
+        overlay: false,
+      },
+      proxy: dflowProxy,
     },
-    proxy: dflowProxy,
-  },
-  plugins: [
-    react(),
-    mode === "development" && componentTagger(),
-    nodePolyfills({
-      include: ["buffer", "crypto", "stream", "util"],
-      globals: { Buffer: true, global: true, process: true },
-    }),
-  ].filter(Boolean),
-  resolve: {
-    alias: {
-      "@": path.resolve(__dirname, "./src"),
+    plugins: [
+      react(),
+      mode === "development" && componentTagger(),
+      nodePolyfills({
+        include: ["buffer", "crypto", "stream", "util", "vm"],
+        globals: { Buffer: true, global: true, process: true },
+      }),
+    ].filter(Boolean),
+    resolve: {
+      alias: {
+        "@": path.resolve(__dirname, "./src"),
+      },
     },
-  },
-};
+    build: {
+      rollupOptions: {
+        output: {
+          manualChunks(id) {
+            if (!id.includes("node_modules")) return undefined;
+
+            if (id.includes("@solana") || id.includes("@coral-xyz") || id.includes("bs58")) {
+              return "vendor-solana";
+            }
+
+            if (id.includes("@phantom")) {
+              return "vendor-phantom";
+            }
+
+            if (id.includes("@radix-ui") || id.includes("lucide-react")) {
+              return "vendor-ui";
+            }
+
+            if (
+              id.includes("react") ||
+              id.includes("react-dom") ||
+              id.includes("react-router-dom") ||
+              id.includes("@tanstack/react-query")
+            ) {
+              return "vendor-react";
+            }
+
+            return "vendor";
+          },
+        },
+      },
+    },
+  };
 });

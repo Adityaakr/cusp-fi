@@ -414,11 +414,7 @@ const Index = () => {
               <span className="font-mono text-cusp-teal font-semibold">{(waitlistCount + 100).toLocaleString()}</span> people on the waitlist
             </p>
           )}
-<<<<<<< HEAD
-          <h2 className="text-xl text-foreground mb-2">Join the Alpha</h2>
-=======
           <h2 className="text-xl font-semibold text-foreground mb-2">Join the Alpha</h2>
->>>>>>> 02bc25d6080be91ae93e61797fde16f3f5a17c86
           <p className="text-sm text-muted-foreground mb-6">Early access to Cusp. We'll reach out when you're in.</p>
           {waitlistStatus === "success" ? (
             <p className="text-sm text-cusp-green font-medium">You're in. We'll be in touch.</p>
@@ -447,28 +443,6 @@ const Index = () => {
           )}
         </div>
       </section>
-<<<<<<< HEAD
-=======
-
-      {/* Final CTA */}
-      <section className="border-t border-border relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/8 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 text-center relative">
-          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3 tracking-tight">
-            Idle capital ends here
-          </h2>
-          <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
-            Your Kalshi positions can earn 15–25% APY while waiting to resolve. Cusp makes it happen.
-          </p>
-          <Link
-            to="/vault"
-            className="inline-flex items-center px-8 py-3 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
-          >
-            Launch App →
-          </Link>
-        </div>
-      </section>
->>>>>>> 02bc25d6080be91ae93e61797fde16f3f5a17c86
     </Layout>
   );
 };
