@@ -37,12 +37,8 @@ async function main() {
 
   const connection = new Connection(DEVNET_RPC, "confirmed");
 
-  // Load IDL
   const idlPath = path.resolve(__dirname, "../programs/target/deploy/cusp_vault.json");
-  let idl: any;
-  if (fs.existsSync(idlPath)) {
-    idl = JSON.parse(fs.readFileSync(idlPath, "utf-8"));
-  } else {
+  if (!fs.existsSync(idlPath)) {
     console.log("No IDL file found, using raw transactions...\n");
   }
 

@@ -25,7 +25,7 @@ export function useDflowMarkets(params?: {
   status?: string;
   limit?: number;
   eventTicker?: string;
-  refetchInterval?: number;
+  refetchInterval?: number | false;
 }) {
   return useQuery({
     queryKey: [...QUERY_KEYS.markets, params ?? {}],
@@ -71,7 +71,7 @@ export function useDflowTags() {
   });
 }
 
-export function useDflowMarket(ticker: string | undefined, options?: { refetchInterval?: number }) {
+export function useDflowMarket(ticker: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: [...QUERY_KEYS.market, ticker ?? ""],
     queryFn: async () => {
@@ -101,7 +101,7 @@ const TIMEFRAME_CONFIG: Record<
 export function useDflowCandlesticks(
   ticker: string | undefined,
   timeframe: CandlestickTimeframe = "1Y",
-  options?: { refetchInterval?: number }
+  options?: { refetchInterval?: number | false }
 ) {
   return useQuery({
     queryKey: [...QUERY_KEYS.candlesticks, ticker ?? "", timeframe],
@@ -122,7 +122,7 @@ export function useDflowCandlesticks(
   });
 }
 
-export function useDflowOrderbook(ticker: string | undefined, options?: { refetchInterval?: number }) {
+export function useDflowOrderbook(ticker: string | undefined, options?: { refetchInterval?: number | false }) {
   return useQuery({
     queryKey: [...QUERY_KEYS.orderbook, ticker ?? ""],
     queryFn: async () => {

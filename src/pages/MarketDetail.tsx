@@ -110,10 +110,10 @@ const MarketDetail = () => {
     );
   }, [portfolio?.positions, ticker]);
 
-  // Tick every second when orderbook exists so WS freshness check stays current
-  const [orderbookTick, setOrderbookTick] = useState(0);
+  // Wall clock for WS freshness (updates every second so we re-evaluate without a dummy hook dep)
+  const [orderbookClock, setOrderbookClock] = useState(() => Date.now());
   useEffect(() => {
-    const id = setInterval(() => setOrderbookTick((t) => t + 1), 1000);
+    const id = setInterval(() => setOrderbookClock(Date.now()), 1000);
     return () => clearInterval(id);
   }, []);
 
@@ -122,18 +122,18 @@ const MarketDetail = () => {
     const wsFresh =
       liveOrderbook &&
       orderbookUpdatedAt &&
-      Date.now() - orderbookUpdatedAt < 45_000 &&
+      orderbookClock - orderbookUpdatedAt < 45_000 &&
       Object.keys(liveOrderbook.yes_bids).length + Object.keys(liveOrderbook.no_bids).length > 0;
     if (wsFresh) return liveOrderbook;
     return restOrderbook
       ? { yes_bids: restOrderbook.yes_bids ?? {}, no_bids: restOrderbook.no_bids ?? {} }
       : null;
-  }, [liveOrderbook, orderbookUpdatedAt, restOrderbook, orderbookTick]);
+  }, [liveOrderbook, orderbookUpdatedAt, restOrderbook, orderbookClock]);
 
   const orderbookFromWs =
     liveOrderbook &&
     orderbookUpdatedAt &&
-    Date.now() - orderbookUpdatedAt < 45_000 &&
+    orderbookClock - orderbookUpdatedAt < 45_000 &&
     Object.keys(liveOrderbook.yes_bids).length + Object.keys(liveOrderbook.no_bids).length > 0;
 
   const yesBidsRaw = orderbook ? formatOrderbookEntries(orderbook.yes_bids) : [];
@@ -236,7 +236,7 @@ const MarketDetail = () => {
       return () => clearTimeout(t);
     }
     prevPricesRef.current = key;
-  }, [livePrices?.yesAsk, livePrices?.yesBid, livePrices?.noAsk, livePrices?.noBid]);
+  }, [livePrices]);
 
   const handleTrade = async () => {
     if (!market || !solanaAddress) {
@@ -337,7 +337,7 @@ const MarketDetail = () => {
         throw signErr;
       }
 
-      const sig = typeof result === "string" ? result : result?.signature ?? result?.hash ?? "";
+      const sig = typeof result === "string" ? result : result?.signature ?? "";
 
       if (supabase && sig) {
         try {
@@ -949,7 +949,7 @@ const MarketDetail = () => {
                 <h4 className="text-xs font-medium text-cusp-green mb-3">{market.yesLabel || "YES"} Bids</h4>
                 <div className="space-y-0.5 max-h-52 overflow-y-auto">
                   {yesBids.length > 0 ? (
-                    yesBids.map(({ price, quantity, pct }) => (
+                    yesBids.map(({ price, qtyNum, pct }) => (
                       <div
                         key={price}
                         className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
@@ -962,7 +962,7 @@ const MarketDetail = () => {
                           ${price}
                         </span>
                         <span className="relative text-xs text-muted-foreground font-mono">
-                          {Number(quantity).toLocaleString()}
+                          {qtyNum.toLocaleString()}
                         </span>
                       </div>
                     ))
@@ -975,7 +975,7 @@ const MarketDetail = () => {
                 <h4 className="text-xs font-medium text-cusp-red mb-3">{market.noLabel || "NO"} Bids</h4>
                 <div className="space-y-0.5 max-h-52 overflow-y-auto">
                   {noBids.length > 0 ? (
-                    noBids.map(({ price, quantity, pct }) => (
+                    noBids.map(({ price, qtyNum, pct }) => (
                       <div
                         key={price}
                         className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
@@ -988,7 +988,7 @@ const MarketDetail = () => {
                           ${price}
                         </span>
                         <span className="relative text-xs text-muted-foreground font-mono">
-                          {Number(quantity).toLocaleString()}
+                          {qtyNum.toLocaleString()}
                         </span>
                       </div>
                     ))

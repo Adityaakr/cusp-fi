@@ -82,8 +82,9 @@ async function main() {
     } else {
       console.log(`Target already has ${(targetBalance / LAMPORTS_PER_SOL).toFixed(3)} SOL — skipping transfer.`);
     }
-  } catch (e: any) {
-    console.log(`SOL transfer skipped: ${e.message}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`SOL transfer skipped: ${msg}`);
   }
 
   // Create ATA if needed and mint

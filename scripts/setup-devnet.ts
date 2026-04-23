@@ -57,8 +57,9 @@ async function main() {
     );
     await connection.confirmTransaction(sig, "confirmed");
     console.log("   Airdrop confirmed!");
-  } catch (e: any) {
-    console.log(`   Airdrop failed (may be rate-limited): ${e.message}`);
+  } catch (e: unknown) {
+    const msg = e instanceof Error ? e.message : String(e);
+    console.log(`   Airdrop failed (may be rate-limited): ${msg}`);
     console.log("   You can manually airdrop: solana airdrop 2");
   }
 

@@ -177,7 +177,7 @@ export function useLeveragedTrade() {
       const signResult = await solana.signAndSendTransaction(tx);
       const sig = typeof signResult === "string"
         ? signResult
-        : signResult?.signature ?? signResult?.hash ?? "";
+        : signResult?.signature ?? "";
 
       // 4. Record trade execution
       setStatus("confirming");

@@ -21,6 +21,7 @@ export interface Database {
           tier?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       protocol_state: {
         Row: {
@@ -36,7 +37,7 @@ export interface Database {
           vault_public_key: string | null;
           updated_at: string;
         };
-        Insert: never;
+        Insert: Record<string, never>;
         Update: {
           total_tvl?: number;
           cusdc_exchange_rate?: number;
@@ -49,6 +50,7 @@ export interface Database {
           vault_public_key?: string | null;
           updated_at?: string;
         };
+        Relationships: [];
       };
       deposits: {
         Row: {
@@ -59,6 +61,7 @@ export interface Database {
           exchange_rate: number;
           tx_signature: string | null;
           status: "pending" | "confirmed" | "failed";
+          deposit_type: string;
           created_at: string;
         };
         Insert: {
@@ -69,11 +72,13 @@ export interface Database {
           exchange_rate: number;
           tx_signature?: string | null;
           status?: "pending" | "confirmed" | "failed";
+          deposit_type: string;
         };
         Update: {
           tx_signature?: string | null;
           status?: "pending" | "confirmed" | "failed";
         };
+        Relationships: [];
       };
       withdrawals: {
         Row: {
@@ -82,7 +87,7 @@ export interface Database {
           cusdc_amount: number;
           usdc_amount: number;
           exchange_rate: number;
-          withdrawal_type: "instant" | "queued";
+          withdrawal_type: "instant" | "queued" | "vault";
           status: "pending" | "processing" | "completed" | "failed";
           tx_signature: string | null;
           created_at: string;
@@ -94,15 +99,17 @@ export interface Database {
           cusdc_amount: number;
           usdc_amount: number;
           exchange_rate: number;
-          withdrawal_type: "instant" | "queued";
+          withdrawal_type: "instant" | "queued" | "vault";
           status?: "pending" | "processing" | "completed" | "failed";
           tx_signature?: string | null;
+          completed_at?: string | null;
         };
         Update: {
           status?: "pending" | "processing" | "completed" | "failed";
           tx_signature?: string | null;
           completed_at?: string | null;
         };
+        Relationships: [];
       };
       positions: {
         Row: {
@@ -137,6 +144,7 @@ export interface Database {
           settled_at?: string | null;
           settlement_payout?: number | null;
         };
+        Relationships: [];
       };
       leveraged_trades: {
         Row: {
@@ -169,6 +177,7 @@ export interface Database {
           status?: "active" | "liquidated" | "closed";
           closed_at?: string | null;
         };
+        Relationships: [];
       };
       trade_executions: {
         Row: {
@@ -200,6 +209,7 @@ export interface Database {
           dflow_order_status?: string | null;
           status?: "pending" | "submitted" | "confirmed" | "failed";
         };
+        Relationships: [];
       };
       fees: {
         Row: {
@@ -217,7 +227,8 @@ export interface Database {
           source_id?: string | null;
           source_type?: string | null;
         };
-        Update: never;
+        Update: Record<string, never>;
+        Relationships: [];
       };
       yield_distributions: {
         Row: {
@@ -243,7 +254,8 @@ export interface Database {
           exchange_rate_before: number;
           exchange_rate_after: number;
         };
-        Update: never;
+        Update: Record<string, never>;
+        Relationships: [];
       };
       markets_cache: {
         Row: {
@@ -283,12 +295,64 @@ export interface Database {
           data_json?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
+      waitlist: {
+        Row: {
+          id: string;
+          email: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          email: string;
+        };
+        Update: {
+          email?: string;
+        };
+        Relationships: [];
+      };
+    };
+    Views: {
+      [_ in never]: never;
     };
     Functions: {
       get_waitlist_count: {
         Args: Record<string, never>;
         Returns: number;
+      };
+      get_or_create_user: {
+        Args: { p_wallet_address: string };
+        Returns: string;
+      };
+      update_protocol_after_deposit: {
+        Args: { p_amount_usdc: number; p_cusdc_minted: number };
+        Returns: undefined;
+      };
+      get_exchange_rate_history: {
+        Args: { p_days: number };
+        Returns: {
+          exchange_rate: number;
+          total_tvl: number;
+          snapped_at: string;
+        }[];
+      };
+      mark_user_kyc_verified: {
+        Args: { p_wallet_address: string };
+        Returns: undefined;
+      };
+      record_direct_trade: {
+        Args: {
+          p_wallet_address: string;
+          p_market_ticker: string;
+          p_side: "YES" | "NO";
+          p_usdc_amount: number;
+          p_output_mint: string;
+          p_tx_signature: string;
+          p_entry_price: number;
+          p_quantity: number;
+        };
+        Returns: undefined;
       };
     };
   };

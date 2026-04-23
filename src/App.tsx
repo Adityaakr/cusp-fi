@@ -10,6 +10,7 @@ import Lend from "./pages/Lend";
 import Markets from "./pages/Markets";
 import MarketDetail from "./pages/MarketDetail";
 import Portfolio from "./pages/Portfolio";
+import Docs from "./pages/Docs";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
 
@@ -29,6 +30,7 @@ const App = () => (
             <Route path="/markets" element={<Markets />} />
             <Route path="/markets/:ticker" element={<MarketDetail />} />
             <Route path="/portfolio" element={<Portfolio />} />
+            <Route path="/docs" element={<Docs />} />
             <Route path="/auth/callback" element={<AuthCallback />} />
             <Route path="*" element={<NotFound />} />
           </Routes>

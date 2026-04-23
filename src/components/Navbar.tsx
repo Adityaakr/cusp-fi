@@ -7,12 +7,13 @@ import { Menu, X } from "lucide-react";
 const RPC_URL = SOLANA_RPC_URL;
 const USDC_MINT = USDC_MINT_ADDRESS;
 
-const navLinks = [
-  { path: "/overview.html", label: "Overview", external: true },
-  { path: "/vault", label: "Vault" },
-  { path: "/lend", label: "Lend" },
+const navLinks: Array<{ path: string; label: string; external?: boolean; soon?: boolean }> = [
+  { path: "/lend", label: "Borrow" },
+  { path: "/vault", label: "Lend" },
+  { path: "/#leverage", label: "Leverage", soon: true },
   { path: "/markets", label: "Markets" },
   { path: "/portfolio", label: "Portfolio" },
+  { path: "/docs", label: "Docs" },
 ];
 
 function truncateAddress(address: string) {
@@ -104,30 +105,52 @@ const Navbar = () => {
             <span className="font-semibold text-foreground text-sm tracking-tight">Cusp</span>
           </Link>
 
-          <div className="hidden md:flex items-center gap-1">
-            {navLinks.map((link) =>
-              (link as any).external ? (
+          <div className="hidden md:flex items-center gap-6">
+            {navLinks.map((link) => {
+              const isActive = !link.external && !link.path.includes("#") && location.pathname === link.path;
+              const base =
+                "relative py-1.5 text-sm transition-colors inline-flex items-center gap-1.5";
+              const color = isActive
+                ? "text-foreground"
+                : "text-muted-foreground hover:text-foreground";
+              const underline = isActive
+                ? "after:absolute after:left-0 after:right-0 after:-bottom-0.5 after:h-px after:bg-cusp-teal"
+                : "";
+              const soonBadge = link.soon ? (
+                <span className="text-[9px] font-mono px-1 py-px rounded-sm bg-cusp-teal/10 text-cusp-teal tracking-wider">
+                  SOON
+                </span>
+              ) : null;
+
+              return link.external ? (
                 <a
                   key={link.path}
                   href={link.path}
-                  className="px-3 py-1.5 text-sm rounded-md transition-colors text-muted-foreground hover:text-foreground hover:bg-bg-2"
+                  className={`${base} ${color}`}
                 >
                   {link.label}
+                  {soonBadge}
+                </a>
+              ) : link.path.startsWith("/#") ? (
+                <a
+                  key={link.path}
+                  href={link.path}
+                  className={`${base} ${color}`}
+                >
+                  {link.label}
+                  {soonBadge}
                 </a>
               ) : (
                 <Link
                   key={link.path}
                   to={link.path}
-                  className={`px-3 py-1.5 text-sm rounded-md transition-colors ${
-                    location.pathname === link.path
-                      ? "text-cusp-teal bg-cusp-teal/5"
-                      : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
-                  }`}
+                  className={`${base} ${color} ${underline}`}
                 >
                   {link.label}
+                  {soonBadge}
                 </Link>
-              )
-            )}
+              );
+            })}
           </div>
         </div>
 
@@ -149,7 +172,11 @@ const Navbar = () => {
           <button
             onClick={open}
             disabled={isLoading}
-            className="px-4 py-1.5 text-sm font-medium rounded-md border border-cusp-teal/40 text-cusp-teal hover:bg-cusp-teal/5 transition-colors disabled:opacity-50 font-mono"
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 font-mono ${
+              isConnected
+                ? "bg-cusp-teal text-primary-foreground hover:opacity-90"
+                : "border border-cusp-teal/40 text-cusp-teal hover:bg-cusp-teal/5"
+            }`}
           >
             {isLoading
               ? "Connecting..."
@@ -173,29 +200,31 @@ const Navbar = () => {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-bg-0/95 backdrop-blur-md">
           <div className="px-4 py-3 flex flex-col gap-1">
-            {navLinks.map((link) =>
-              (link as any).external ? (
-                <a
-                  key={link.path}
-                  href={link.path}
-                  className="px-3 py-2.5 text-sm rounded-lg transition-colors text-muted-foreground hover:text-foreground hover:bg-bg-2"
-                >
+            {navLinks.map((link) => {
+              const isActive = !link.external && !link.path.includes("#") && location.pathname === link.path;
+              const soonBadge = link.soon ? (
+                <span className="ml-2 text-[9px] font-mono px-1 py-px rounded-sm bg-cusp-teal/10 text-cusp-teal tracking-wider">
+                  SOON
+                </span>
+              ) : null;
+              const cls = `px-3 py-2.5 text-sm rounded-lg transition-colors flex items-center ${
+                isActive
+                  ? "text-cusp-teal bg-cusp-teal/10 font-medium"
+                  : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
+              }`;
+
+              return link.external || link.path.startsWith("/#") ? (
+                <a key={link.path} href={link.path} className={cls}>
                   {link.label}
+                  {soonBadge}
                 </a>
               ) : (
-                <Link
-                  key={link.path}
-                  to={link.path}
-                  className={`px-3 py-2.5 text-sm rounded-lg transition-colors ${
-                    location.pathname === link.path
-                      ? "text-cusp-teal bg-cusp-teal/10 font-medium"
-                      : "text-muted-foreground hover:text-foreground hover:bg-bg-2"
-                  }`}
-                >
+                <Link key={link.path} to={link.path} className={cls}>
                   {link.label}
+                  {soonBadge}
                 </Link>
-              )
-            )}
+              );
+            })}
           </div>
           {isConnected && sol !== null && (
             <div className="px-4 pb-3 pt-1 border-t border-border/50">

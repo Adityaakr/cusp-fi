@@ -1,4 +1,4 @@
-import { PhantomProvider } from "@phantom/react-sdk";
+import { PhantomProvider, type PhantomTheme } from "@phantom/react-sdk";
 import { AddressType } from "@phantom/browser-sdk";
 
 const PHANTOM_APP_ID = "f734e0e3-6d52-443b-a710-2b2d53225fe0";
@@ -11,8 +11,8 @@ const cuspTheme = {
   error: "#ef4444",
   success: "#22c55e",
   borderRadius: "6px",
-  overlay: "rgba(0, 0, 0, 0.8)",
-};
+  overlay: "#000000cc",
+} as const satisfies Partial<PhantomTheme>;
 
 export function PhantomProviderWrapper({ children }: { children: React.ReactNode }) {
   const redirectUrl =

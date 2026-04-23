@@ -1,4 +1,4 @@
-import { defineConfig, loadEnv } from "vite";
+import { defineConfig, loadEnv, type HttpProxy } from "vite";
 import react from "@vitejs/plugin-react-swc";
 import path from "path";
 import { componentTagger } from "lovable-tagger";
@@ -14,8 +14,8 @@ export default defineConfig(({ mode }) => {
       target: "https://quote-api.dflow.net",
       changeOrigin: true,
       rewrite: (p: string) => p.replace(/^\/api\/dflow-trade/, ""),
-      configure: (proxy: any) => {
-        proxy.on("proxyReq", (proxyReq: any) => {
+      configure: (proxy: HttpProxy.Server) => {
+        proxy.on("proxyReq", (proxyReq) => {
           if (env.DFLOW_API_KEY) proxyReq.setHeader("x-api-key", env.DFLOW_API_KEY);
         });
       },
@@ -24,8 +24,8 @@ export default defineConfig(({ mode }) => {
       target: "https://prediction-markets-api.dflow.net",
       changeOrigin: true,
       rewrite: (p: string) => p.replace(/^\/api\/dflow/, ""),
-      configure: (proxy: any) => {
-        proxy.on("proxyReq", (proxyReq: any) => {
+      configure: (proxy: HttpProxy.Server) => {
+        proxy.on("proxyReq", (proxyReq) => {
           if (env.DFLOW_API_KEY) proxyReq.setHeader("x-api-key", env.DFLOW_API_KEY);
         });
       },
@@ -35,8 +35,8 @@ export default defineConfig(({ mode }) => {
       ws: true,
       changeOrigin: true,
       rewrite: (p: string) => p.replace(/^\/ws\/dflow/, "/api/v1/ws"),
-      configure: (proxy: any) => {
-        proxy.on("proxyReqWs", (proxyReq: any) => {
+      configure: (proxy: HttpProxy.Server) => {
+        proxy.on("proxyReqWs", (proxyReq) => {
           if (env.DFLOW_API_KEY) proxyReq.setHeader("x-api-key", env.DFLOW_API_KEY);
         });
       },

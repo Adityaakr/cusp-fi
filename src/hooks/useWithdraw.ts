@@ -104,7 +104,7 @@ export function useWithdraw() {
       const signature =
         typeof signResult === "string"
           ? signResult
-          : signResult?.signature ?? signResult?.hash ?? "";
+          : signResult?.signature ?? "";
 
       setTxSignature(signature);
       setStatus("confirming");
