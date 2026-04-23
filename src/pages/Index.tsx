@@ -1,22 +1,21 @@
-import { motion } from "framer-motion";
-import { Link } from "react-router-dom";
-import Layout from "@/components/Layout";
-import YieldCounter from "@/components/YieldCounter";
-import ProbabilityBar from "@/components/ProbabilityBar";
 import APYBreakdown from "@/components/APYBreakdown";
+import Layout from "@/components/Layout";
+import ProbabilityBar from "@/components/ProbabilityBar";
+import YieldCounter from "@/components/YieldCounter";
 import { faqItems } from "@/data/mockData";
 import { useDflowMarkets } from "@/hooks/useDflowMarkets";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { supabase } from "@/lib/supabase";
-import { useState, useMemo, useEffect } from "react";
+import { motion } from "framer-motion";
+import { useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
-  visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.5 } }),
+  visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.5 } }),
 };
 
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<"vault" | "lend">("vault");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
   const [waitlistEmail, setWaitlistEmail] = useState("");
@@ -49,6 +48,7 @@ const Index = () => {
     setWaitlistEmail("");
     setWaitlistCount((c) => (c !== null ? c + 1 : 1));
   };
+
   const topMarkets = useMemo(
     () =>
       [...markets]
@@ -64,29 +64,33 @@ const Index = () => {
     <Layout>
       {/* Hero */}
       <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-cusp-teal/3 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-b from-cusp-teal/5 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16 md:pt-28 md:pb-24">
           <div className="grid md:grid-cols-2 gap-12 items-center">
             <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-tight tracking-tight mb-4">
+              <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-bg-1 text-[11px] font-mono text-muted-foreground mb-6">
+                <span className="w-1.5 h-1.5 rounded-full bg-cusp-teal animate-live-pulse" />
+                The DeFi layer for prediction markets
+              </div>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-[1.1] tracking-tight mb-5">
                 Your prediction market positions shouldn't sit idle.
               </h1>
               <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8 max-w-lg">
-                Cusp turns YES/NO outcome tokens into yield-bearing assets. Deposit USDC, earn 15–25% APY. Or borrow against your positions without closing them.
+                Borrow, lend, and leverage your Kalshi positions on Solana. Built on DFlow, secured by regulated event markets — no token, no emissions, real yield.
               </p>
               <div className="flex flex-wrap gap-3">
                 <Link
                   to="/vault"
                   className="inline-flex items-center px-6 py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
                 >
-                  Deposit USDC → Earn Yield
+                  Launch App
                 </Link>
-                <Link
-                  to="/lend"
-                  className="inline-flex items-center px-6 py-2.5 border border-cusp-teal/40 text-cusp-teal rounded-md text-sm font-medium hover:bg-cusp-teal/5 transition-colors"
+                <a
+                  href="/overview.html"
+                  className="inline-flex items-center px-6 py-2.5 border border-border text-foreground rounded-md text-sm font-medium hover:bg-bg-2 transition-colors"
                 >
-                  Borrow Against Positions
-                </Link>
+                  Read Docs
+                </a>
               </div>
               <div className="flex items-center gap-4 mt-8 text-xs text-muted-foreground">
                 <span>Built on DFlow</span>
@@ -103,7 +107,7 @@ const Index = () => {
                   <span className="text-xs text-muted-foreground uppercase tracking-wider">Vault APY</span>
                   <span className="text-[10px] font-mono text-cusp-green">● Live</span>
                 </div>
-                <div className="text-4xl font-mono font-semibold text-cusp-amber mb-6">
+                <div className="text-4xl font-mono font-semibold text-cusp-teal mb-6">
                   <YieldCounter value={19.4} suffix="%" decimals={1} />
                 </div>
                 <div className="grid grid-cols-3 gap-4">
@@ -130,12 +134,125 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Live Markets Preview */}
-      <section className="border-t border-border bg-bg-1/50">
+      {/* Capital efficiency pitch */}
+      <section className="border-t border-border">
+        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
+          <motion.h2
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true }}
+            variants={fadeUp}
+            custom={0}
+            className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground leading-tight tracking-tight"
+          >
+            Unlocking capital efficiency for prediction markets on Kalshi.
+          </motion.h2>
+        </div>
+      </section>
+
+      {/* 3 Pillars: Borrow / Lend / Leverage */}
+      <section className="border-t border-border bg-bg-1/40">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+          <div className="mb-12">
+            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em]">Our Features</span>
+          </div>
+
+          {/* Borrow */}
+          <PillarRow
+            eyebrow="UP TO 50% OF POSITION'S VALUE"
+            title="Borrow against your Kalshi shares"
+            body="Use your YES/NO outcome tokens as collateral and borrow USDC instantly. Capped interest rates, repay anytime, positions auto-close two hours before resolution so binary risk never touches lenders."
+            href="/lend"
+            cta="Open Borrow"
+            visual={
+              <PillarCard>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Collateral → Borrow</span>
+                  <span className="text-[10px] font-mono text-cusp-green">Health 2.14</span>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 bg-bg-2 border border-border rounded-md">
+                    <div>
+                      <div className="text-[10px] font-mono text-muted-foreground">YES · BTC $150K</div>
+                      <div className="text-sm font-mono text-foreground">$2,500.00</div>
+                    </div>
+                    <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">87%</span>
+                  </div>
+                  <div className="flex items-center justify-center text-muted-foreground">↓</div>
+                  <div className="flex items-center justify-between p-3 bg-cusp-teal/5 border border-cusp-teal/30 rounded-md">
+                    <div>
+                      <div className="text-[10px] font-mono text-muted-foreground">Borrowed USDC</div>
+                      <div className="text-sm font-mono text-cusp-teal">$1,250.00</div>
+                    </div>
+                    <span className="text-[10px] font-mono text-muted-foreground">LTV 50%</span>
+                  </div>
+                </div>
+              </PillarCard>
+            }
+          />
+
+          {/* Lend */}
+          <PillarRow
+            reverse
+            eyebrow="UP TO 25% APY"
+            title="Lend to Kalshi traders"
+            body="Deposit USDC into the Cusp Vault and earn yield sourced from real borrower interest, high-probability outcome farming, and LP fees on Kalshi markets. No emissions, uncorrelated with crypto."
+            href="/vault"
+            cta="Open Vault"
+            visual={
+              <PillarCard>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">APY Breakdown</span>
+                  <span className="text-sm font-mono text-cusp-teal font-semibold">19.4%</span>
+                </div>
+                <APYBreakdown />
+              </PillarCard>
+            }
+          />
+
+          {/* Leverage */}
+          <PillarRow
+            eyebrow="UP TO 2X"
+            title="Leverage your positions"
+            body="Loop your collateral in one click to turn an existing Kalshi position into 2x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
+            href="#leverage"
+            cta="Coming soon"
+            disabled
+            visual={
+              <PillarCard>
+                <div className="flex items-center justify-between mb-4">
+                  <span className="text-[10px] font-mono text-muted-foreground uppercase tracking-wider">Loop preview</span>
+                  <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-teal/10 text-cusp-teal">Beta</span>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    { label: "Initial position", value: "$1,000", accent: false },
+                    { label: "Borrow at 50% LTV", value: "$500", accent: false },
+                    { label: "Buy more YES", value: "+$500", accent: false },
+                    { label: "Net exposure", value: "$1,500", accent: true },
+                    { label: "Leverage", value: "1.5x → 2.0x", accent: true },
+                  ].map((row) => (
+                    <div
+                      key={row.label}
+                      className={`flex items-center justify-between p-2.5 rounded-md border ${row.accent ? "bg-cusp-teal/5 border-cusp-teal/30" : "bg-bg-2 border-border"}`}
+                    >
+                      <span className="text-xs text-muted-foreground">{row.label}</span>
+                      <span className={`text-xs font-mono ${row.accent ? "text-cusp-teal font-semibold" : "text-foreground"}`}>{row.value}</span>
+                    </div>
+                  ))}
+                </div>
+              </PillarCard>
+            }
+          />
+        </div>
+      </section>
+
+      {/* Live Markets */}
+      <section className="border-t border-border">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
           <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}>
-            <h2 className="text-xl font-semibold text-foreground mb-1">Top DFlow Markets</h2>
-            <p className="text-sm text-muted-foreground mb-6">High-probability active markets on DFlow</p>
+            <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-1">Markets you can collateralize</h2>
+            <p className="text-sm text-muted-foreground mb-6">High-probability Kalshi markets tokenized on DFlow</p>
           </motion.div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -149,13 +266,13 @@ const Index = () => {
                     viewport={{ once: true }}
                     variants={fadeUp}
                     custom={i}
-                    className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 transition-colors"
+                    className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 hover:border-cusp-teal/30 transition-all"
                   >
                     <div className="flex items-center gap-2 mb-2">
                       <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">
                         YES
                       </span>
-                      <span className="font-mono text-xs text-cusp-amber">
+                      <span className="font-mono text-xs text-cusp-teal">
                         {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
                       </span>
                     </div>
@@ -175,112 +292,13 @@ const Index = () => {
           )}
         </div>
       </section>
-
-      {/* How It Works */}
-      <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <h2 className="text-xl font-semibold text-foreground mb-6">How It Works</h2>
-
-          <div className="flex gap-1 mb-6">
-            {(["vault", "lend"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                className={`px-4 py-2 text-sm rounded-md transition-colors ${activeTab === t ? "bg-bg-2 text-cusp-teal border border-active" : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                {t === "vault" ? "Cusp Vault" : "Cusp Lend"}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            {activeTab === "vault" ? (
-              <>
-                <Step n={1} title="Deposit USDC" desc="Connect your wallet and deposit USDC into the vault. You receive vsUSDC representing your share." />
-                <Step n={2} title="Vault farms positions" desc="The vault buys high-probability YES/NO tokens (>85%), earns lending spread income, and collects LP fees across markets." />
-                <Step n={3} title="Withdraw anytime" desc="Redeem vsUSDC for USDC plus earned yield. Withdrawals process through a 48-hour queue for vault stability." />
-              </>
-            ) : (
-              <>
-                <Step n={1} title="Connect wallet" desc="Connect your Solana wallet. Cusp auto-detects your YES/NO outcome tokens from DFlow positions." />
-                <Step n={2} title="Lock collateral" desc="Select outcome tokens to use as collateral. LTV is dynamically calculated based on probability and time to resolution." />
-                <Step n={3} title="Borrow USDC" desc="Borrow USDC instantly against your locked tokens. Repay before resolution — all loans auto-close 2 hours before expiry." />
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Yield Breakdown */}
-      <section className="border-t border-border bg-bg-1/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">Where the yield comes from</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                Three real sources of income stack to produce 15–25% APY. No token emissions. No Ponzi mechanics. Real yield from real prediction market activity.
-              </p>
-              <APYBreakdown />
-            </div>
-
-            <div className="bg-bg-1 border border-border rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-border">
-                <h3 className="text-sm font-medium text-foreground">Holding idle vs. Cusp Vault</h3>
-              </div>
-              <div className="divide-y divide-border">
-                <div className="grid grid-cols-3 p-3 text-[10px] text-muted-foreground uppercase tracking-wider">
-                  <span />
-                  <span>Idle</span>
-                  <span>Cusp Vault</span>
-                </div>
-                {[
-                  ["30-day yield", "$0", "+$808"],
-                  ["APY", "0%", "19.4%"],
-                  ["Risk", "Binary outcome", "Diversified"],
-                  ["Effort", "None", "None"],
-                ].map(([label, idle, cusp]) => (
-                  <div key={label} className="grid grid-cols-3 p-3 text-xs">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="font-mono text-muted-foreground">{idle}</span>
-                    <span className="font-mono text-cusp-amber">{cusp}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* Stats Bar - Live from DFlow */}
-      <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
-            {[
-              {
-                label: "Total Volume",
-                value:
-                  totalVolume >= 1_000_000_000
-                    ? `$${(totalVolume / 1_000_000_000).toFixed(1)}B`
-                    : `$${(totalVolume / 1_000_000).toFixed(1)}M`,
-              },
-              { label: "Active Markets", value: "150" },
-              { label: "Vault APY (est.)", value: "19.4%" },
-              { label: "Platform", value: "DFlow + Kalshi" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="font-mono text-2xl font-semibold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-              </div>
-            ))}
-          </div>
-        </div>
-      </section>
-
       {/* FAQ */}
-      <section className="border-t border-border bg-bg-1/50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
-          <h2 className="text-xl font-semibold text-foreground mb-6">Frequently Asked Questions</h2>
+      <section className="border-t border-border bg-bg-1/40">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20">
+          <div className="mb-10 text-center">
+            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">Frequently Asked Questions</span>
+            <h2 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">Everything you wanted to know</h2>
+          </div>
           <div className="space-y-2">
             {faqItems.map((item, i) => (
               <div key={i} className="bg-bg-1 border border-border rounded-lg overflow-hidden">
@@ -288,7 +306,7 @@ const Index = () => {
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
                   className="w-full text-left p-4 flex items-center justify-between hover:bg-bg-2 transition-colors"
                 >
-                  <span className="text-sm text-foreground pr-4">{item.q}</span>
+                  <span className="text-sm text-foreground pr-4 font-medium">{item.q}</span>
                   <span className="text-muted-foreground text-lg shrink-0">{openFaq === i ? "−" : "+"}</span>
                 </button>
                 {openFaq === i && (
@@ -302,8 +320,29 @@ const Index = () => {
         </div>
       </section>
 
+      {/* About */}
+      <section className="border-t border-border">
+        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20">
+          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-6 tracking-tight">A bit about us</h2>
+          <div className="space-y-5 text-muted-foreground text-sm sm:text-base leading-relaxed">
+            <p>
+              Cusp is built by a small team of prediction-market and DeFi researchers. We believe regulated event markets like Kalshi will become one of the largest derivatives categories on earth, and that their most productive form is onchain — composable, non-custodial, and capital efficient.
+            </p>
+            <p>
+              Our goal is to be the financial primitive underneath that future: borrow, lend, and leverage rails that turn every outcome token into a productive asset. We build for advanced traders and funds first; retail follows.
+            </p>
+            <p className="text-foreground">
+              We are hiring founding engineers.{" "}
+              <a href="mailto:contact@cusp.fi" className="text-cusp-teal hover:underline">
+                Mail us at contact@cusp.fi
+              </a>.
+            </p>
+          </div>
+        </div>
+      </section>
+
       {/* Waitlist */}
-      <section className="border-t border-border" id="waitlist">
+      <section className="border-t border-border bg-bg-1/40" id="waitlist">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
           {waitlistCount !== null && (
             <p className="text-xs text-muted-foreground mb-2">
@@ -311,7 +350,7 @@ const Index = () => {
             </p>
           )}
           <h2 className="text-xl font-semibold text-foreground mb-2">Join the Alpha</h2>
-          <p className="text-sm text-muted-foreground mb-6">Early access to Cusp Yield. We'll reach out when you're in.</p>
+          <p className="text-sm text-muted-foreground mb-6">Early access to Cusp. We'll reach out when you're in.</p>
           {waitlistStatus === "success" ? (
             <p className="text-sm text-cusp-green font-medium">You're in. We'll be in touch.</p>
           ) : (
@@ -342,19 +381,19 @@ const Index = () => {
 
       {/* Final CTA */}
       <section className="border-t border-border relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/5 via-transparent to-transparent pointer-events-none" />
+        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/8 via-transparent to-transparent pointer-events-none" />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 text-center relative">
-          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3">
-            Stop leaving yield on the table.
+          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3 tracking-tight">
+            Idle capital ends here
           </h2>
           <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
-            Your prediction market positions can earn 15–25% APY while waiting to resolve. Cusp makes it happen.
+            Your Kalshi positions can earn 15–25% APY while waiting to resolve. Cusp makes it happen.
           </p>
           <Link
             to="/vault"
             className="inline-flex items-center px-8 py-3 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
           >
-            Open Vault →
+            Launch App →
           </Link>
         </div>
       </section>
@@ -362,22 +401,50 @@ const Index = () => {
   );
 };
 
-const Step = ({ n, title, desc }: { n: number; title: string; desc: string }) => (
+const PillarCard = ({ children }: { children: React.ReactNode }) => (
+  <div className="bg-bg-1 border border-border rounded-lg p-5 shadow-lg">
+    {children}
+  </div>
+);
+
+interface PillarRowProps {
+  eyebrow: string;
+  title: string;
+  body: string;
+  href: string;
+  cta: string;
+  disabled?: boolean;
+  reverse?: boolean;
+  visual: React.ReactNode;
+}
+
+const PillarRow = ({ eyebrow, title, body, href, cta, disabled, reverse, visual }: PillarRowProps) => (
   <motion.div
     initial="hidden"
     whileInView="visible"
-    viewport={{ once: true }}
+    viewport={{ once: true, margin: "-80px" }}
     variants={fadeUp}
-    custom={n}
-    className="bg-bg-1 border border-border rounded-lg p-5"
+    custom={0}
+    className="grid md:grid-cols-2 gap-10 lg:gap-16 items-center py-12 md:py-16 border-t border-border first:border-t-0"
   >
-    <div className="flex items-center gap-3 mb-2">
-      <span className="w-6 h-6 rounded-full bg-cusp-teal/10 text-cusp-teal font-mono text-xs flex items-center justify-center">
-        {n}
-      </span>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
+    <div className={reverse ? "md:order-2" : ""}>
+      <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-4">{eyebrow}</span>
+      <h3 className="text-2xl md:text-3xl font-semibold text-foreground leading-tight tracking-tight mb-4">{title}</h3>
+      <p className="text-sm md:text-base text-muted-foreground leading-relaxed mb-6 max-w-lg">{body}</p>
+      {disabled ? (
+        <span className="inline-flex items-center px-5 py-2 border border-border text-muted-foreground rounded-md text-sm font-medium cursor-not-allowed">
+          {cta}
+        </span>
+      ) : (
+        <Link
+          to={href}
+          className="inline-flex items-center gap-1.5 px-5 py-2 border border-cusp-teal/40 text-cusp-teal rounded-md text-sm font-medium hover:bg-cusp-teal/5 transition-colors"
+        >
+          {cta} <span aria-hidden>→</span>
+        </Link>
+      )}
     </div>
-    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
+    <div className={reverse ? "md:order-1" : ""}>{visual}</div>
   </motion.div>
 );
 
