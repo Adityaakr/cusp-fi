@@ -13,7 +13,7 @@ const LoanCard = ({ loan }: LoanCardProps) => {
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">
             <h4 className="text-sm font-medium text-foreground truncate">{loan.marketName}</h4>
-            <span className={`text-[10px] font-mono px-1.5 py-0.5 rounded-sm ${
+            <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${
               loan.tokenType === "YES" ? "bg-cusp-green/10 text-cusp-green" : "bg-cusp-red/10 text-cusp-red"
             }`}>
               {loan.tokenType}

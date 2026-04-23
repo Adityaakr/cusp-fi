@@ -1,384 +1,295 @@
-import { motion } from "framer-motion";
+import { motion, AnimatePresence } from "framer-motion";
 import { Link } from "react-router-dom";
 import Layout from "@/components/Layout";
 import YieldCounter from "@/components/YieldCounter";
-import ProbabilityBar from "@/components/ProbabilityBar";
 import APYBreakdown from "@/components/APYBreakdown";
 import { faqItems } from "@/data/mockData";
-import { useDflowMarkets } from "@/hooks/useDflowMarkets";
 import { useProtocolState } from "@/hooks/useProtocolState";
-import { supabase } from "@/lib/supabase";
-import { useState, useMemo, useEffect } from "react";
+import { useState } from "react";
+import { ArrowRight, Lock, Percent, ShieldCheck } from "lucide-react";
 
 const fadeUp = {
   hidden: { opacity: 0, y: 20 },
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.1, duration: 0.5 } }),
 };
 
+const Skyline = () => (
+  <svg viewBox="0 0 1000 300" className="w-full h-full opacity-[0.04] grayscale" preserveAspectRatio="xMidYMax slice">
+    <path d="M0 300 H1000 V280 L980 250 H960 V220 L940 180 H920 V250 H900 V100 H880 V250 H860 V50 H840 V250 H820 V150 H800 V250 H780 V120 H760 V250 H740 V180 H720 V250 H700 V80 H680 V250 H660 V140 H640 V250 H620 V40 H600 V250 H580 V160 H560 V250 H540 V90 H520 V250 H500 V130 H480 V250 H460 V20 H440 V250 H420 V110 H400 V250 H380 V60 H360 V250 H340 V150 H320 V250 H300 V70 H280 V250 H260 V190 H240 V250 H220 V30 H200 V250 H180 V120 H160 V250 H140 V90 H120 V250 H100 V40 H80 V250 H60 V160 H40 V250 H20 V100 H0 Z" fill="currentColor" />
+    <path d="M200 250 L220 30 L240 250" fill="none" stroke="currentColor" strokeWidth="0.5" />
+    <path d="M440 250 L460 20 L480 250" fill="none" stroke="currentColor" strokeWidth="0.5" />
+    <path d="M600 250 L620 40 L640 250" fill="none" stroke="currentColor" strokeWidth="0.5" />
+    <circle cx="220" cy="30" r="2" fill="currentColor" />
+    <circle cx="460" cy="20" r="2" fill="currentColor" />
+    <circle cx="620" cy="40" r="2" fill="currentColor" />
+  </svg>
+);
+
 const Index = () => {
-  const [activeTab, setActiveTab] = useState<"vault" | "lend">("vault");
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  const [waitlistEmail, setWaitlistEmail] = useState("");
-  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [waitlistError, setWaitlistError] = useState("");
-  const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
-
-  const { data: markets = [] } = useDflowMarkets({ status: "active", limit: 50 });
   const { state: protocolState } = useProtocolState();
 
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.rpc("get_waitlist_count").then(({ data }) => {
-      if (data !== null) setWaitlistCount(Number(data));
-    });
-  }, []);
-
-  const handleWaitlist = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!waitlistEmail.trim() || !supabase) return;
-    setWaitlistStatus("loading");
-    setWaitlistError("");
-    const { error } = await supabase.from("waitlist").insert({ email: waitlistEmail.trim().toLowerCase() });
-    if (error) {
-      setWaitlistStatus("error");
-      setWaitlistError(error.code === "23505" ? "Already registered." : "Something went wrong.");
-      return;
-    }
-    setWaitlistStatus("success");
-    setWaitlistEmail("");
-    setWaitlistCount((c) => (c !== null ? c + 1 : 1));
-  };
-  const topMarkets = useMemo(
-    () =>
-      [...markets]
-        .filter((m) => m.probability >= 70)
-        .sort((a, b) => b.volume - a.volume)
-        .slice(0, 4),
-    [markets]
-  );
-
-  const totalVolume = useMemo(() => markets.reduce((sum, m) => sum + m.volume, 0), [markets]);
+  const currentYield = 19.4;
 
   return (
     <Layout>
-      {/* Hero */}
-      <section className="relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-b from-cusp-teal/3 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 pt-20 pb-16 md:pt-28 md:pb-24">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-tight tracking-tight mb-4">
-                Your prediction market positions shouldn't sit idle.
+      <div className="w-full border-x border-border max-w-7xl mx-auto min-h-screen flex flex-col bg-bg-0">
+        
+        {/* HERO SECTION */}
+        <section className="grid grid-cols-1 md:grid-cols-2 border-b border-border min-h-[85vh] relative overflow-hidden">
+          {/* Background Monument */}
+          <div className="absolute inset-0 z-0 pointer-events-none">
+             <Skyline />
+          </div>
+          
+          {/* Left - Branding */}
+          <div className="relative z-10 border-b md:border-b-0 md:border-r border-border p-8 md:p-16 lg:p-24 flex flex-col justify-center overflow-hidden corner-mark">
+            <motion.div
+              initial={{ opacity: 0, x: -20 }}
+              animate={{ opacity: 1, x: 0 }}
+              transition={{ duration: 0.8 }}
+            >
+              <span className="text-xs font-mono text-cusp-teal uppercase tracking-[0.3em] mb-8 block">Institutional Grade / Solana</span>
+              <h1 className="text-7xl md:text-8xl lg:text-9xl font-bold tracking-tighter text-foreground leading-[0.85] mb-12">
+                Yield<br/>Redefined.
               </h1>
-              <p className="text-base sm:text-lg text-muted-foreground leading-relaxed mb-8 max-w-lg">
-                Cusp turns YES/NO outcome tokens into yield-bearing assets. Deposit USDC, earn 15–25% APY. Or borrow against your positions without closing them.
-              </p>
-              <div className="flex flex-wrap gap-3">
+              <div className="flex flex-col sm:flex-row gap-4">
                 <Link
                   to="/vault"
-                  className="inline-flex items-center px-6 py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
+                  className="inline-flex items-center justify-center gap-2 px-10 py-5 bg-cusp-teal text-primary-foreground rounded-full text-lg font-bold hover:opacity-90 transition-all hover:scale-105"
                 >
-                  Deposit USDC → Earn Yield
+                  Enter Vault <ArrowRight className="size-6" />
                 </Link>
                 <Link
-                  to="/lend"
-                  className="inline-flex items-center px-6 py-2.5 border border-cusp-teal/40 text-cusp-teal rounded-md text-sm font-medium hover:bg-cusp-teal/5 transition-colors"
+                  to="/markets"
+                  className="inline-flex items-center justify-center gap-2 px-10 py-5 border border-border rounded-full text-lg font-bold hover:bg-bg-1 transition-all"
                 >
-                  Borrow Against Positions
+                  Explore Markets
                 </Link>
-              </div>
-              <div className="flex items-center gap-4 mt-8 text-xs text-muted-foreground">
-                <span>Built on DFlow</span>
-                <span className="w-px h-3 bg-border" />
-                <span>Powered by Kalshi</span>
-                <span className="w-px h-3 bg-border" />
-                <span>Solana Native</span>
-              </div>
-            </motion.div>
-
-            <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={2} className="hidden md:block">
-              <div className="bg-bg-1 border border-border rounded-lg p-6">
-                <div className="flex items-center justify-between mb-4">
-                  <span className="text-xs text-muted-foreground uppercase tracking-wider">Vault APY</span>
-                  <span className="text-[10px] font-mono text-cusp-green">● Live</span>
-                </div>
-                <div className="text-4xl font-mono font-semibold text-cusp-amber mb-6">
-                  <YieldCounter value={19.4} suffix="%" decimals={1} />
-                </div>
-                <div className="grid grid-cols-3 gap-4">
-                  <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">TVL</span>
-                    <span className="font-mono text-sm text-foreground">
-                      ${((protocolState?.total_tvl ?? 0) >= 1_000_000
-                        ? `${((protocolState?.total_tvl ?? 0) / 1_000_000).toFixed(1)}M`
-                        : (protocolState?.total_tvl ?? 0).toLocaleString())}
-                    </span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Markets</span>
-                    <span className="font-mono text-sm text-foreground">150</span>
-                  </div>
-                  <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">cUSDC Rate</span>
-                    <span className="font-mono text-sm text-cusp-teal">${(protocolState?.cusdc_exchange_rate ?? 1).toFixed(4)}</span>
-                  </div>
-                </div>
               </div>
             </motion.div>
           </div>
-        </div>
-      </section>
 
-      {/* Live Markets Preview */}
-      <section className="border-t border-border bg-bg-1/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}>
-            <h2 className="text-xl font-semibold text-foreground mb-1">Top DFlow Markets</h2>
-            <p className="text-sm text-muted-foreground mb-6">High-probability active markets on DFlow</p>
+          {/* Right - Market Interaction */}
+          <div className="relative z-10 p-8 md:p-16 lg:p-24 flex flex-col justify-center bg-bg-1/20 backdrop-blur-sm overflow-hidden corner-mark">
+             {/* Large Ghost Number */}
+             <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 font-mono text-[25vw] font-bold text-foreground/[0.02] select-none pointer-events-none">
+                19%
+             </div>
+
+             <motion.div 
+               initial="hidden" animate="visible" variants={fadeUp} custom={3}
+               className="bg-bg-0 border border-border p-10 rounded-[32px] shadow-2xl relative z-10 max-w-md mx-auto w-full group hover:border-cusp-teal/30 transition-colors"
+             >
+                <div className="flex items-center justify-between mb-10">
+                  <div className="flex flex-col">
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono mb-1">Cusp / Yield Market</span>
+                    <span className="font-bold text-xl tracking-tight text-foreground/90">USDC Lending Pool</span>
+                  </div>
+                  <div className="flex items-center gap-2 bg-cusp-green/10 border border-cusp-green/20 px-3 py-1 rounded-full">
+                     <div className="size-1.5 rounded-full bg-cusp-green animate-pulse" />
+                     <span className="text-[10px] font-mono text-cusp-green uppercase tracking-widest">Live</span>
+                  </div>
+                </div>
+
+                <div className="text-center mb-10">
+                   <div className="text-[10px] text-muted-foreground uppercase tracking-[0.2em] font-mono mb-2">Current Variable APY</div>
+                   <div className="text-7xl font-mono font-bold text-cusp-teal tracking-tighter">
+                      <YieldCounter value={currentYield} suffix="%" decimals={1} />
+                   </div>
+                </div>
+
+                {/* YES / NO Selection Visual */}
+                <div className="grid grid-cols-2 gap-4 mb-10">
+                   <div className="flex flex-col items-center gap-3 p-6 rounded-[24px] bg-cusp-green/5 border border-cusp-green/10 group-hover:bg-cusp-green/10 transition-colors">
+                      <span className="text-3xl font-bold text-cusp-green/80">YES</span>
+                      <span className="text-[10px] font-mono text-cusp-green/40">LONG 1.4x</span>
+                   </div>
+                   <div className="flex flex-col items-center gap-3 p-6 rounded-[24px] bg-cusp-red/5 border border-cusp-red/10 group-hover:bg-cusp-red/10 transition-colors">
+                      <span className="text-3xl font-bold text-cusp-red/80">NO</span>
+                      <span className="text-[10px] font-mono text-cusp-red/40">SHORT 3.1x</span>
+                   </div>
+                </div>
+
+                <div className="border-t border-border pt-8 flex justify-between items-end">
+                   <div className="flex flex-col">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono mb-1">Total TVL</span>
+                      <span className="text-2xl font-mono font-bold text-foreground">
+                        ${((protocolState?.total_tvl ?? 0) >= 1_000_000 ? `${((protocolState?.total_tvl ?? 0) / 1_000_000).toFixed(1)}M` : (protocolState?.total_tvl ?? 0).toLocaleString())}
+                      </span>
+                   </div>
+                   <div className="flex flex-col items-end">
+                      <span className="text-[10px] text-muted-foreground uppercase tracking-widest font-mono mb-1">Safety Score</span>
+                      <span className="text-xl font-mono text-cusp-teal font-bold tracking-widest">AA+</span>
+                   </div>
+                </div>
+             </motion.div>
+          </div>
+        </section>
+
+        {/* FEATURE 1: Vault */}
+        <section className="grid grid-cols-1 md:grid-cols-2 border-b border-border overflow-hidden relative">
+          <div className="absolute -left-10 top-1/2 -translate-y-1/2 font-mono text-[20vw] font-bold text-foreground/[0.01] select-none pointer-events-none rotate-90">
+             YIELD
+          </div>
+          <motion.div 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={0}
+            className="border-b md:border-b-0 md:border-r border-border p-8 md:p-16 lg:p-24 flex flex-col justify-center corner-mark"
+          >
+            <span className="text-xs font-mono text-cusp-amber uppercase tracking-widest mb-6 block">01 / Deposit</span>
+            <h2 className="text-5xl md:text-6xl font-bold mb-8 leading-[0.9] tracking-tighter">Your capital,<br/>working harder.</h2>
+            <p className="text-lg text-muted-foreground mb-12 leading-relaxed max-w-md">
+              Cusp Vault harvests premium from prediction markets by farming high-probability outcomes. Real yield, settled on-chain.
+            </p>
+            <Link to="/vault" className="inline-flex items-center justify-center px-8 py-3 border border-border rounded-full text-sm font-bold hover:bg-bg-2 transition-colors self-start">
+              Launch Vault
+            </Link>
           </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {topMarkets.map((market, i) => {
-              const daysLeft = Math.ceil((new Date(market.resolutionDate).getTime() - Date.now()) / 86400000);
-              return (
-                <Link key={market.id} to="/markets">
-                  <motion.div
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    variants={fadeUp}
-                    custom={i}
-                    className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">
-                        YES
-                      </span>
-                      <span className="font-mono text-xs text-cusp-amber">
-                        {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
-                      </span>
-                    </div>
-                    <h4 className="text-sm text-foreground mb-2 leading-snug">{market.name}</h4>
-                    <ProbabilityBar probability={market.probability} size="sm" />
-                    <div className="flex justify-between mt-2">
-                      <span className="font-mono text-xs text-muted-foreground">${market.yesPrice.toFixed(2)}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{daysLeft}d left</span>
-                    </div>
-                  </motion.div>
-                </Link>
-              );
-            })}
-          </div>
-          {topMarkets.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Loading markets...</p>
-          )}
-        </div>
-      </section>
-
-      {/* How It Works */}
-      <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <h2 className="text-xl font-semibold text-foreground mb-6">How It Works</h2>
-
-          <div className="flex gap-1 mb-6">
-            {(["vault", "lend"] as const).map((t) => (
-              <button
-                key={t}
-                onClick={() => setActiveTab(t)}
-                className={`px-4 py-2 text-sm rounded-md transition-colors ${activeTab === t ? "bg-bg-2 text-cusp-teal border border-active" : "text-muted-foreground hover:text-foreground"
-                  }`}
-              >
-                {t === "vault" ? "Cusp Vault" : "Cusp Lend"}
-              </button>
-            ))}
-          </div>
-
-          <div className="grid md:grid-cols-3 gap-4">
-            {activeTab === "vault" ? (
-              <>
-                <Step n={1} title="Deposit USDC" desc="Connect your wallet and deposit USDC into the vault. You receive vsUSDC representing your share." />
-                <Step n={2} title="Vault farms positions" desc="The vault buys high-probability YES/NO tokens (>85%), earns lending spread income, and collects LP fees across markets." />
-                <Step n={3} title="Withdraw anytime" desc="Redeem vsUSDC for USDC plus earned yield. Withdrawals process through a 48-hour queue for vault stability." />
-              </>
-            ) : (
-              <>
-                <Step n={1} title="Connect wallet" desc="Connect your Solana wallet. Cusp auto-detects your YES/NO outcome tokens from DFlow positions." />
-                <Step n={2} title="Lock collateral" desc="Select outcome tokens to use as collateral. LTV is dynamically calculated based on probability and time to resolution." />
-                <Step n={3} title="Borrow USDC" desc="Borrow USDC instantly against your locked tokens. Repay before resolution — all loans auto-close 2 hours before expiry." />
-              </>
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* Yield Breakdown */}
-      <section className="border-t border-border bg-bg-1/50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <div className="grid md:grid-cols-2 gap-12 items-center">
-            <div>
-              <h2 className="text-xl font-semibold text-foreground mb-2">Where the yield comes from</h2>
-              <p className="text-sm text-muted-foreground mb-6">
-                Three real sources of income stack to produce 15–25% APY. No token emissions. No Ponzi mechanics. Real yield from real prediction market activity.
-              </p>
-              <APYBreakdown />
+          <motion.div 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={1}
+            className="p-8 md:p-16 lg:p-24 bg-bg-1/10 flex flex-col justify-center items-center relative overflow-hidden"
+          >
+            <div className="absolute inset-0 drafting-dots opacity-10" />
+            {/* Mockup Card */}
+            <div className="w-full max-w-md bg-bg-0 border border-border rounded-[24px] p-10 shadow-2xl relative z-10">
+               <h3 className="text-xs font-mono uppercase tracking-[0.2em] text-muted-foreground mb-8">Performance History</h3>
+               <div className="h-48 flex items-end gap-2">
+                  {[40, 65, 45, 90, 60, 80, 100].map((h, i) => (
+                    <motion.div 
+                      key={i}
+                      initial={{ height: 0 }}
+                      whileInView={{ height: `${h}%` }}
+                      transition={{ delay: i * 0.1, duration: 1, ease: "circOut" }}
+                      className="flex-1 bg-cusp-teal/20 border-t-2 border-cusp-teal"
+                    />
+                  ))}
+               </div>
+               <div className="mt-8 flex justify-between">
+                  <span className="text-[10px] font-mono text-muted-foreground">MAR 24</span>
+                  <span className="text-[10px] font-mono text-cusp-teal">CURRENT</span>
+               </div>
             </div>
+          </motion.div>
+        </section>
 
-            <div className="bg-bg-1 border border-border rounded-lg overflow-hidden">
-              <div className="p-4 border-b border-border">
-                <h3 className="text-sm font-medium text-foreground">Holding idle vs. Cusp Vault</h3>
-              </div>
-              <div className="divide-y divide-border">
-                <div className="grid grid-cols-3 p-3 text-[10px] text-muted-foreground uppercase tracking-wider">
-                  <span />
-                  <span>Idle</span>
-                  <span>Cusp Vault</span>
-                </div>
-                {[
-                  ["30-day yield", "$0", "+$808"],
-                  ["APY", "0%", "19.4%"],
-                  ["Risk", "Binary outcome", "Diversified"],
-                  ["Effort", "None", "None"],
-                ].map(([label, idle, cusp]) => (
-                  <div key={label} className="grid grid-cols-3 p-3 text-xs">
-                    <span className="text-muted-foreground">{label}</span>
-                    <span className="font-mono text-muted-foreground">{idle}</span>
-                    <span className="font-mono text-cusp-amber">{cusp}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
+        {/* FEATURE 2: Borrow */}
+        <section className="grid grid-cols-1 md:grid-cols-2 border-b border-border overflow-hidden relative">
+          <div className="absolute -right-20 top-1/2 -translate-y-1/2 font-mono text-[20vw] font-bold text-foreground/[0.01] select-none pointer-events-none -rotate-90">
+             LOAN
           </div>
-        </div>
-      </section>
+          <motion.div 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={0}
+            className="p-8 md:p-16 lg:p-24 bg-bg-1/10 flex flex-col justify-center items-center border-b md:border-b-0 md:border-r border-border order-2 md:order-1 relative overflow-hidden"
+          >
+            <div className="absolute inset-0 drafting-dots opacity-10" />
+            <div className="w-full max-w-md bg-bg-0 border border-border rounded-[24px] p-10 shadow-2xl relative z-10">
+               <div className="flex justify-between items-center mb-8">
+                 <span className="font-mono text-xs uppercase text-muted-foreground tracking-widest">Health Factor</span>
+                 <span className="text-cusp-green font-mono font-bold bg-cusp-green/10 border border-cusp-green/20 px-3 py-1 rounded-full text-xs">2.41</span>
+               </div>
+               <div className="flex items-end gap-2 mb-4">
+                 <span className="text-6xl font-mono font-bold text-foreground">1.50</span>
+                 <span className="text-xl font-mono text-muted-foreground mb-2">M</span>
+               </div>
+               <div className="text-[10px] font-mono text-muted-foreground uppercase tracking-widest mb-8">Total Borrowed / USDC</div>
+               <div className="grid grid-cols-2 gap-8 border-t border-border pt-8">
+                 <div>
+                   <span className="text-[10px] text-muted-foreground block uppercase font-mono tracking-widest mb-2">Collateral</span>
+                   <span className="font-mono text-xl">$4.2M</span>
+                 </div>
+                 <div>
+                   <span className="text-[10px] text-muted-foreground block uppercase font-mono tracking-widest mb-2">Utilization</span>
+                   <span className="font-mono text-xl text-cusp-purple">35.7%</span>
+                 </div>
+               </div>
+            </div>
+          </motion.div>
+          <motion.div 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={1}
+            className="p-8 md:p-16 lg:p-24 flex flex-col justify-center order-1 md:order-2 corner-mark"
+          >
+            <span className="text-xs font-mono text-cusp-purple uppercase tracking-widest mb-6 block">02 / Borrow</span>
+            <h2 className="text-5xl md:text-6xl font-bold mb-8 leading-[0.9] tracking-tighter">Liquidity at<br/>the speed of light.</h2>
+            <p className="text-lg text-muted-foreground mb-12 leading-relaxed max-w-md">
+              Unlock instant USDC by collateralizing your prediction positions. No need to exit your trade to access capital.
+            </p>
+            <Link to="/lend" className="inline-flex items-center justify-center px-8 py-3 border border-border rounded-full text-sm font-bold hover:bg-bg-2 transition-colors self-start">
+              Borrow Now
+            </Link>
+          </motion.div>
+        </section>
 
-      {/* Stats Bar - Live from DFlow */}
-      <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
+        {/* SECURITY */}
+        <section className="px-8 py-32 md:py-48 border-b border-border text-center relative overflow-hidden">
+           <div className="absolute top-0 left-0 w-full h-full drafting-dots opacity-[0.05] pointer-events-none" />
+           <motion.h2 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={0}
+            className="text-6xl md:text-8xl lg:text-9xl font-bold mb-32 leading-[0.8] tracking-tighter"
+          >
+            Immutable.<br/>Audit-proven.
+          </motion.h2>
+          
+          <div className="grid md:grid-cols-3 gap-8 max-w-6xl mx-auto text-left relative z-10">
             {[
-              {
-                label: "Total Volume",
-                value:
-                  totalVolume >= 1_000_000_000
-                    ? `$${(totalVolume / 1_000_000_000).toFixed(1)}B`
-                    : `$${(totalVolume / 1_000_000).toFixed(1)}M`,
-              },
-              { label: "Active Markets", value: "150" },
-              { label: "Vault APY (est.)", value: "19.4%" },
-              { label: "Platform", value: "DFlow + Kalshi" },
-            ].map((stat) => (
-              <div key={stat.label} className="text-center">
-                <p className="font-mono text-2xl font-semibold text-foreground">{stat.value}</p>
-                <p className="text-xs text-muted-foreground mt-1">{stat.label}</p>
-              </div>
+              { icon: ShieldCheck, color: "text-cusp-teal", title: "Open Source", desc: "Our smart contracts are verified and open for public inspection on-chain." },
+              { icon: Lock, color: "text-cusp-amber", title: "Non-Custodial", desc: "You maintain full control of your keys and funds at all times. Always." },
+              { icon: Percent, color: "text-cusp-purple", title: "Real Yield", desc: "Revenue generated from spread lending, not inflationary token emissions." },
+            ].map((feature, i) => (
+              <motion.div 
+                key={i}
+                initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={i+1}
+                className="border border-border p-10 bg-bg-1/40 rounded-[28px] hover:bg-bg-1 transition-all hover:border-cusp-teal/20 group corner-mark"
+              >
+                 <feature.icon className={`size-10 ${feature.color} mb-8 group-hover:scale-110 transition-transform`} />
+                 <h3 className="font-bold text-xl mb-4 tracking-tight">{feature.title}</h3>
+                 <p className="text-muted-foreground leading-relaxed text-sm">{feature.desc}</p>
+              </motion.div>
             ))}
           </div>
-        </div>
-      </section>
+        </section>
 
-      {/* FAQ */}
-      <section className="border-t border-border bg-bg-1/50">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16">
-          <h2 className="text-xl font-semibold text-foreground mb-6">Frequently Asked Questions</h2>
-          <div className="space-y-2">
+        {/* FAQ */}
+        <section className="grid grid-cols-1 md:grid-cols-2 overflow-hidden relative">
+          <motion.div 
+            initial="hidden" whileInView="visible" viewport={{ once: true, margin: "-10%" }} variants={fadeUp} custom={0}
+            className="border-b md:border-b-0 md:border-r border-border p-8 md:p-16 lg:p-24 corner-mark"
+          >
+            <h2 className="text-6xl font-bold mb-8 tracking-tighter">FAQ</h2>
+            <p className="text-xl text-muted-foreground leading-relaxed max-w-sm">Common questions regarding the Cusp protocol and architecture.</p>
+          </motion.div>
+          <div className="flex flex-col bg-bg-1/5">
             {faqItems.map((item, i) => (
-              <div key={i} className="bg-bg-1 border border-border rounded-lg overflow-hidden">
+              <div key={i} className="border-b border-border last:border-b-0 p-10 md:px-16 md:py-12 hover:bg-bg-1/30 transition-colors relative corner-mark">
                 <button
                   onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full text-left p-4 flex items-center justify-between hover:bg-bg-2 transition-colors"
+                  className="w-full text-left flex items-center justify-between group"
                 >
-                  <span className="text-sm text-foreground pr-4">{item.q}</span>
-                  <span className="text-muted-foreground text-lg shrink-0">{openFaq === i ? "−" : "+"}</span>
-                </button>
-                {openFaq === i && (
-                  <div className="px-4 pb-4">
-                    <p className="text-sm text-muted-foreground leading-relaxed">{item.a}</p>
+                  <span className="font-bold text-xl pr-6 group-hover:text-cusp-teal transition-colors tracking-tight">{item.q}</span>
+                  <div className={`size-8 rounded-full border border-border flex items-center justify-center transition-all ${openFaq === i ? "rotate-45 bg-cusp-teal border-cusp-teal text-black" : "text-muted-foreground"}`}>
+                    <span className="text-xl font-light">+</span>
                   </div>
-                )}
+                </button>
+                <AnimatePresence>
+                  {openFaq === i && (
+                    <motion.div 
+                      initial={{ opacity: 0, height: 0 }}
+                      animate={{ opacity: 1, height: "auto" }}
+                      exit={{ opacity: 0, height: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <p className="mt-8 text-muted-foreground leading-relaxed text-lg">
+                        {item.a}
+                      </p>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
               </div>
             ))}
           </div>
-        </div>
-      </section>
-
-      {/* Waitlist */}
-      <section className="border-t border-border" id="waitlist">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
-          {waitlistCount !== null && (
-            <p className="text-xs text-muted-foreground mb-2">
-              <span className="font-mono text-cusp-teal font-semibold">{(waitlistCount + 100).toLocaleString()}</span> people on the waitlist
-            </p>
-          )}
-          <h2 className="text-xl font-semibold text-foreground mb-2">Join the Alpha</h2>
-          <p className="text-sm text-muted-foreground mb-6">Early access to Cusp Yield. We'll reach out when you're in.</p>
-          {waitlistStatus === "success" ? (
-            <p className="text-sm text-cusp-green font-medium">You're in. We'll be in touch.</p>
-          ) : (
-            <form onSubmit={handleWaitlist} className="flex gap-2 max-w-sm mx-auto">
-              <input
-                type="email"
-                value={waitlistEmail}
-                onChange={(e) => setWaitlistEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="flex-1 bg-bg-2 border border-border rounded-md px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-cusp-teal/50"
-                disabled={waitlistStatus === "loading"}
-              />
-              <button
-                type="submit"
-                disabled={waitlistStatus === "loading"}
-                className="px-5 py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {waitlistStatus === "loading" ? "Joining..." : "Join"}
-              </button>
-            </form>
-          )}
-          {waitlistStatus === "error" && (
-            <p className="text-xs text-cusp-red mt-2">{waitlistError}</p>
-          )}
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="border-t border-border relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/5 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 text-center relative">
-          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3">
-            Stop leaving yield on the table.
-          </h2>
-          <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
-            Your prediction market positions can earn 15–25% APY while waiting to resolve. Cusp makes it happen.
-          </p>
-          <Link
-            to="/vault"
-            className="inline-flex items-center px-8 py-3 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
-          >
-            Open Vault →
-          </Link>
-        </div>
-      </section>
+        </section>
+      </div>
     </Layout>
   );
 };
-
-const Step = ({ n, title, desc }: { n: number; title: string; desc: string }) => (
-  <motion.div
-    initial="hidden"
-    whileInView="visible"
-    viewport={{ once: true }}
-    variants={fadeUp}
-    custom={n}
-    className="bg-bg-1 border border-border rounded-lg p-5"
-  >
-    <div className="flex items-center gap-3 mb-2">
-      <span className="w-6 h-6 rounded-full bg-cusp-teal/10 text-cusp-teal font-mono text-xs flex items-center justify-center">
-        {n}
-      </span>
-      <h3 className="text-sm font-medium text-foreground">{title}</h3>
-    </div>
-    <p className="text-xs text-muted-foreground leading-relaxed">{desc}</p>
-  </motion.div>
-);
 
 export default Index;

@@ -19,7 +19,7 @@ const MarketCard = ({ market, onClick }: MarketCardProps) => {
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="text-sm font-medium text-foreground leading-snug flex-1">{market.name}</h3>
         {market.vaultExposure && (
-          <span className="text-[10px] font-mono bg-cusp-teal/10 text-cusp-teal px-1.5 py-0.5 rounded-sm shrink-0">
+          <span className="text-[10px] font-mono bg-cusp-teal/10 text-cusp-teal px-2 py-0.5 rounded-full shrink-0">
             VAULT
           </span>
         )}

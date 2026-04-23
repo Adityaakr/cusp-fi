@@ -1,17 +1,18 @@
-import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
+import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
-import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { PhantomProviderWrapper } from "@/lib/phantom";
-import Index from "./pages/Index";
-import Vault from "./pages/Vault";
-import Lend from "./pages/Lend";
-import Markets from "./pages/Markets";
-import MarketDetail from "./pages/MarketDetail";
-import Portfolio from "./pages/Portfolio";
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { BrowserRouter, Route, Routes } from "react-router-dom";
 import AuthCallback from "./pages/AuthCallback";
+import Index from "./pages/Index";
+import Lend from "./pages/Lend";
+import MarketDetail from "./pages/MarketDetail";
+import Markets from "./pages/Markets";
 import NotFound from "./pages/NotFound";
+import Overview from "./pages/Overview";
+import Portfolio from "./pages/Portfolio";
+import Vault from "./pages/Vault";
 
 const queryClient = new QueryClient();
 
@@ -24,6 +25,7 @@ const App = () => (
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/overview" element={<Overview />} />
             <Route path="/vault" element={<Vault />} />
             <Route path="/lend" element={<Lend />} />
             <Route path="/markets" element={<Markets />} />

@@ -42,8 +42,9 @@ const Footer = () => {
             </div>
           </div>
         </div>
-
-        <div className="mt-8 pt-6 border-t border-border flex items-center justify-between">
+      </div>
+      <div className="w-full bg-bg-1 border-t border-border py-4 mt-8">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex items-center justify-between">
           <span className="text-xs text-muted-foreground">© 2026 Cusp Protocol. All rights reserved.</span>
           <span className="text-[10px] font-mono text-muted-foreground">Built on Solana</span>
         </div>
