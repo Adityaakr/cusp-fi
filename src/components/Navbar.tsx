@@ -10,7 +10,6 @@ const USDC_MINT = USDC_MINT_ADDRESS;
 const navLinks: Array<{ path: string; label: string; external?: boolean; soon?: boolean }> = [
   { path: "/lend", label: "Borrow" },
   { path: "/vault", label: "Lend" },
-  { path: "/#leverage", label: "Leverage", soon: true },
   { path: "/markets", label: "Markets" },
   { path: "/portfolio", label: "Portfolio" },
   { path: "/docs", label: "Docs" },
