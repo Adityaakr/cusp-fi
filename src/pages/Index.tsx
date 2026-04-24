@@ -181,16 +181,16 @@ const Index = () => {
       {/* Backers */}
       <section className="border-t border-border bg-bg-1/30">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
-          <div className="flex flex-col items-center gap-5 sm:flex-row sm:justify-center sm:gap-12">
-            <span className="text-[18px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
+          <div className="flex flex-col items-center justify-center gap-5 sm:flex-row sm:flex-wrap sm:gap-8 lg:-ml-20">
+            <span className="shrink-0 text-[18px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
               Backed by
             </span>
-            <div className="flex flex-wrap items-center justify-center gap-6 text-2xl text-foreground">
+            <div className="flex flex-wrap items-center justify-center gap-5 text-2xl text-foreground">
               <a
                 href="https://x.com/SuperteamIN"
                 target="_blank"
                 rel="noopener noreferrer"
-                className="inline-flex items-center gap-3 rounded-full border border-border/60 bg-bg-1 px-7 py-3 hover:border-cusp-teal/40 transition-colors"
+                className="inline-flex items-center gap-3 rounded-full border border-border/60 bg-bg-1 px-7 py-3 hover:border-cusp-teal/40 transition-colors lg:-ml-4"
               >
                 <img
                   src="/superteam-india-logo.jpg"
@@ -199,19 +199,24 @@ const Index = () => {
                 />
                 Superteam India
               </a>
-              <a
-                href="https://dflow.net"
-                target="_blank"
-                rel="noopener noreferrer"
-                className="inline-flex items-center rounded-full border border-border/60 bg-bg-1 px-3 py-1.5 hover:border-cusp-teal/40 transition-colors"
-                aria-label="DFlow"
-              >
-                <img
-                  src="/dflow-logo.png"
-                  alt="DFlow"
-                  className="h-16 w-auto object-contain"
-                />
-              </a>
+              <div className="inline-flex items-center justify-center gap-5">
+                <span className="shrink-0 text-[18px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
+                  Built On
+                </span>
+                <a
+                  href="https://dflow.net"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="inline-flex items-center rounded-full border border-border/60 bg-bg-1 px-3 py-1 hover:border-cusp-teal/40 transition-colors"
+                  aria-label="DFlow"
+                >
+                  <img
+                    src="/dflow-logo.png"
+                    alt="DFlow"
+                    className="h-14 w-auto object-contain"
+                  />
+                </a>
+              </div>
             </div>
           </div>
         </div>
