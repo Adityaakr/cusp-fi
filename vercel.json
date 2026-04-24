@@ -4,10 +4,10 @@
   "framework": "vite",
   "cleanUrls": true,
   "trailingSlash": false,
+  "redirects": [{ "source": "/overview.html", "destination": "/docs", "permanent": true }],
   "rewrites": [
     { "source": "/api/dflow-trade/:path*", "destination": "/api/dflow-trade/:path*" },
     { "source": "/api/dflow/:path*", "destination": "/api/dflow/:path*" },
-    { "source": "/overview.html", "destination": "/overview.html" },
     { "source": "/(.*)", "destination": "/" }
   ]
 }
