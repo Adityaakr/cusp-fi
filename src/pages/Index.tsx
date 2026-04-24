@@ -274,9 +274,9 @@ const Index = () => {
 
           {/* Leverage */}
           <PillarRow
-            eyebrow="UP TO 2X"
+            eyebrow="UP TO 5X"
             title="Leverage your positions"
-            body="Loop your collateral in one click to turn an existing Kalshi position into 2x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
+            body="Loop your collateral in one click to turn an existing Kalshi position into up to 5x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
             href="#leverage"
             cta="Coming soon"
             disabled
@@ -292,7 +292,7 @@ const Index = () => {
                     { label: "Borrow at 50% LTV", value: "$500", accent: false },
                     { label: "Buy more YES", value: "+$500", accent: false },
                     { label: "Net exposure", value: "$1,500", accent: true },
-                    { label: "Leverage", value: "1.5x → 2.0x", accent: true },
+                    { label: "Leverage", value: "1.5x → 5.0x", accent: true },
                   ].map((row) => (
                     <div
                       key={row.label}
