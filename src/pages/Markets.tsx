@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import MarketCard from "@/components/MarketCard";
 import { useDflowMarkets, useDflowSearchMarkets } from "@/hooks/useDflowMarkets";
+import { hasInviteAccess, setInviteCode } from "@/lib/access";
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -25,6 +26,9 @@ const MarketsPage = () => {
   const [category, setCategory] = useState("All");
   const [sort, setSort] = useState("volume");
   const [search, setSearch] = useState("");
+  const [hasAccess, setHasAccess] = useState<boolean>(() => hasInviteAccess());
+  const [inviteInput, setInviteInput] = useState("");
+  const [inviteError, setInviteError] = useState<string | null>(null);
 
   const debouncedSearch = useDebouncedValue(search, 350);
 
@@ -69,6 +73,56 @@ const MarketsPage = () => {
     });
     return counts;
   }, [markets]);
+
+  const handleInviteSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const ok = setInviteCode(inviteInput);
+    if (ok) {
+      setHasAccess(true);
+      setInviteError(null);
+      setInviteInput("");
+    } else {
+      setInviteError("Invalid invite code. Please try again.");
+    }
+  };
+
+  if (!hasAccess) {
+    return (
+      <Layout>
+        <div className="max-w-md mx-auto px-4 sm:px-6 py-16">
+          <div className="bg-bg-1 border border-border rounded-lg p-6">
+            <h1 className="text-lg font-semibold text-foreground mb-1">Invite-only access</h1>
+            <p className="text-sm text-muted-foreground mb-5">
+              Markets are currently in private beta. Enter your invite code to continue.
+            </p>
+            <form onSubmit={handleInviteSubmit} className="space-y-3">
+              <input
+                type="text"
+                value={inviteInput}
+                onChange={(e) => {
+                  setInviteInput(e.target.value);
+                  if (inviteError) setInviteError(null);
+                }}
+                placeholder="Invite code"
+                autoFocus
+                className="w-full bg-bg-2 border border-border rounded-md px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-active transition-colors"
+              />
+              {inviteError && (
+                <p className="text-xs text-cusp-red">{inviteError}</p>
+              )}
+              <button
+                type="submit"
+                disabled={inviteInput.trim().length === 0}
+                className="w-full bg-cusp-teal text-bg-0 rounded-md px-3 py-2 text-sm font-medium hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+              >
+                Unlock Markets
+              </button>
+            </form>
+          </div>
+        </div>
+      </Layout>
+    );
+  }
 
   return (
     <Layout>
