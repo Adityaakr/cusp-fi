@@ -1,7 +1,7 @@
 import Layout from "@/components/Layout";
 import DepositWithdrawPanel from "@/components/DepositWithdrawPanel";
 import { useProtocolState } from "@/hooks/useProtocolState";
-import { useUserPortfolio } from "@/hooks/useUserPortfolio";
+import { useUserPortfolio, type Position } from "@/hooks/useUserPortfolio";
 import { useFaucet } from "@/hooks/useFaucet";
 import { isTestnet } from "@/lib/network-config";
 import { usePhantom } from "@phantom/react-sdk";
@@ -282,7 +282,7 @@ const VaultPage = () => {
               </h3>
               {portfolio?.positions && portfolio.positions.length > 0 ? (
                 <div className="space-y-2">
-                  {portfolio.positions.map((p: any) => (
+                  {portfolio.positions.map((p: Position) => (
                     <div
                       key={p.id}
                       className="bg-bg-1 border border-border rounded-lg p-4 flex items-center justify-between"

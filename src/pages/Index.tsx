@@ -15,6 +15,50 @@ const fadeUp = {
   visible: (i: number) => ({ opacity: 1, y: 0, transition: { delay: i * 0.08, duration: 0.5 } }),
 };
 
+const CAPITAL_EFFICIENCY_HEADLINE = "Unlocking capital efficiency for prediction markets on Kalshi.";
+
+/** Staggered words: heavy blur → sharp, slight rise for depth */
+const blurRevealContainer = {
+  hidden: {},
+  visible: {
+    transition: {
+      staggerChildren: 0.055,
+      delayChildren: 0.06,
+    },
+  },
+};
+
+const blurRevealWord = {
+  hidden: {
+    opacity: 0,
+    filter: "blur(16px)",
+    y: 14,
+  },
+  visible: {
+    opacity: 1,
+    filter: "blur(0px)",
+    y: 0,
+    transition: {
+      duration: 0.72,
+      ease: [0.16, 1, 0.3, 1] as const,
+    },
+  },
+};
+
+const blurRevealUnderline = {
+  hidden: { opacity: 0, scaleX: 0.3, filter: "blur(10px)" },
+  visible: {
+    opacity: 1,
+    scaleX: 1,
+    filter: "blur(0px)",
+    transition: {
+      delay: 0.35,
+      duration: 0.75,
+      ease: [0.22, 1, 0.36, 1] as const,
+    },
+  },
+};
+
 const Index = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
 
@@ -85,12 +129,12 @@ const Index = () => {
                 >
                   Launch App
                 </Link>
-                <a
-                  href="/overview.html"
+                <Link
+                  to="/docs"
                   className="inline-flex items-center px-6 py-2.5 border border-border text-foreground rounded-md text-sm font-medium hover:bg-bg-2 transition-colors"
                 >
                   Read Docs
-                </a>
+                </Link>
               </div>
               <div className="flex items-center gap-4 mt-8 text-xs text-muted-foreground">
                 <span>Built on DFlow</span>
@@ -135,18 +179,36 @@ const Index = () => {
       </section>
 
       {/* Capital efficiency pitch */}
-      <section className="border-t border-border">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
+      <section className="border-t border-border relative overflow-hidden">
+        <div
+          className="pointer-events-none absolute inset-0 opacity-40"
+          style={{
+            background:
+              "radial-gradient(ellipse 85% 55% at 50% 45%, hsl(var(--cusp-teal) / 0.12), transparent 65%)",
+          }}
+        />
+        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
           <motion.h2
             initial="hidden"
             whileInView="visible"
-            viewport={{ once: true }}
-            variants={fadeUp}
-            custom={0}
-            className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground leading-tight tracking-tight"
+            viewport={{ once: true, amount: 0.45 }}
+            variants={blurRevealContainer}
+            className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground leading-tight tracking-tight flex flex-wrap justify-center gap-x-[0.22em] gap-y-1.5 max-w-4xl mx-auto"
           >
-            Unlocking capital efficiency for prediction markets on Kalshi.
+            {CAPITAL_EFFICIENCY_HEADLINE.split(" ").map((word, i) => (
+              <motion.span key={`${i}-${word}`} variants={blurRevealWord} className="inline-block">
+                {word}
+              </motion.span>
+            ))}
           </motion.h2>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.45 }}
+            variants={blurRevealUnderline}
+            className="mx-auto mt-10 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
+            aria-hidden
+          />
         </div>
       </section>
 
@@ -212,9 +274,9 @@ const Index = () => {
 
           {/* Leverage */}
           <PillarRow
-            eyebrow="UP TO 2X"
+            eyebrow="UP TO 5X"
             title="Leverage your positions"
-            body="Loop your collateral in one click to turn an existing Kalshi position into 2x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
+            body="Loop your collateral in one click to turn an existing Kalshi position into up to 5x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
             href="#leverage"
             cta="Coming soon"
             disabled
@@ -230,7 +292,7 @@ const Index = () => {
                     { label: "Borrow at 50% LTV", value: "$500", accent: false },
                     { label: "Buy more YES", value: "+$500", accent: false },
                     { label: "Net exposure", value: "$1,500", accent: true },
-                    { label: "Leverage", value: "1.5x → 2.0x", accent: true },
+                    { label: "Leverage", value: "1.5x → 5.0x", accent: true },
                   ].map((row) => (
                     <div
                       key={row.label}
@@ -344,6 +406,9 @@ const Index = () => {
       {/* Waitlist */}
       <section className="border-t border-border bg-bg-1/40" id="waitlist">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
+          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3 tracking-tight">
+            Idle capital ends here
+          </h2>
           {waitlistCount !== null && (
             <p className="text-xs text-muted-foreground mb-2">
               <span className="font-mono text-cusp-teal font-semibold">{(waitlistCount + 100).toLocaleString()}</span> people on the waitlist
@@ -376,25 +441,6 @@ const Index = () => {
           {waitlistStatus === "error" && (
             <p className="text-xs text-cusp-red mt-2">{waitlistError}</p>
           )}
-        </div>
-      </section>
-
-      {/* Final CTA */}
-      <section className="border-t border-border relative overflow-hidden">
-        <div className="absolute inset-0 bg-gradient-to-t from-cusp-teal/8 via-transparent to-transparent pointer-events-none" />
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-20 text-center relative">
-          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3 tracking-tight">
-            Idle capital ends here
-          </h2>
-          <p className="text-sm text-muted-foreground mb-8 max-w-md mx-auto">
-            Your Kalshi positions can earn 15–25% APY while waiting to resolve. Cusp makes it happen.
-          </p>
-          <Link
-            to="/vault"
-            className="inline-flex items-center px-8 py-3 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity glow-teal"
-          >
-            Launch App →
-          </Link>
         </div>
       </section>
     </Layout>

@@ -36,7 +36,10 @@ const MarketsPage = () => {
   const searchQuery = useDflowSearchMarkets(debouncedSearch);
 
   const isSearching = debouncedSearch.length >= 2;
-  const markets = isSearching ? (searchQuery.data ?? []) : (marketsQuery.data ?? []);
+  const markets = useMemo(
+    () => (isSearching ? (searchQuery.data ?? []) : (marketsQuery.data ?? [])),
+    [isSearching, searchQuery.data, marketsQuery.data]
+  );
   const isLoading = isSearching ? searchQuery.isLoading : marketsQuery.isLoading;
   const error = isSearching ? searchQuery.error : marketsQuery.error;
 
@@ -57,7 +60,7 @@ const MarketsPage = () => {
       default:
         return list;
     }
-  }, [markets, category, sort, search]);
+  }, [markets, category, sort]);
 
   const categoryCounts = useMemo(() => {
     const counts: Record<string, number> = { All: markets.length };

@@ -13,7 +13,7 @@
 :root{--bg:#000000;--bg1:#0a0a0a;--bg2:#121212;--bg3:#1f1f1f;--border:#242424;--border2:#2e2e2e;--text:#ffffff;--text2:#a3a3a3;--text3:#636363;--teal:#4DE4B2;--teal2:#35c79a;--tealBg:#4DE4B214;--amber:#f59e0b;--amberBg:#f59e0b10;--green:#10b981;--greenBg:#10b98110;--red:#ef4444;--redBg:#ef444410;--purple:#8b5cf6;--purpleBg:#8b5cf610;--blue:#3b82f6;--blueBg:#3b82f610;--hand:'Caveat',cursive;--body:'DM Sans',sans-serif;--mono:'JetBrains Mono',monospace}
 *{margin:0;padding:0;box-sizing:border-box}html{scroll-behavior:smooth}body{background:var(--bg);color:var(--text);font-family:var(--body);line-height:1.7;font-size:15px}
 .container{max-width:900px;margin:0 auto;padding:0 24px}
-nav{position:sticky;top:0;z-index:100;background:var(--bg)ee;backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 0}nav .container{display:flex;align-items:center;justify-content:space-between}.logo{font-family:var(--body);font-weight:700;font-size:22px;color:var(--text);letter-spacing:-1px}.logo span{color:var(--teal)}nav a{color:var(--text2);text-decoration:none;font-size:13px;margin-left:24px;transition:color 0.2s}nav a:hover{color:var(--teal)}
+nav{position:sticky;top:0;z-index:100;background:var(--bg)ee;backdrop-filter:blur(20px);border-bottom:1px solid var(--border);padding:14px 0}nav .container{display:flex;align-items:center;justify-content:space-between}.logo{font-family:var(--body);font-weight:700;font-size:22px;color:var(--text);letter-spacing:-1px}.logo span{color:var(--teal)}nav .logo a{color:inherit;text-decoration:none}nav .logo a:hover{color:var(--teal)}nav .nav-right a{color:var(--text2);text-decoration:none;font-size:13px;margin-left:24px;transition:color 0.2s}nav .nav-right a:hover{color:var(--teal)}
 .hero{padding:80px 0 60px;border-bottom:1px solid var(--border)}.hero h1{font-size:42px;font-weight:700;letter-spacing:-1.5px;line-height:1.15;margin-bottom:16px}.hero h1 span{color:var(--teal)}.hero p{color:var(--text2);font-size:17px;max-width:680px;margin-bottom:24px}.badge-row{display:flex;gap:10px;flex-wrap:wrap}.badge{display:inline-flex;align-items:center;gap:6px;padding:6px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:6px;font-size:12px;color:var(--text2)}.badge .dot{width:6px;height:6px;border-radius:50%}
 .stat-strip{display:grid;grid-template-columns:repeat(4,1fr);gap:1px;margin-top:32px;background:var(--border);border:1px solid var(--border);border-radius:10px;overflow:hidden}.stat-cell{background:var(--bg1);padding:18px 20px;text-align:center}.stat-value{font-family:var(--mono);font-size:24px;font-weight:600;color:var(--teal);letter-spacing:-0.5px}.stat-label{font-size:11px;color:var(--text3);text-transform:uppercase;letter-spacing:1.5px;margin-top:4px}
 @media(max-width:600px){.stat-strip{grid-template-columns:repeat(2,1fr)}}
@@ -27,14 +27,14 @@ ul,ol{padding-left:24px;margin:12px 0}li{color:var(--text2);margin-bottom:8px}li
 .formula{background:var(--bg2);border:1px solid var(--teal)33;border-radius:8px;padding:20px;text-align:center;margin:20px 0;font-family:var(--mono);font-size:14px}.formula .eq{color:var(--teal);font-weight:600;font-size:15px}.formula .desc{color:var(--text3);font-size:12px;margin-top:8px}
 footer{padding:40px 0;text-align:center;color:var(--text3);font-size:13px}footer a{color:var(--teal);text-decoration:none}
 .flow{display:flex;gap:12px;margin:20px 0;flex-wrap:wrap}.flow-step{flex:1;min-width:150px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;padding:14px;text-align:center}.flow-step .num{font-family:var(--mono);font-size:11px;color:var(--teal);margin-bottom:4px}.flow-step .title{font-weight:600;font-size:13px;color:var(--text);margin-bottom:4px}.flow-step .desc{font-size:12px;color:var(--text3)}.flow-arrow{display:flex;align-items:center;color:var(--text3);font-size:18px}
-@media(max-width:768px){.hero h1{font-size:28px}h2{font-size:22px}.flow{flex-direction:column}.flow-arrow{justify-content:center;transform:rotate(90deg)}nav a{display:none}}
+@media(max-width:768px){.hero h1{font-size:28px}h2{font-size:22px}.flow{flex-direction:column}.flow-arrow{justify-content:center;transform:rotate(90deg)}nav .nav-right a{display:none}}
 </style>
 </head>
 <body>
 <nav>
 <div class="container">
-<div class="logo">CUSP<span>.</span></div>
-<div>
+<div class="logo"><a href="/" target="_top">CUSP<span>.</span></a></div>
+<div class="nav-right">
 <a href="#overview">Overview</a>
 <a href="#architecture">Architecture</a>
 <a href="#vault">Vault</a>
@@ -46,6 +46,31 @@ footer{padding:40px 0;text-align:center;color:var(--text3);font-size:13px}footer
 </div>
 </div>
 </nav>
+<script>
+(function () {
+  function scrollToId(id) {
+    if (!id) return;
+    var el = document.getElementById(id);
+    if (el) el.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+  document.addEventListener("click", function (e) {
+    var a = e.target && e.target.closest && e.target.closest("a[href^=\"#\"]");
+    if (!a) return;
+    var href = a.getAttribute("href");
+    if (!href || href.length < 2) return;
+    var id = href.slice(1);
+    if (!document.getElementById(id)) return;
+    e.preventDefault();
+    scrollToId(id);
+    var next = location.pathname + location.search + "#" + id;
+    if (history.replaceState) history.replaceState(null, "", next);
+    else location.replace(next);
+  });
+  if (location.hash.length > 1) {
+    scrollToId(decodeURIComponent(location.hash.slice(1)));
+  }
+})();
+</script>
 <div class="container">
 <div class="hero">
 <h1>What is <span>Cusp</span>?</h1>

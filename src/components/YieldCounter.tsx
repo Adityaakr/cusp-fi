@@ -11,12 +11,14 @@ interface YieldCounterProps {
 
 const YieldCounter = ({ value, prefix = "", suffix = "", decimals = 1, className = "", duration = 1500 }: YieldCounterProps) => {
   const [display, setDisplay] = useState(0);
+  const displayRef = useRef(display);
+  displayRef.current = display;
   const startTime = useRef<number>(0);
   const animFrame = useRef<number>(0);
 
   useEffect(() => {
     startTime.current = Date.now();
-    const start = display;
+    const start = displayRef.current;
     const diff = value - start;
 
     const animate = () => {

@@ -13,7 +13,7 @@ const navLinks: Array<{ path: string; label: string; external?: boolean; soon?: 
   { path: "/#leverage", label: "Leverage", soon: true },
   { path: "/markets", label: "Markets" },
   { path: "/portfolio", label: "Portfolio" },
-  { path: "/overview.html", label: "Docs", external: true },
+  { path: "/docs", label: "Docs" },
 ];
 
 function truncateAddress(address: string) {

@@ -6,6 +6,7 @@ import {
   LAMPORTS_PER_SOL,
 } from "@solana/web3.js";
 import {
+  createTransferInstruction,
   getAssociatedTokenAddress,
   getAccount,
   TOKEN_PROGRAM_ID,
@@ -94,7 +95,6 @@ export function buildUsdcTransferInstruction(
   amount: number
 ) {
   const amountAtomic = Math.round(amount * 1e6);
-  const { createTransferInstruction } = require("@solana/spl-token");
   return createTransferInstruction(from, toTokenAccount, from, amountAtomic);
 }
 

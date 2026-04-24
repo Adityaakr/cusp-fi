@@ -29,7 +29,7 @@ const Footer = () => {
           <div>
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Protocol</h4>
             <div className="space-y-2">
-              <a href="/overview.html" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Docs</a>
+              <Link to="/docs" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Docs</Link>
               <a href="https://dflow.net" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">DFlow</a>
               <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Kalshi</a>
               <a href="https://solana.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Solana</a>
