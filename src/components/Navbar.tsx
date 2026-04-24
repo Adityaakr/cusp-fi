@@ -1,11 +1,12 @@
 import { Link, useLocation } from "react-router-dom";
 import { useModal, usePhantom } from "@phantom/react-sdk";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { SOLANA_RPC_URL, USDC_MINT_ADDRESS } from "@/lib/network-config";
+import { MAINNET_RPC_URL, MAINNET_USDC_MINT } from "@/lib/network-config";
 import { Menu, X } from "lucide-react";
 
-const RPC_URL = SOLANA_RPC_URL;
-const USDC_MINT = USDC_MINT_ADDRESS;
+// Always use mainnet for wallet balance — user funds live on mainnet.
+const RPC_URL = MAINNET_RPC_URL;
+const USDC_MINT = MAINNET_USDC_MINT;
 
 const navLinks: Array<{ path: string; label: string; external?: boolean; soon?: boolean }> = [
   { path: "/lend", label: "Borrow" },
@@ -154,17 +155,11 @@ const Navbar = () => {
         </div>
 
         <div className="flex items-center gap-3">
-          {isConnected && sol !== null && (
+
+          {isConnected && usdc !== null && (
             <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-muted-foreground">
-              <span className="text-foreground/80">{sol.toFixed(3)}</span>
-              <span>SOL</span>
-              {usdc !== null && usdc > 0 && (
-                <>
-                  <span className="text-border">|</span>
-                  <span className="text-foreground/80">{usdc.toFixed(2)}</span>
-                  <span>USDC</span>
-                </>
-              )}
+              <span className="text-foreground/80">{usdc.toFixed(2)}</span>
+              <span>USDC</span>
             </div>
           )}
 
@@ -225,21 +220,18 @@ const Navbar = () => {
               );
             })}
           </div>
-          {isConnected && sol !== null && (
-            <div className="px-4 pb-3 pt-1 border-t border-border/50">
-              <div className="flex items-center gap-3 text-xs font-mono text-muted-foreground">
-                <span className="text-foreground/80">{sol.toFixed(3)}</span>
-                <span>SOL</span>
-                {usdc !== null && usdc > 0 && (
-                  <>
-                    <span className="text-border">|</span>
-                    <span className="text-foreground/80">{usdc.toFixed(2)}</span>
-                    <span>USDC</span>
-                  </>
-                )}
+          {isConnected && usdc !== null && (
+            <div className="px-4 py-3 border-t border-border/50">
+              <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-bg-2">
+                <span className="text-[11px] text-muted-foreground">Balance</span>
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-foreground/80">{usdc.toFixed(2)}</span>
+                  <span className="text-muted-foreground">USDC</span>
+                </div>
               </div>
             </div>
           )}
+
         </div>
       )}
     </nav>

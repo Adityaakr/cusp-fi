@@ -5,17 +5,17 @@ const Footer = () => {
     <footer className="border-t border-border bg-bg-0 py-12">
       <div className="max-w-7xl mx-auto px-4 sm:px-6">
         <div className="grid grid-cols-2 md:grid-cols-5 gap-8">
-          <div className="col-span-2">
-            <div className="flex items-center gap-2 mb-4">
+          <div className="col-span-2 text-center sm:text-left">
+            <div className="flex items-center justify-center sm:justify-start gap-2 mb-4">
               <img src="/cusp.png" alt="Cusp" className="w-5 h-5 rounded-full object-contain" />
               <span className="font-semibold text-foreground text-sm">Cusp</span>
             </div>
-            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs">
+            <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto sm:mx-0">
               The DeFi layer for prediction markets. Borrow, lend, and leverage your Kalshi positions on Solana.
             </p>
           </div>
 
-          <div>
+          <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Product</h4>
             <div className="space-y-2">
               <Link to="/lend" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Borrow</Link>
@@ -26,7 +26,7 @@ const Footer = () => {
             </div>
           </div>
 
-          <div>
+          <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Protocol</h4>
             <div className="space-y-2">
               <Link to="/docs" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Docs</Link>
@@ -36,7 +36,7 @@ const Footer = () => {
             </div>
           </div>
 
-          <div>
+          <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Company</h4>
             <div className="space-y-2">
               <a href="/#waitlist" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Waitlist</a>
@@ -47,9 +47,24 @@ const Footer = () => {
           </div>
         </div>
 
-        <div className="mt-10 pt-6 border-t border-border flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
-          <span className="text-xs text-muted-foreground">© 2026 Cusp Protocol. All rights reserved.</span>
-          <span className="text-[10px] font-mono text-muted-foreground">Built on Solana · Powered by Kalshi</span>
+        <div className="mt-10 pt-6 border-t border-border flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
+          <span className="text-xs text-muted-foreground text-center sm:text-left">© 2026 Cusp Protocol. All rights reserved.</span>
+
+          <a
+            href="https://x.com/SuperteamIN"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="inline-flex items-center gap-1.5 text-xs text-foreground hover:text-cusp-teal transition-colors"
+          >
+            <img
+              src="/superteam-india-logo.jpg"
+              alt="Superteam India"
+              className="w-3.5 h-3.5 rounded-full object-cover"
+            />
+            <span>Backed by Superteam India</span>
+          </a>
+
+          <span className="text-[10px] font-mono text-muted-foreground text-center sm:text-right">Powered by Kalshi & dFlow</span>
         </div>
       </div>
     </footer>
