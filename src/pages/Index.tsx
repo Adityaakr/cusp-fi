@@ -278,8 +278,7 @@ const Index = () => {
             title="Leverage your positions"
             body="Loop your collateral in one click to turn an existing Kalshi position into up to 5x exposure with no additional capital. Ideal for high-conviction trades without fresh deposits."
             href="#leverage"
-            cta="Coming soon"
-            disabled
+            cta="Beta"
             visual={
               <PillarCard>
                 <div className="flex items-center justify-between mb-4">
