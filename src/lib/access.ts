@@ -1,7 +1,4 @@
 const STORAGE_API_KEY = "cusp_api_key";
-const STORAGE_INVITE_KEY = "cusp_invite_code";
-
-export const INVITE_CODE = "CUSPBETA";
 
 const API_KEY_LENGTH = 10;
 const API_KEY_ALPHABET =
@@ -36,35 +33,5 @@ export function getOrCreateApiKey(): string {
     return fresh;
   } catch {
     return generateApiKey();
-  }
-}
-
-export function hasInviteAccess(): boolean {
-  if (typeof window === "undefined") return false;
-  try {
-    return window.localStorage.getItem(STORAGE_INVITE_KEY) === INVITE_CODE;
-  } catch {
-    return false;
-  }
-}
-
-export function setInviteCode(code: string): boolean {
-  if (typeof window === "undefined") return false;
-  const normalized = code.trim();
-  if (normalized !== INVITE_CODE) return false;
-  try {
-    window.localStorage.setItem(STORAGE_INVITE_KEY, normalized);
-    return true;
-  } catch {
-    return false;
-  }
-}
-
-export function clearInviteCode(): void {
-  if (typeof window === "undefined") return;
-  try {
-    window.localStorage.removeItem(STORAGE_INVITE_KEY);
-  } catch {
-    // noop
   }
 }

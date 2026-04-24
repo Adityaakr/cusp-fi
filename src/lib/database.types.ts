@@ -312,6 +312,29 @@ export interface Database {
         };
         Relationships: [];
       };
+      invite_codes: {
+        Row: {
+          id: string;
+          code: string;
+          wallet_address: string | null;
+          used: boolean;
+          used_at: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          code: string;
+          wallet_address?: string | null;
+          used?: boolean;
+          used_at?: string | null;
+        };
+        Update: {
+          wallet_address?: string | null;
+          used?: boolean;
+          used_at?: string | null;
+        };
+        Relationships: [];
+      };
     };
     Views: {
       [_ in never]: never;
@@ -353,6 +376,19 @@ export interface Database {
           p_quantity: number;
         };
         Returns: undefined;
+      };
+      verify_invite_code: {
+        Args: {
+          p_wallet_address: string;
+          p_code: string;
+        };
+        Returns: boolean;
+      };
+      check_wallet_access: {
+        Args: {
+          p_wallet_address: string;
+        };
+        Returns: boolean;
       };
     };
   };
