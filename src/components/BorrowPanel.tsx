@@ -85,7 +85,7 @@ const BorrowPanel = () => {
 
           <button
             disabled={numBorrow <= 0 || numBorrow > selected.maxBorrow}
-            className="w-full py-2.5 bg-cusp-purple text-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
+            className="w-full py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
             Borrow USDC
           </button>

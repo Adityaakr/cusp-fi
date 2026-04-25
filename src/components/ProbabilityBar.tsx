@@ -10,8 +10,8 @@ const ProbabilityBar = ({ probability, size = "md", showLabel = true }: Probabil
   const height = size === "sm" ? "h-1.5" : size === "md" ? "h-2.5" : "h-3.5";
   
   const getColor = (p: number) => {
-    if (p >= 80) return "from-emerald-500 to-teal-400";
-    if (p >= 60) return "from-teal-500 to-cyan-400";
+    if (p >= 80) return "from-cusp-teal to-cusp-teal";
+    if (p >= 60) return "from-cusp-teal to-cusp-teal";
     if (p >= 40) return "from-amber-500 to-yellow-400";
     if (p >= 20) return "from-orange-500 to-amber-400";
     return "from-red-500 to-orange-400";

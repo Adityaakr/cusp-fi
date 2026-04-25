@@ -870,7 +870,7 @@ const MarketDetail = () => {
             {isConnected && !kycVerified && !kycLoading ? (
               <button
                 onClick={startVerification}
-                className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-amber hover:bg-cusp-amber/90 text-white transition-all"
+                className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-teal hover:bg-cusp-teal/90 text-primary-foreground transition-all"
               >
                 Complete KYC to Trade
               </button>

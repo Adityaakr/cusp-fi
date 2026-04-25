@@ -27,7 +27,7 @@ Create `.env` in this folder (or set in Vercel):
 
 ```
 VITE_SUPABASE_URL=https://xxxxx.supabase.co
-VITE_SUPABASE_ANON_KEY=your-anon-key
+VITE_SUPABASE_PUBLISHABLE_KEY=your-publishable-key
 ```
 
 Get these from Supabase → Project Settings → API.
@@ -42,7 +42,7 @@ Get these from Supabase → Project Settings → API.
    - Framework Preset: Vite
    - Build Command: `npm run build`
    - Output Directory: `dist`
-4. Add env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY`
+4. Add env vars: `VITE_SUPABASE_URL`, `VITE_SUPABASE_PUBLISHABLE_KEY`
 5. Deploy
 
 ### Option 2: Deploy from CLI

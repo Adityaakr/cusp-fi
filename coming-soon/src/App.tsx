@@ -39,7 +39,7 @@ function App() {
 
     if (!supabase) {
       setStatus("error");
-      setErrorMessage("Waitlist is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.");
+      setErrorMessage("Waitlist is not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_PUBLISHABLE_KEY.");
       return;
     }
 

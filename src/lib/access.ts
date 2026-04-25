@@ -1,7 +1,7 @@
-const STORAGE_API_KEY = "cusp_api_key";
-const STORAGE_INVITE_KEY = "cusp_invite_code";
+import { supabase } from "@/lib/supabase";
 
-export const INVITE_CODE = "CUSPBETA";
+const STORAGE_API_KEY = "cusp_api_key";
+const STORAGE_ACCESS_TOKEN = "cusp_invite_access_token";
 
 const API_KEY_LENGTH = 10;
 const API_KEY_ALPHABET =
@@ -39,21 +39,46 @@ export function getOrCreateApiKey(): string {
   }
 }
 
-export function hasInviteAccess(): boolean {
-  if (typeof window === "undefined") return false;
+export function getInviteAccessToken(): string {
+  if (typeof window === "undefined") return "";
   try {
-    return window.localStorage.getItem(STORAGE_INVITE_KEY) === INVITE_CODE;
+    return window.localStorage.getItem(STORAGE_ACCESS_TOKEN) ?? "";
   } catch {
+    return "";
+  }
+}
+
+export async function hasInviteAccess(): Promise<boolean> {
+  const token = getInviteAccessToken();
+  if (!token) return false;
+  if (!supabase) return false;
+
+  try {
+    const { data, error } = await supabase.functions.invoke("verify-invite", {
+      body: { token },
+    });
+    if (error || !data?.ok) {
+      clearInviteCode();
+      return false;
+    }
+    return true;
+  } catch {
+    clearInviteCode();
     return false;
   }
 }
 
-export function setInviteCode(code: string): boolean {
+export async function setInviteCode(code: string): Promise<boolean> {
   if (typeof window === "undefined") return false;
-  const normalized = code.trim();
-  if (normalized !== INVITE_CODE) return false;
+  if (!supabase) return false;
+
   try {
-    window.localStorage.setItem(STORAGE_INVITE_KEY, normalized);
+    const { data, error } = await supabase.functions.invoke("verify-invite", {
+      body: { code: code.trim() },
+    });
+    const token = typeof data?.token === "string" ? data.token : "";
+    if (error || !data?.ok || !token) return false;
+    window.localStorage.setItem(STORAGE_ACCESS_TOKEN, token);
     return true;
   } catch {
     return false;
@@ -63,7 +88,7 @@ export function setInviteCode(code: string): boolean {
 export function clearInviteCode(): void {
   if (typeof window === "undefined") return;
   try {
-    window.localStorage.removeItem(STORAGE_INVITE_KEY);
+    window.localStorage.removeItem(STORAGE_ACCESS_TOKEN);
   } catch {
     // noop
   }

@@ -195,16 +195,16 @@ const VaultPage = () => {
                           fontFamily: "'Geist Mono'",
                         }}
                         labelStyle={{ color: "#8B92A8" }}
-                        itemStyle={{ color: "#00E5CC" }}
+                        itemStyle={{ color: "#28cc95" }}
                         formatter={(v: number) => [`$${v.toFixed(6)}`, "Rate"]}
                       />
                       <Line
                         type="monotone"
                         dataKey="nav"
-                        stroke="#00E5CC"
+                        stroke="#28cc95"
                         strokeWidth={2}
                         dot={false}
-                        activeDot={{ r: 3, fill: "#00E5CC" }}
+                        activeDot={{ r: 3, fill: "#28cc95" }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
