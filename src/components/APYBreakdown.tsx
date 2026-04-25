@@ -2,8 +2,8 @@ import { motion } from "framer-motion";
 
 const APYBreakdown = () => {
   const sources = [
-    { label: "Position Farming", range: "8–12%", value: 10, color: "bg-cusp-teal" },
-    { label: "Lending Spread", range: "5–9%", value: 7, color: "bg-cusp-teal" },
+    { label: "Position Farming", range: "8–12%", value: 10, color: "bg-cusp-amber" },
+    { label: "Lending Spread", range: "5–9%", value: 7, color: "bg-cusp-purple" },
     { label: "LP Fees", range: "2–4%", value: 3, color: "bg-cusp-teal" },
   ];
 
