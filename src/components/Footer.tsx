@@ -29,7 +29,6 @@ const Footer = () => {
           <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Protocol</h4>
             <div className="space-y-2">
-              <Link to="/docs" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Docs</Link>
               <a href="https://dflow.net" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">DFlow</a>
               <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Kalshi</a>
               <a href="https://solana.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Solana</a>
@@ -49,20 +48,6 @@ const Footer = () => {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-muted-foreground text-center sm:text-left">© 2026 Cusp Protocol. All rights reserved.</span>
-
-          <a
-            href="https://x.com/SuperteamIN"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="inline-flex items-center gap-1.5 text-xs text-foreground hover:text-cusp-teal transition-colors"
-          >
-            <img
-              src="/superteam-india-logo.jpg"
-              alt="Superteam India"
-              className="w-3.5 h-3.5 rounded-full object-cover"
-            />
-            <span>Backed by Superteam India</span>
-          </a>
 
           <span className="text-[10px] font-mono text-muted-foreground text-center sm:text-right">Powered by Kalshi & dFlow</span>
         </div>

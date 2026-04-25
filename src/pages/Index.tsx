@@ -129,12 +129,6 @@ const Index = () => {
                 >
                   Launch App
                 </Link>
-                <Link
-                  to="/docs"
-                  className="inline-flex items-center px-6 py-2.5 border border-border text-foreground rounded-md text-sm font-medium hover:bg-bg-2 transition-colors"
-                >
-                  Read Docs
-                </Link>
               </div>
               <div className="flex items-center gap-4 mt-8 text-xs text-muted-foreground">
                 <span>Built on DFlow</span>
@@ -223,39 +217,6 @@ const Index = () => {
       </section>
 
       {/* Capital efficiency pitch */}
-      <section className="border-t border-border relative overflow-hidden">
-        <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(ellipse 85% 55% at 50% 45%, hsl(var(--cusp-teal) / 0.12), transparent 65%)",
-          }}
-        />
-        <div className="relative max-w-5xl mx-auto px-4 sm:px-6 py-20 md:py-28 text-center">
-          <motion.h2
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.45 }}
-            variants={blurRevealContainer}
-            className="text-2xl sm:text-3xl md:text-4xl font-semibold text-foreground leading-tight tracking-tight flex flex-wrap justify-center gap-x-[0.22em] gap-y-1.5 max-w-4xl mx-auto"
-          >
-            {CAPITAL_EFFICIENCY_HEADLINE.split(" ").map((word, i) => (
-              <motion.span key={`${i}-${word}`} variants={blurRevealWord} className="inline-block">
-                {word}
-              </motion.span>
-            ))}
-          </motion.h2>
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.45 }}
-            variants={blurRevealUnderline}
-            className="mx-auto mt-10 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
-            aria-hidden
-          />
-        </div>
-      </section>
-
       {/* 3 Pillars: Borrow / Lend / Leverage */}
       <section className="border-t border-border bg-bg-1/40">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
@@ -297,9 +258,49 @@ const Index = () => {
             }
           />
 
+          <section className="relative overflow-hidden">
+            <div
+              className="pointer-events-none absolute inset-0 opacity-40"
+              style={{
+                background:
+                  "radial-gradient(ellipse 85% 55% at 50% 45%, hsl(var(--cusp-teal) / 0.12), transparent 65%)",
+              }}
+            />
+            <div className="relative mx-auto max-w-5xl px-4 py-32 text-center sm:px-6 md:py-44">
+              <motion.h2
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.45 }}
+                variants={blurRevealContainer}
+                className="mx-auto block max-w-none text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl md:whitespace-nowrap md:text-4xl"
+              >
+                {CAPITAL_EFFICIENCY_HEADLINE.split(" ").map((word, i) => (
+                  <motion.span
+                    key={`${i}-${word}`}
+                    variants={blurRevealWord}
+                    className={`inline-block ${word.startsWith("Kalshi") ? "font-bold" : ""}`}
+                    style={word.startsWith("Kalshi") ? { color: "#28cc95" } : undefined}
+                  >
+                    {word}
+                    {i < CAPITAL_EFFICIENCY_HEADLINE.split(" ").length - 1 ? "\u00A0" : ""}
+                  </motion.span>
+                ))}
+              </motion.h2>
+              <motion.div
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, amount: 0.45 }}
+                variants={blurRevealUnderline}
+                className="mx-auto mt-16 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
+                aria-hidden
+              />
+            </div>
+          </section>
+
           {/* Lend */}
           <PillarRow
             reverse
+            hideTopBorder
             eyebrow="UP TO 25% APY"
             title="Lend to Kalshi traders"
             body="Deposit USDC into the Cusp Vault and earn yield sourced from real borrower interest, high-probability outcome farming, and LP fees on Kalshi markets. No emissions, uncorrelated with crypto."
@@ -457,7 +458,6 @@ const Index = () => {
               <span className="font-mono text-cusp-teal font-semibold">{(waitlistCount + 100).toLocaleString()}</span> people on the waitlist
             </p>
           )}
-          <h2 className="text-xl font-semibold text-foreground mb-2">Join the Alpha</h2>
           <p className="text-sm text-muted-foreground mb-6">Early access to Cusp. We'll reach out when you're in.</p>
           {waitlistStatus === "success" ? (
             <p className="text-sm text-cusp-green font-medium">You're in. We'll be in touch.</p>
@@ -504,17 +504,20 @@ interface PillarRowProps {
   cta: string;
   disabled?: boolean;
   reverse?: boolean;
+  hideTopBorder?: boolean;
   visual: React.ReactNode;
 }
 
-const PillarRow = ({ eyebrow, title, body, href, cta, disabled, reverse, visual }: PillarRowProps) => (
+const PillarRow = ({ eyebrow, title, body, href, cta, disabled, reverse, hideTopBorder, visual }: PillarRowProps) => (
   <motion.div
     initial="hidden"
     whileInView="visible"
     viewport={{ once: true, margin: "-80px" }}
     variants={fadeUp}
     custom={0}
-    className="grid md:grid-cols-2 gap-10 lg:gap-16 items-center py-12 md:py-16 border-t border-border first:border-t-0"
+    className={`grid md:grid-cols-2 gap-10 lg:gap-16 items-center py-12 md:py-16 ${
+      hideTopBorder ? "" : "border-t border-border first:border-t-0"
+    }`}
   >
     <div className={reverse ? "md:order-2" : ""}>
       <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-4">{eyebrow}</span>
