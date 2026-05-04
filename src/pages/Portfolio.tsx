@@ -4,7 +4,7 @@ import Layout from "@/components/Layout";
 import { useUserPortfolio, type Position, type LeveragedTrade, type TradeExecution } from "@/hooks/useUserPortfolio";
 import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
 import { useProtocolState } from "@/hooks/useProtocolState";
-import { usePhantom } from "@phantom/react-sdk";
+import { usePhantom } from "@/lib/wallet";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ExternalLink,
@@ -382,7 +382,12 @@ const PortfolioPage = () => {
         {/* Overview Stats */}
         <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 mb-8">
           {isLoading ? (
-            Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[84px] rounded-xl" />)
+            Array.from({ length: 5 }).map((_, i) => (
+              <div key={i} className="bg-bg-1 border border-border rounded-xl p-4 flex flex-col gap-2 min-h-[84px]">
+                <Skeleton className="h-2.5 w-20" />
+                <Skeleton className="h-6 w-28" shimmer={i === 0} />
+              </div>
+            ))
           ) : (
             <>
               <div className="bg-bg-1 border border-border rounded-xl p-4">
@@ -412,7 +417,7 @@ const PortfolioPage = () => {
                   Outcome Tokens
                 </span>
                 {outcomeLoading ? (
-                  <Skeleton className="h-7 w-12 mt-0.5" />
+                  <Skeleton className="h-7 w-12 mt-0.5" shimmer />
                 ) : (
                   <span className="font-mono text-lg font-semibold text-foreground">{outcomeHoldings.length}</span>
                 )}
@@ -466,7 +471,9 @@ const PortfolioPage = () => {
           <div>
             {isLoading ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                {Array.from({ length: 4 }).map((_, i) => <Skeleton key={i} className="h-[240px] rounded-xl" />)}
+                {Array.from({ length: 4 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[240px] rounded-xl" shimmer={i === 0} />
+                ))}
               </div>
             ) : openPositions.length > 0 ? (
               <>
@@ -513,7 +520,9 @@ const PortfolioPage = () => {
           <div>
             {outcomeLoading ? (
               <div className="grid gap-4 sm:grid-cols-2">
-                {Array.from({ length: 3 }).map((_, i) => <Skeleton key={i} className="h-[200px] rounded-xl" />)}
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[200px] rounded-xl" shimmer={i === 0} />
+                ))}
               </div>
             ) : outcomeHoldings.length > 0 ? (
               <div className="grid gap-4 sm:grid-cols-2">
@@ -612,7 +621,9 @@ const PortfolioPage = () => {
           <div>
             {isLoading ? (
               <div className="space-y-4">
-                {Array.from({ length: 2 }).map((_, i) => <Skeleton key={i} className="h-[200px] rounded-xl" />)}
+                {Array.from({ length: 2 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[200px] rounded-xl" shimmer={i === 0} />
+                ))}
               </div>
             ) : activeLeveraged.length > 0 ? (
               <div className="space-y-4">
@@ -625,7 +636,7 @@ const PortfolioPage = () => {
                 <Shield className="size-10 text-muted-foreground/30 mx-auto mb-4" />
                 <p className="text-sm font-medium text-muted-foreground mb-1">No active leveraged trades</p>
                 <p className="text-[11px] text-muted-foreground/60 mb-4">
-                  Use the Leveraged mode on any market to trade with borrowed funds from the vault.
+                  Choose 2x or 3x leverage on any market to trade with borrowed funds from the vault (1x is direct).
                 </p>
                 <Link
                   to="/markets"
@@ -644,7 +655,9 @@ const PortfolioPage = () => {
           <div>
             {isLoading ? (
               <div className="space-y-2">
-                {Array.from({ length: 5 }).map((_, i) => <Skeleton key={i} className="h-[64px] rounded-lg" />)}
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <Skeleton key={i} className="h-[64px] rounded-lg" shimmer={i === 0} />
+                ))}
               </div>
             ) : (portfolio?.trade_executions ?? []).length > 0 ? (
               <div className="bg-bg-1 border border-border rounded-xl overflow-hidden divide-y divide-border/50">

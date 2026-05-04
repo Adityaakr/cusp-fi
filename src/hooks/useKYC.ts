@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { checkKycStatus, buildProofDeepLink, buildKycSignMessage } from "@/lib/dflow-proof";
 import { supabase } from "@/lib/supabase";
 import bs58 from "bs58";

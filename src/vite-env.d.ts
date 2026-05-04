@@ -12,6 +12,8 @@ interface ImportMetaEnv {
   readonly VITE_VAULT_USDC_ACCOUNT?: string;
   readonly VITE_VAULT_PUBLIC_KEY?: string;
   readonly VITE_PHANTOM_APP_ID?: string;
+  /** Dev only: skip invite gate when set to "true"; never enable in prod (use .env.local) */
+  readonly VITE_SKIP_INVITE_GATE?: string;
 }
 
 interface ImportMeta {

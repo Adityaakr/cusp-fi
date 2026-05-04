@@ -1,6 +1,6 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { usePhantom } from "@phantom/react-sdk";
+import { usePhantom } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
 import { getConnection, getMainnetConnection, USDC_MINT, MAINNET_USDC } from "@/lib/solana";
 import {

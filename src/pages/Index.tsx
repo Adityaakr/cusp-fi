@@ -6,6 +6,7 @@ import { faqItems } from "@/data/mockData";
 import { useDflowMarkets } from "@/hooks/useDflowMarkets";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { supabase } from "@/lib/supabase";
+import { MarketCardSkeleton } from "@/components/loading/MarketCardSkeleton";
 import { motion } from "framer-motion";
 import { useEffect, useMemo, useState } from "react";
 import { Link } from "react-router-dom";
@@ -67,7 +68,7 @@ const Index = () => {
   const [waitlistError, setWaitlistError] = useState("");
   const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
 
-  const { data: markets = [] } = useDflowMarkets({ status: "active", limit: 50 });
+  const { data: markets = [], isPending: marketsPending } = useDflowMarkets({ status: "active", limit: 50 });
   const { state: protocolState } = useProtocolState();
 
   useEffect(() => {
@@ -150,11 +151,13 @@ const Index = () => {
                 </div>
                 <div className="grid grid-cols-3 gap-4">
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">TVL</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">
+                      TVL (mainnet)
+                    </span>
                     <span className="font-mono text-sm text-foreground">
-                      ${((protocolState?.total_tvl ?? 0) >= 1_000_000
-                        ? `${((protocolState?.total_tvl ?? 0) / 1_000_000).toFixed(1)}M`
-                        : (protocolState?.total_tvl ?? 0).toLocaleString())}
+                      ${((protocolState?.mainnet_reserve ?? 0) >= 1_000_000
+                        ? `${((protocolState?.mainnet_reserve ?? 0) / 1_000_000).toFixed(1)}M`
+                        : (protocolState?.mainnet_reserve ?? 0).toLocaleString())}
                     </span>
                   </div>
                   <div>
@@ -362,39 +365,43 @@ const Index = () => {
           </motion.div>
 
           <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {topMarkets.map((market, i) => {
-              const daysLeft = Math.ceil((new Date(market.resolutionDate).getTime() - Date.now()) / 86400000);
-              return (
-                <Link key={market.id} to="/markets">
-                  <motion.div
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    variants={fadeUp}
-                    custom={i}
-                    className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 hover:border-cusp-teal/30 transition-all"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">
-                        YES
-                      </span>
-                      <span className="font-mono text-xs text-cusp-teal">
-                        {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
-                      </span>
-                    </div>
-                    <h4 className="text-sm text-foreground mb-2 leading-snug">{market.name}</h4>
-                    <ProbabilityBar probability={market.probability} size="sm" />
-                    <div className="flex justify-between mt-2">
-                      <span className="font-mono text-xs text-muted-foreground">${market.yesPrice.toFixed(2)}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{daysLeft}d left</span>
-                    </div>
-                  </motion.div>
-                </Link>
-              );
-            })}
+            {marketsPending ? (
+              Array.from({ length: 4 }).map((_, i) => <MarketCardSkeleton key={i} shimmer={i < 2} />)
+            ) : (
+              topMarkets.map((market, i) => {
+                const daysLeft = Math.ceil((new Date(market.resolutionDate).getTime() - Date.now()) / 86400000);
+                return (
+                  <Link key={market.id} to="/markets">
+                    <motion.div
+                      initial="hidden"
+                      whileInView="visible"
+                      viewport={{ once: true }}
+                      variants={fadeUp}
+                      custom={i}
+                      className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 hover:border-cusp-teal/30 transition-all"
+                    >
+                      <div className="flex items-center gap-2 mb-2">
+                        <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">
+                          YES
+                        </span>
+                        <span className="font-mono text-xs text-cusp-teal">
+                          {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
+                        </span>
+                      </div>
+                      <h4 className="text-sm text-foreground mb-2 leading-snug">{market.name}</h4>
+                      <ProbabilityBar probability={market.probability} size="sm" />
+                      <div className="flex justify-between mt-2">
+                        <span className="font-mono text-xs text-muted-foreground">${market.yesPrice.toFixed(2)}</span>
+                        <span className="font-mono text-xs text-muted-foreground">{daysLeft}d left</span>
+                      </div>
+                    </motion.div>
+                  </Link>
+                );
+              })
+            )}
           </div>
-          {topMarkets.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Loading markets...</p>
+          {!marketsPending && topMarkets.length === 0 && (
+            <p className="text-sm text-muted-foreground text-center py-8">No high-probability markets right now.</p>
           )}
         </div>
       </section>

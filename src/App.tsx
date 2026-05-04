@@ -4,7 +4,7 @@ import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
-import { PhantomProviderWrapper } from "@/lib/phantom";
+import { SolflareProviderWrapper } from "@/lib/wallet";
 import { getOrCreateApiKey } from "@/lib/access";
 import AccessGate from "@/components/AccessGate";
 import Index from "./pages/Index";
@@ -29,7 +29,7 @@ const App = () => {
   }, []);
 
   return (
-  <PhantomProviderWrapper>
+  <SolflareProviderWrapper>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -49,7 +49,7 @@ const App = () => {
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </PhantomProviderWrapper>
+  </SolflareProviderWrapper>
   );
 };
 

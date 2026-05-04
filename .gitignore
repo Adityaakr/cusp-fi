@@ -49,9 +49,15 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
-# Lockfiles (keep package-lock.json, exclude bun)
+# Lockfiles (keep yarn.lock, exclude others)
+package-lock.json
+pnpm-lock.yaml
 bun.lock
 bun.lockb
+
+# Yarn
+.pnp.*
+.yarn/*
 
 # OS
 Thumbs.db

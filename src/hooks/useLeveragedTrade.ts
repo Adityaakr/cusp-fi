@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import { fetchOrderQuote } from "@/lib/dflow-api";
 import { VersionedTransaction } from "@solana/web3.js";

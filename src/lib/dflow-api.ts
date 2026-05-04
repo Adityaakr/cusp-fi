@@ -22,6 +22,8 @@ export interface DFlowEvent {
   openInterest: number;
   competition?: string;
   competitionScope?: string;
+  /** Present when `withNestedMarkets=true` on GET /api/v1/events */
+  markets?: DFlowMarket[];
 }
 
 export interface DFlowMarketAccount {
@@ -77,6 +79,22 @@ export interface DFlowTagsResponse {
   tagsByCategories: Record<string, string[] | null>;
 }
 
+/** GET /api/v1/series — series template row */
+export interface DFlowSeries {
+  ticker: string;
+  title?: string;
+  category?: string;
+}
+
+export interface DFlowSeriesResponse {
+  series: DFlowSeries[];
+}
+
+/** Max series tickers per GET /api/v1/events request (DFlow API limit). */
+export const DFLOW_SERIES_TICKERS_PER_EVENTS_REQUEST = 25;
+
+const DEFAULT_EVENTS_PAGE_LIMIT = 100;
+
 // --- Normalized types for Cusp UI ---
 
 export interface CuspMarket {
@@ -107,6 +125,12 @@ export interface CuspMarket {
   /** Open interest ($ at stake) */
   openInterest?: number;
   subtitle?: string;
+  /** Best YES bid (0–1 dollars) */
+  yesBestBid: number;
+  /** Best YES ask (0–1 dollars) */
+  yesBestAsk: number;
+  /** YES bid–ask spread in dollars; null when one side missing */
+  yesSpread: number | null;
 }
 
 // --- API functions ---
@@ -152,13 +176,45 @@ export async function fetchEvents(params?: {
   limit?: number;
   cursor?: number;
   expand?: string;
+  /** Comma-separated series tickers (max 25 per request per API docs) */
+  seriesTickers?: string | string[];
+  withNestedMarkets?: boolean;
+  status?: string;
+  isInitialized?: boolean;
+  sort?: string;
 }): Promise<DFlowEventsResponse> {
   const search = new URLSearchParams();
   if (params?.limit) search.set("limit", String(params.limit));
-  if (params?.cursor) search.set("cursor", String(params.cursor));
+  if (params?.cursor !== undefined) search.set("cursor", String(params.cursor));
   if (params?.expand) search.set("expand", params.expand);
+  if (params?.withNestedMarkets === true) search.set("withNestedMarkets", "true");
+  if (params?.seriesTickers !== undefined) {
+    const s =
+      typeof params.seriesTickers === "string"
+        ? params.seriesTickers
+        : params.seriesTickers.join(",");
+    search.set("seriesTickers", s);
+  }
+  if (params?.status) search.set("status", params.status);
+  if (params?.isInitialized !== undefined) search.set("isInitialized", String(params.isInitialized));
+  if (params?.sort) search.set("sort", params.sort);
   const qs = search.toString();
   return fetchJson(`${METADATA_API}/api/v1/events${qs ? `?${qs}` : ""}`);
+}
+
+export async function fetchSeries(params?: {
+  category?: string;
+  tags?: string;
+  status?: string;
+  isInitialized?: boolean;
+}): Promise<DFlowSeriesResponse> {
+  const search = new URLSearchParams();
+  if (params?.category) search.set("category", params.category);
+  if (params?.tags) search.set("tags", params.tags);
+  if (params?.status) search.set("status", params.status);
+  if (params?.isInitialized !== undefined) search.set("isInitialized", String(params.isInitialized));
+  const qs = search.toString();
+  return fetchJson(`${METADATA_API}/api/v1/series${qs ? `?${qs}` : ""}`);
 }
 
 export async function fetchTagsByCategories(): Promise<DFlowTagsResponse> {
@@ -198,6 +254,134 @@ export async function searchMarkets(query: string, limit = 50): Promise<CuspMark
     }
   }
   return result;
+}
+
+export function chunkArray<T>(items: T[], chunkSize: number): T[][] {
+  if (chunkSize <= 0) return [items];
+  const out: T[][] = [];
+  for (let i = 0; i < items.length; i += chunkSize) {
+    out.push(items.slice(i, i + chunkSize));
+  }
+  return out;
+}
+
+/**
+ * Paginate GET /api/v1/events for a fixed set of series tickers (≤25).
+ * Uses cursor as skip offset per API docs until a partial page is returned.
+ */
+export async function fetchAllEventsPages(params: {
+  seriesTickers: string[];
+  withNestedMarkets?: boolean;
+  pageLimit?: number;
+}): Promise<DFlowEvent[]> {
+  const lim = params.pageLimit ?? DEFAULT_EVENTS_PAGE_LIMIT;
+  const combined: DFlowEvent[] = [];
+  let skip = 0;
+  const seriesJoin = params.seriesTickers.join(",");
+  const maxPages = 500;
+  for (let page = 0; page < maxPages; page++) {
+    const res = await fetchEvents({
+      seriesTickers: seriesJoin,
+      withNestedMarkets: params.withNestedMarkets ?? true,
+      limit: lim,
+      cursor: skip,
+    });
+    const batch = res.events ?? [];
+    combined.push(...batch);
+    if (batch.length === 0) break;
+    if (batch.length < lim) break;
+    skip += batch.length;
+  }
+  return combined;
+}
+
+/** Dedupe active markets by ticker; optional per-tag counts using event ticker matching. */
+export function countActiveMarketsFromNestedEvents(
+  events: DFlowEvent[],
+  tagList: string[] | null | undefined
+): { totalActive: number; byTag: Record<string, number> } {
+  const seenMarketTickers = new Set<string>();
+  let totalActive = 0;
+  const trimmedTags = (tagList ?? []).map((t) => t.trim()).filter(Boolean);
+  const byTag: Record<string, number> = {};
+  for (const t of trimmedTags) byTag[t] = 0;
+
+  for (const ev of events) {
+    const mkts = ev.markets ?? [];
+    for (const m of mkts) {
+      if (m.status !== "active") continue;
+      if (seenMarketTickers.has(m.ticker)) continue;
+      seenMarketTickers.add(m.ticker);
+      totalActive += 1;
+      for (const tag of trimmedTags) {
+        if (eventTickerMatchesTag(ev.ticker, tag)) {
+          byTag[tag] = (byTag[tag] ?? 0) + 1;
+        }
+      }
+    }
+  }
+  return { totalActive, byTag };
+}
+
+/**
+ * For each non-empty category in tags_by_categories: series → events (nested markets) → active counts.
+ * Series category filter uses the same display label as the UI (e.g. Politics).
+ */
+export async function fetchCategoryNestedMarketCounts(
+  tags: DFlowTagsResponse
+): Promise<Record<string, { totalActive: number; byTag: Record<string, number> }>> {
+  const out: Record<string, { totalActive: number; byTag: Record<string, number> }> = {};
+  const entries = Object.entries(tags.tagsByCategories ?? {}).filter(
+    ([, list]) => list && list.length > 0
+  );
+  for (const [catKey, tagList] of entries) {
+    const label = toTitleCaseCategory(catKey);
+    const rawList = tagList!.filter((t): t is string => typeof t === "string" && t.trim().length > 0);
+    const seriesRes = await fetchSeries({ category: label });
+    const tickers = (seriesRes.series ?? []).map((s) => s.ticker).filter(Boolean);
+    if (tickers.length === 0) {
+      out[label] = {
+        totalActive: 0,
+        byTag: Object.fromEntries(rawList.map((t) => [t, 0])),
+      };
+      continue;
+    }
+    const chunks = chunkArray(tickers, DFLOW_SERIES_TICKERS_PER_EVENTS_REQUEST);
+    const allEvents: DFlowEvent[] = [];
+    for (const chunk of chunks) {
+      const evs = await fetchAllEventsPages({
+        seriesTickers: chunk,
+        withNestedMarkets: true,
+      });
+      allEvents.push(...evs);
+    }
+    out[label] = countActiveMarketsFromNestedEvents(allEvents, rawList);
+  }
+  return out;
+}
+
+/** Total active markets via paginated GET /api/v1/markets (authoritative “All” count). */
+export async function fetchTotalActiveMarketsCount(options?: { pageLimit?: number }): Promise<number> {
+  const limit = options?.pageLimit ?? 500;
+  let total = 0;
+  let cursor: number | undefined = undefined;
+  for (let i = 0; i < 500; i++) {
+    const res = await fetchMarkets({ status: "active", limit, cursor });
+    total += res.markets.length;
+    if (res.markets.length === 0) break;
+    if (res.cursor === undefined || res.cursor === null) break;
+    cursor = res.cursor;
+  }
+  return total;
+}
+
+/** True if `label` is a DFlow tags_by_categories bucket (not a heuristic-only fallback tab). */
+export function isTagsCategoryDisplayLabel(
+  displayLabel: string,
+  tags: DFlowTagsResponse | null | undefined
+): boolean {
+  if (!tags?.tagsByCategories) return false;
+  return Object.keys(tags.tagsByCategories).some((k) => toTitleCaseCategory(k) === displayLabel);
 }
 
 // --- Candlesticks ---
@@ -279,6 +463,88 @@ function parsePrice(val: string | null): number {
   return isNaN(n) ? 0 : n;
 }
 
+export function toTitleCaseCategory(key: string): string {
+  return key
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase())
+    .trim();
+}
+
+/** Same rules as tag matching inside `resolveMarketCategory` (prefix / substring on event ticker). */
+export function eventTickerMatchesTag(eventTicker: string, tag: string): boolean {
+  const raw = typeof tag === "string" ? tag.trim() : "";
+  if (!raw) return false;
+  const u = raw.toUpperCase();
+  const et = eventTicker.toUpperCase();
+  return et.startsWith(u) || et.includes(`-${u}`) || et.includes(u);
+}
+
+/** Tags listed under the API category whose display label matches (e.g. `politics` → `Politics`). */
+export function getTagsListForCategoryLabel(
+  tags: DFlowTagsResponse | null | undefined,
+  displayLabel: string
+): string[] | null {
+  if (!tags?.tagsByCategories) return null;
+  for (const [catKey, list] of Object.entries(tags.tagsByCategories)) {
+    if (toTitleCaseCategory(catKey) !== displayLabel) continue;
+    if (!list?.length) return null;
+    return list.filter((t): t is string => typeof t === "string" && t.trim().length > 0).map((t) => t.trim());
+  }
+  return null;
+}
+
+/**
+ * Prefer DFlow `tags_by_categories` (prefix / substring match on event ticker),
+ * else heuristic buckets (Crypto, Sports, …).
+ */
+export function resolveMarketCategory(
+  eventTicker: string,
+  title: string,
+  tags: DFlowTagsResponse | null | undefined
+): string {
+  if (tags?.tagsByCategories && Object.keys(tags.tagsByCategories).length > 0) {
+    let best: { len: number; label: string } | null = null;
+    for (const [catKey, list] of Object.entries(tags.tagsByCategories)) {
+      if (!list?.length) continue;
+      for (const tag of list) {
+        if (!eventTickerMatchesTag(eventTicker, tag)) continue;
+        const len = tag.trim().toUpperCase().length;
+        const label = toTitleCaseCategory(catKey);
+        if (!best || len > best.len) best = { len, label };
+      }
+    }
+    if (best) return best.label;
+  }
+  return inferCategory(eventTicker, title);
+}
+
+const FALLBACK_CATEGORY_TABS = ["Crypto", "Sports", "Politics", "Economics", "Finance", "Other"];
+
+/** Category pills: All + DFlow API categories (when present) + heuristic buckets not already listed. */
+export function buildCategoryTabList(tags: DFlowTagsResponse | null | undefined): string[] {
+  const out: string[] = ["All"];
+  const seen = new Set<string>(["All"]);
+  if (tags?.tagsByCategories && Object.keys(tags.tagsByCategories).length > 0) {
+    const fromApi = Object.keys(tags.tagsByCategories)
+      .filter((k) => (tags.tagsByCategories[k]?.length ?? 0) > 0)
+      .map((k) => toTitleCaseCategory(k))
+      .sort((a, b) => a.localeCompare(b));
+    for (const label of fromApi) {
+      if (!seen.has(label)) {
+        seen.add(label);
+        out.push(label);
+      }
+    }
+  }
+  for (const label of FALLBACK_CATEGORY_TABS) {
+    if (!seen.has(label)) {
+      seen.add(label);
+      out.push(label);
+    }
+  }
+  return out;
+}
+
 /** Map DFlow-style categories to our UI categories */
 function inferCategory(eventTicker: string, title: string): string {
   const t = (eventTicker + title).toLowerCase();
@@ -331,6 +597,9 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
   const noYield = noPrice >= 0.5 ? ((1 - noPrice) / noPrice) * 100 : 0;
   const estimatedYield = Math.max(yesYield, noYield);
 
+  const yesSpread =
+    yesAsk > 0 && yesBid > 0 ? Math.round((yesAsk - yesBid) * 10_000) / 10_000 : null;
+
   const yesLabel = m.yesSubTitle?.trim() || "YES";
   const noLabel =
     m.noSubTitle?.trim() && m.noSubTitle !== m.yesSubTitle
@@ -360,5 +629,8 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     rulesSecondary: m.rulesSecondary,
     openInterest: m.openInterest,
     subtitle: m.subtitle || undefined,
+    yesBestBid: yesBid,
+    yesBestAsk: yesAsk > 0 ? yesAsk : 1 - noBid,
+    yesSpread,
   };
 }

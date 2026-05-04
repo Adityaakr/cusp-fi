@@ -4,13 +4,13 @@
  * VITE_PHASE = "testnet"    → DFlow dev endpoints + Solana devnet
  * VITE_PHASE = "production" → DFlow prod endpoints + Solana mainnet (proxied with API key)
  *
- * Defaults to "testnet" so new contributors don't accidentally hit production.
+ * Defaults to "production" (mainnet). Set VITE_PHASE=testnet in .env.local for devnet.
  */
 
 export type Phase = "testnet" | "production";
 
 export const PHASE: Phase =
-  (import.meta.env.VITE_PHASE as Phase) || "testnet";
+  (import.meta.env.VITE_PHASE as Phase) || "production";
 
 export const isTestnet = PHASE === "testnet";
 export const isProduction = PHASE === "production";

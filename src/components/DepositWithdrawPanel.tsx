@@ -1,6 +1,5 @@
 import { useState } from "react";
-import { usePhantom } from "@phantom/react-sdk";
-import { useDeposit } from "@/hooks/useDeposit";
+import { usePhantom } from "@/lib/wallet";
 import { useWithdraw } from "@/hooks/useWithdraw";
 import { useMainnetDeposit } from "@/hooks/useMainnetDeposit";
 import { useProtocolState } from "@/hooks/useProtocolState";
@@ -8,20 +7,13 @@ import { useUserPortfolio } from "@/hooks/useUserPortfolio";
 import { SOLANA_NETWORK } from "@/lib/network-config";
 import { Loader2, CheckCircle, AlertCircle, ExternalLink } from "lucide-react";
 
-type Tab = "vault" | "trading" | "withdraw";
+type Tab = "trading" | "withdraw";
 
 const DepositWithdrawPanel = () => {
-  const [tab, setTab] = useState<Tab>("vault");
+  const [tab, setTab] = useState<Tab>("trading");
   const [amount, setAmount] = useState("");
   const { isConnected } = usePhantom();
   const { state } = useProtocolState();
-  const {
-    deposit: vaultDeposit,
-    status: vaultDepositStatus,
-    error: vaultDepositError,
-    txSignature: vaultDepositTx,
-    reset: resetVaultDeposit,
-  } = useDeposit();
   const {
     deposit: mainnetDeposit,
     status: mainnetDepositStatus,
@@ -41,16 +33,15 @@ const DepositWithdrawPanel = () => {
   const numAmount = parseFloat(amount) || 0;
   const exchangeRate = state?.cusdc_exchange_rate ?? 1.0;
 
-  const depositStatus = tab === "trading" ? mainnetDepositStatus : vaultDepositStatus;
-  const depositError = tab === "trading" ? mainnetDepositError : vaultDepositError;
-  const depositTx = tab === "trading" ? mainnetDepositTx : vaultDepositTx;
+  const depositStatus = mainnetDepositStatus;
+  const depositError = mainnetDepositError;
+  const depositTx = mainnetDepositTx;
 
   const isProcessing =
     (depositStatus !== "idle" && depositStatus !== "success" && depositStatus !== "error") ||
     (withdrawStatus !== "idle" && withdrawStatus !== "success" && withdrawStatus !== "error");
 
   const resetAll = () => {
-    resetVaultDeposit();
     resetMainnetDeposit();
     resetWithdraw();
   };
@@ -58,9 +49,7 @@ const DepositWithdrawPanel = () => {
   const handleAction = async () => {
     if (numAmount <= 0) return;
     resetAll();
-    if (tab === "vault") {
-      await vaultDeposit(numAmount);
-    } else if (tab === "trading") {
+    if (tab === "trading") {
       await mainnetDeposit(numAmount);
     } else {
       await withdraw(numAmount);
@@ -71,7 +60,7 @@ const DepositWithdrawPanel = () => {
   const activeStatus = tab === "withdraw" ? withdrawStatus : depositStatus;
   const activeError = tab === "withdraw" ? withdrawError : depositError;
   const activeTx = tab === "withdraw" ? withdrawTx : depositTx;
-  const explorerCluster = tab === "trading" ? "" : (SOLANA_NETWORK === "devnet" ? "?cluster=devnet" : "");
+  const explorerCluster = SOLANA_NETWORK === "devnet" ? "?cluster=devnet" : "";
 
   const statusLabel =
     activeStatus === "building"
@@ -82,18 +71,13 @@ const DepositWithdrawPanel = () => {
           ? "Confirming on-chain..."
           : null;
 
-  // Balance for the active tab
-  const displayBalance = tab === "withdraw"
-    ? portfolio?.total_cusdc ?? 0
-    : tab === "trading"
-      ? portfolio?.mainnet_usdc_balance ?? 0
-      : portfolio?.usdc_balance ?? 0;
+  const displayBalance =
+    tab === "withdraw"
+      ? portfolio?.total_cusdc ?? 0
+      : portfolio?.mainnet_usdc_balance ?? 0;
 
-  const balanceLabel = tab === "withdraw"
-    ? "cUSDC Balance"
-    : tab === "trading"
-      ? "Mainnet USDC"
-      : "Vault USDC (devnet)";
+  const balanceLabel =
+    tab === "withdraw" ? "cUSDC Balance" : "Mainnet USDC";
 
   const balanceUnit = tab === "withdraw" ? "cUSDC" : "USDC";
 
@@ -101,7 +85,6 @@ const DepositWithdrawPanel = () => {
     <div className="bg-bg-1 border border-border rounded-lg overflow-hidden">
       <div className="flex border-b border-border">
         {([
-          { key: "vault" as Tab, label: "Vault" },
           { key: "trading" as Tab, label: "Trading" },
           { key: "withdraw" as Tab, label: "Withdraw" },
         ]).map(({ key, label }) => (
@@ -119,19 +102,15 @@ const DepositWithdrawPanel = () => {
         ))}
       </div>
 
-      {/* Tab description */}
       <div className="px-4 pt-3 pb-0">
         <p className="text-[10px] text-muted-foreground leading-relaxed">
-          {tab === "vault"
-            ? "Deposit USDC to the vault and receive cUSDC. Earn yield from prediction market activity."
-            : tab === "trading"
-              ? "Deposit mainnet USDC to the trading pool. Used as margin for leveraged prediction market trades."
-              : "Burn cUSDC to withdraw USDC from the vault at the current exchange rate."}
+          {tab === "trading"
+            ? "Deposit mainnet USDC to the trading pool. Used as margin for leveraged prediction market trades."
+            : "Burn cUSDC to withdraw USDC from the vault at the current exchange rate."}
         </p>
       </div>
 
       <div className="p-4 space-y-4">
-        {/* Balance display */}
         {isConnected && portfolio && (
           <div className="flex items-center justify-between text-xs">
             <span className="text-muted-foreground">{balanceLabel}</span>
@@ -151,7 +130,7 @@ const DepositWithdrawPanel = () => {
 
         <div>
           <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            {tab === "withdraw" ? "Withdraw cUSDC" : `Deposit USDC${tab === "trading" ? " (mainnet)" : ""}`}
+            {tab === "withdraw" ? "Withdraw cUSDC" : "Deposit USDC"}
           </label>
           <div className="relative">
             <input
@@ -170,22 +149,7 @@ const DepositWithdrawPanel = () => {
 
         {numAmount > 0 && (
           <div className="space-y-2 p-3 bg-bg-2 rounded-md">
-            {tab === "vault" ? (
-              <>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">You'll receive</span>
-                  <span className="font-mono text-foreground">
-                    {(numAmount / exchangeRate).toFixed(4)} cUSDC
-                  </span>
-                </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Exchange rate</span>
-                  <span className="font-mono text-foreground">
-                    1 cUSDC = ${exchangeRate.toFixed(4)}
-                  </span>
-                </div>
-              </>
-            ) : tab === "trading" ? (
+            {tab === "trading" ? (
               <>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Network</span>
@@ -259,9 +223,7 @@ const DepositWithdrawPanel = () => {
               ? "Processing..."
               : tab === "withdraw"
                 ? "Withdraw"
-                : tab === "trading"
-                  ? "Deposit to Trading Pool"
-                  : "Deposit to Vault"}
+                : "Deposit to Trading Pool"}
         </button>
       </div>
     </div>

@@ -1,7 +1,8 @@
 import { Link, useLocation } from "react-router-dom";
-import { useModal, usePhantom } from "@phantom/react-sdk";
+import { useModal, usePhantom } from "@/lib/wallet";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MAINNET_RPC_URL, MAINNET_USDC_MINT } from "@/lib/network-config";
+import { Skeleton } from "@/components/ui/skeleton";
 import { Menu, X } from "lucide-react";
 
 // Always use mainnet for wallet balance — user funds live on mainnet.
@@ -163,21 +164,28 @@ const Navbar = () => {
           )}
 
           <button
+            type="button"
             onClick={open}
             disabled={isLoading}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 font-mono ${
+            aria-busy={isLoading}
+            aria-label={isLoading ? "Connecting wallet" : isConnected ? "Wallet menu" : "Connect wallet"}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-90 font-mono min-w-[7.5rem] inline-flex items-center justify-center ${
               isConnected
                 ? "bg-cusp-teal text-primary-foreground hover:opacity-90"
                 : "border border-cusp-teal/40 text-cusp-teal hover:bg-cusp-teal/5"
             }`}
           >
-            {isLoading
-              ? "Connecting..."
-              : isConnected
-                ? solanaAddress
-                  ? truncateAddress(solanaAddress)
-                  : "Connected"
-                : "Connect Wallet"}
+            {isLoading ? (
+              <Skeleton className="h-4 w-20 bg-primary-foreground/25" shimmer />
+            ) : isConnected ? (
+              solanaAddress ? (
+                truncateAddress(solanaAddress)
+              ) : (
+                "Connected"
+              )
+            ) : (
+              "Connect Wallet"
+            )}
           </button>
 
           <button
