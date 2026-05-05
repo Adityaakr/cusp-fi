@@ -61,3 +61,10 @@ bun.lockb
 
 # OS
 Thumbs.db
+
+# Don't commit build artifacts or keypairs
+target/deploy/*.so
+target/deploy/*-keypair.json
+target/idl/
+target/types/
+.superstack/
