@@ -2,6 +2,8 @@ import Layout from "@/components/Layout";
 import DepositWithdrawPanel from "@/components/DepositWithdrawPanel";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { useUserPortfolio, type Position } from "@/hooks/useUserPortfolio";
+import { useKaminoVault, useKaminoPosition } from "@/hooks/useKaminoVault";
+import { useEarnVaultState } from "@/hooks/useEarnVaultState";
 import { isTestnet } from "@/lib/network-config";
 import { usePhantom } from "@/lib/wallet";
 import {
@@ -13,12 +15,15 @@ import {
   ResponsiveContainer,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Shield, Clock } from "lucide-react";
+import { Wallet, TrendingUp, Shield, Clock, Sprout } from "lucide-react";
 
 const VaultPage = () => {
   const { state, isLoading: protocolLoading, reserveRatio, deployedRatio } = useProtocolState();
   const { data: portfolio } = useUserPortfolio();
   const { isConnected } = usePhantom();
+  const { vault: kaminoVault, apy: kaminoApy, tvl: kaminoTvl, sharePrice: kaminoSharePrice } = useKaminoVault();
+  const { position: kaminoPosition } = useKaminoPosition();
+  const earnVault = useEarnVaultState();
 
   // Chart data will be populated as exchange rate changes over time
   const chartData: { date: string; nav: number }[] = [];
@@ -30,7 +35,7 @@ const VaultPage = () => {
 
   const userCusdc = portfolio?.total_cusdc ?? 0;
   const userUsdcValue = userCusdc * exchangeRate;
-  const userMainnetUsdc = portfolio?.mainnet_usdc_balance ?? 0;
+  const userMainnetUsdc = (portfolio?.mainnet_usdt_balance ?? 0) + (portfolio?.mainnet_usdc_balance ?? 0);
 
   return (
     <Layout>
@@ -43,7 +48,7 @@ const VaultPage = () => {
             Cusp Vault
           </h1>
           <p className="text-sm text-muted-foreground">
-            Deposit USDC. Earn yield from prediction market positions. The vault
+            Deposit USDT. Earn yield from prediction market positions. The vault
             does the rest.
           </p>
         </div>
@@ -78,11 +83,14 @@ const VaultPage = () => {
               </div>
               <div className="bg-bg-1 border border-border rounded-lg p-4">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                  cUSDC Rate
+                  cUSDT Rate
                 </span>
                 <span className="font-mono text-lg font-semibold text-cusp-amber">
                   ${exchangeRate.toFixed(4)}
                 </span>
+                {earnVault.state && earnVault.exchangeRate > 1.001 && (
+                  <span className="ml-1 text-[10px] text-cusp-green">↑ earn</span>
+                )}
               </div>
               {!isTestnet && (
                 <>
@@ -115,7 +123,7 @@ const VaultPage = () => {
               <div className="flex items-center gap-1.5 mb-1">
                 <Wallet className="size-3 text-muted-foreground" />
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                  Trading USDC (mainnet)
+                  Trading USDT (mainnet)
                 </span>
               </div>
               <span className="font-mono text-lg font-semibold text-foreground">
@@ -127,7 +135,7 @@ const VaultPage = () => {
             </div>
             <div className="bg-bg-1 border border-border rounded-lg p-4">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                cUSDC Balance
+                cUSDT Balance
               </span>
               <span className="font-mono text-lg font-semibold text-foreground">
                 {userCusdc.toLocaleString(undefined, { maximumFractionDigits: 4 })}
@@ -135,7 +143,7 @@ const VaultPage = () => {
             </div>
             <div className="bg-bg-1 border border-border rounded-lg p-4">
               <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                cUSDC Value
+                cUSDT Value
               </span>
               <span className="font-mono text-lg font-semibold text-foreground">
                 ${userUsdcValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
@@ -152,6 +160,22 @@ const VaultPage = () => {
                 ${exchangeRate.toFixed(4)}
               </span>
             </div>
+            {kaminoPosition && kaminoPosition.tokenValue > 0 && (
+              <div className="bg-bg-1 border border-border rounded-lg p-4">
+                <div className="flex items-center gap-1.5 mb-1">
+                  <Sprout className="size-3 text-cusp-teal" />
+                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
+                    Kamino Earn
+                  </span>
+                </div>
+                <span className="font-mono text-lg font-semibold text-cusp-teal">
+                  ${kaminoPosition.tokenValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                </span>
+                <p className="mt-1.5 text-[10px] text-muted-foreground">
+                  {kaminoPosition.sharesBalance.toLocaleString(undefined, { maximumFractionDigits: 4 })} kUSDC shares
+                </p>
+              </div>
+            )}
           </div>
         )}
 
@@ -161,7 +185,7 @@ const VaultPage = () => {
             {/* NAV Chart */}
             <div className="bg-bg-1 border border-border rounded-lg p-4">
               <h3 className="text-sm font-medium text-foreground mb-4">
-                cUSDC Exchange Rate History
+                cUSDT Exchange Rate History
               </h3>
               {chartData.length > 1 ? (
                 <div className="h-64">
@@ -235,6 +259,12 @@ const VaultPage = () => {
               <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                 {[
                   {
+                    label: "Kamino Earn",
+                    desc: kaminoApy > 0 ? `${kaminoApy.toFixed(2)}% APY` : "USDT→USDC vault yield",
+                    color: "text-cusp-teal",
+                    icon: Sprout,
+                  },
+                  {
                     label: "Position Farming",
                     desc: "Buy high-prob tokens",
                     color: "text-cusp-amber",
@@ -245,12 +275,6 @@ const VaultPage = () => {
                     desc: "Leveraged traders",
                     color: "text-cusp-purple",
                     icon: Wallet,
-                  },
-                  {
-                    label: "Idle USDC",
-                    desc: "JupiterLend reserve",
-                    color: "text-cusp-teal",
-                    icon: Shield,
                   },
                   {
                     label: "Close Fees",
@@ -309,7 +333,7 @@ const VaultPage = () => {
                 <div className="bg-bg-1 border border-border rounded-lg p-8 text-center">
                   <p className="text-sm text-muted-foreground">
                     {isConnected
-                      ? "No active vault positions yet. Deposit USDC to start earning yield."
+                      ? "No active vault positions yet. Deposit USDT to start earning yield."
                       : "Connect your wallet to view positions."}
                   </p>
                 </div>
@@ -333,7 +357,7 @@ const VaultPage = () => {
                       ? `$${(tradingPoolTvl / 1_000_000).toFixed(1)}M`
                       : `$${tradingPoolTvl.toLocaleString()}`,
                   ],
-                  ["cUSDC Supply", cusdcSupply.toLocaleString(undefined, { maximumFractionDigits: 0 })],
+                  ["cUSDT Supply", cusdcSupply.toLocaleString(undefined, { maximumFractionDigits: 0 })],
                   ...(!isTestnet
                     ? ([["Reserve Ratio", `${(reserveRatio * 100).toFixed(1)}%`]] as [string, string][])
                     : []),
@@ -349,6 +373,34 @@ const VaultPage = () => {
               </div>
             </div>
 
+            {kaminoVault && (
+              <div className="bg-bg-1 border border-cusp-teal/30 rounded-lg p-4">
+                <div className="flex items-center gap-1.5 mb-3">
+                  <Sprout className="size-3.5 text-cusp-teal" />
+                  <h4 className="text-xs text-cusp-teal uppercase tracking-wider font-medium">
+                    Kamino Earn
+                  </h4>
+                </div>
+                <div className="space-y-2">
+                  {[
+                    ["APY", `${kaminoApy.toFixed(2)}%`],
+                    ["kUSDC Price", `$${kaminoSharePrice.toFixed(4)}`],
+                    ["TVL", kaminoTvl >= 1_000_000 ? `$${(kaminoTvl / 1_000_000).toFixed(1)}M` : `$${kaminoTvl.toLocaleString()}`],
+                    ["Perf. Fee", `${(kaminoVault.performanceFeeBps / 100).toFixed(1)}%`],
+["Min Deposit", `${kaminoVault.minDepositAmount} USDC`],
+                    ].map(([label, value]) => (
+                      <div key={label} className="flex justify-between text-xs">
+                        <span className="text-muted-foreground">{label}</span>
+                        <span className="font-mono text-foreground">{value}</span>
+                      </div>
+                    ))}
+                  </div>
+                  <p className="text-[10px] text-muted-foreground mt-3 leading-relaxed">
+                    Deposits swap USDT→USDC via Jupiter, then deposit into Kamino's Steakhouse USDC vault. kUSDC shares appreciate as yield accrues.
+                  </p>
+              </div>
+            )}
+
             <div className="bg-bg-1 border border-border rounded-lg p-4">
               <h4 className="text-xs text-muted-foreground uppercase tracking-wider mb-3">
                 Risk Disclosure
@@ -356,8 +408,8 @@ const VaultPage = () => {
               <p className="text-[11px] text-muted-foreground leading-relaxed">
                 Prediction market outcomes carry inherent binary risk. The vault
                 manages this through position sizing, probability thresholds, and
-                diversification. Yield is variable and not guaranteed. cUSDC
-                exchange rate reflects net protocol performance after fees and
+diversification. Yield is variable and not guaranteed. cUSDT
+                 exchange rate reflects net protocol performance after fees and
                 reserves.
               </p>
             </div>
