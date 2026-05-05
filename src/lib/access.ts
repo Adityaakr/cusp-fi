@@ -39,6 +39,10 @@ export function getOrCreateApiKey(): string {
   }
 }
 
+export function isInviteGateBypassed(): boolean {
+  return import.meta.env.VITE_SKIP_INVITE_GATE === "true";
+}
+
 export function getInviteAccessToken(): string {
   if (typeof window === "undefined") return "";
   try {

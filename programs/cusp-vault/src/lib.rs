@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
 
-declare_id!("EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ");
+declare_id!("7awJ96aZcN1RrAiz4dyNggAX4aBPpcYMhSTzcJCHL4gH");
 
 /// Cusp Vault Program
 ///

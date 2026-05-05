@@ -1,5 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
-import { usePhantom } from "@phantom/react-sdk";
+import { usePhantom } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import type { UserPortfolio } from "@/hooks/useUserPortfolio";
 import { MAINNET_USDC_MINT, USDC_MINT_ADDRESS } from "@/lib/network-config";

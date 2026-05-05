@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { getConnection, USDC_MINT } from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
@@ -67,7 +67,7 @@ export function useDeposit() {
       const userPubkey = new PublicKey(solanaAddress);
       const amountAtomic = Math.round(amountUsdc * 1e6);
 
-      // Get user's USDC and cUSDC token accounts
+      // Get user's USDT and cUSDT token accounts
       const userUsdcAta = await getAssociatedTokenAddress(
         USDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
@@ -77,7 +77,7 @@ export function useDeposit() {
 
       const instructions: TransactionInstruction[] = [];
 
-      // Create cUSDC ATA if it doesn't exist
+      // Create cUSDT ATA if it doesn't exist
       const cusdcAccount = await connection.getAccountInfo(userCusdcAta);
       if (!cusdcAccount) {
         instructions.push(
@@ -120,11 +120,7 @@ export function useDeposit() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signResult = await solana.signAndSendTransaction(tx);
-      const signature =
-        typeof signResult === "string"
-          ? signResult
-          : signResult?.signature ?? "";
+      const signature = await solana.signAndSendTransaction(tx);
 
       setTxSignature(signature);
       setStatus("confirming");

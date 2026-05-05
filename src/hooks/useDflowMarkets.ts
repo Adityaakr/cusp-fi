@@ -1,4 +1,5 @@
-import { useQuery } from "@tanstack/react-query";
+import { useMemo } from "react";
+import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   fetchMarkets,
   fetchMarket,
@@ -8,7 +9,9 @@ import {
   fetchOrderbook,
   searchMarkets,
   dflowMarketToCusp,
-  type CuspMarket,
+  fetchTotalActiveMarketsCount,
+  fetchCategoryNestedMarketCounts,
+  type DFlowTagsResponse,
 } from "@/lib/dflow-api";
 
 const QUERY_KEYS = {
@@ -21,32 +24,118 @@ const QUERY_KEYS = {
   orderbook: ["dflow", "orderbook"] as const,
 };
 
+const COUNTS_STALE_MS = 5 * 60_000;
+
+/** Paginated total of active markets from DFlow (authoritative “All” count). */
+export function useDflowActiveMarketsTotal(options?: { enabled?: boolean }) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.markets, "activeTotal"] as const,
+    queryFn: () => fetchTotalActiveMarketsCount(),
+    enabled: options?.enabled !== false,
+    staleTime: COUNTS_STALE_MS,
+  });
+}
+
+/**
+ * Per-category and per-tag active market counts via series → events (nested markets).
+ * Depends on tags from `useDflowTags`; expensive — long stale time.
+ */
+export function useDflowCategoryMarketCounts(
+  tagsData: DFlowTagsResponse | undefined,
+  options?: { enabled?: boolean }
+) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.tags, "nestedCounts", tagsData] as const,
+    queryFn: () => fetchCategoryNestedMarketCounts(tagsData!),
+    enabled:
+      options?.enabled !== false &&
+      !!tagsData?.tagsByCategories &&
+      Object.keys(tagsData.tagsByCategories).length > 0,
+    staleTime: COUNTS_STALE_MS,
+  });
+}
+
 export function useDflowMarkets(params?: {
   status?: string;
   limit?: number;
   eventTicker?: string;
   refetchInterval?: number | false;
+  enabled?: boolean;
 }) {
+  const { enabled = true, ...queryParams } = params ?? {};
   return useQuery({
-    queryKey: [...QUERY_KEYS.markets, params ?? {}],
+    queryKey: [...QUERY_KEYS.markets, queryParams],
     queryFn: async () => {
       const res = await fetchMarkets({
-        status: params?.status ?? "active",
-        limit: params?.limit ?? 50,
-        eventTicker: params?.eventTicker,
+        status: queryParams.status ?? "active",
+        limit: queryParams.limit ?? 200,
+        eventTicker: queryParams.eventTicker,
       });
       return res.markets.map((m) => dflowMarketToCusp(m));
     },
     staleTime: 20_000,
-    refetchInterval: params?.refetchInterval,
+    refetchInterval: queryParams.refetchInterval,
+    enabled:
+      enabled !== false &&
+      (queryParams.eventTicker !== undefined
+        ? Boolean(queryParams.eventTicker)
+        : true),
   });
+}
+
+/** Paginated active markets via DFlow cursor (flattened `markets` + load-more helpers). */
+export function useDflowMarketsInfinite(options?: {
+  status?: string;
+  pageLimit?: number;
+  refetchInterval?: number | false;
+  enabled?: boolean;
+}) {
+  const pageLimit = options?.pageLimit ?? 100;
+  const status = options?.status ?? "active";
+  const q = useInfiniteQuery({
+    queryKey: [...QUERY_KEYS.markets, "infinite", status, pageLimit] as const,
+    enabled: options?.enabled !== false,
+    queryFn: async ({ pageParam }: { pageParam: number | undefined }) => {
+      const res = await fetchMarkets({
+        status,
+        limit: pageLimit,
+        cursor: pageParam,
+      });
+      return {
+        markets: res.markets.map((m) => dflowMarketToCusp(m)),
+        cursor: res.cursor,
+      };
+    },
+    initialPageParam: undefined as number | undefined,
+    getNextPageParam: (last) => {
+      if (last.markets.length === 0) return undefined;
+      if (last.cursor === undefined || last.cursor === null) return undefined;
+      return last.cursor as number;
+    },
+    staleTime: 20_000,
+    refetchInterval: options?.refetchInterval,
+  });
+
+  const markets = useMemo(() => q.data?.pages.flatMap((p) => p.markets) ?? [], [q.data?.pages]);
+
+  return {
+    markets,
+    fetchNextPage: q.fetchNextPage,
+    hasNextPage: q.hasNextPage,
+    isFetchingNextPage: q.isFetchingNextPage,
+    isLoading: q.isLoading,
+    isFetching: q.isFetching,
+    isError: q.isError,
+    error: q.error,
+    refetch: q.refetch,
+  };
 }
 
 export function useDflowSearchMarkets(query: string) {
   const trimmed = query.trim();
   return useQuery({
     queryKey: [...QUERY_KEYS.searchMarkets, trimmed],
-    queryFn: () => searchMarkets(trimmed, 100),
+    queryFn: () => searchMarkets(trimmed, 200),
     enabled: trimmed.length >= 2,
     staleTime: 30_000,
   });
@@ -137,11 +226,12 @@ export function useDflowOrderbook(ticker: string | undefined, options?: { refetc
 }
 
 export function useDflowMarketStats() {
-  const marketsQuery = useDflowMarkets({ status: "active", limit: 500 });
+  const marketsQuery = useDflowMarkets({ status: "active", limit: 200 });
   const eventsQuery = useDflowEvents(100);
+  const totalQuery = useDflowActiveMarketsTotal({ enabled: true });
 
   const stats = {
-    activeMarketsCount: marketsQuery.data?.length ?? 0,
+    activeMarketsCount: totalQuery.data ?? marketsQuery.data?.length ?? 0,
     totalVolume: marketsQuery.data?.reduce((sum, m) => sum + m.volume, 0) ?? 0,
     totalVolume24h: marketsQuery.data?.reduce((sum, m) => sum + (m.volume24h ?? 0), 0) ?? 0,
     eventsCount: eventsQuery.data?.length ?? 0,

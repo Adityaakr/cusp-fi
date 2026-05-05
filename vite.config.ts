@@ -43,6 +43,24 @@ export default defineConfig(({ mode }) => {
     },
   };
 
+  // Kamino API proxy — no auth needed, just CORS relay
+  const kaminoProxy = {
+    "/api/kamino": {
+      target: "https://api.kamino.finance",
+      changeOrigin: true,
+      rewrite: (p: string) => p.replace(/^\/api\/kamino/, ""),
+    },
+  };
+
+  // Jupiter swap API proxy — for USDT→USDC swaps
+  const jupiterProxy = {
+    "/api/jupiter": {
+      target: "https://quote-api.jup.ag",
+      changeOrigin: true,
+      rewrite: (p: string) => p.replace(/^\/api\/jupiter/, ""),
+    },
+  };
+
   return {
     server: {
       host: "::",
@@ -50,7 +68,7 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
-      proxy: dflowProxy,
+      proxy: { ...dflowProxy, ...kaminoProxy, ...jupiterProxy },
     },
     plugins: [
       react(),

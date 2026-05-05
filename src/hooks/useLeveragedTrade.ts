@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import { fetchOrderQuote } from "@/lib/dflow-api";
 import { VersionedTransaction } from "@solana/web3.js";
@@ -80,7 +80,7 @@ export function useLeveragedTrade() {
     }
 
     if (!Number.isFinite(params.marginUsdc) || params.marginUsdc < MIN_TRADE_USDC) {
-      setError(`Minimum margin is $${MIN_TRADE_USDC} USDC`);
+      setError(`Minimum margin is $${MIN_TRADE_USDC} USDT`);
       setStatus("error");
       return;
     }
@@ -121,7 +121,7 @@ export function useLeveragedTrade() {
         throw new Error(actionable);
       }
 
-      // 2. Vault lends borrowed USDC to user's wallet (server-side)
+      // 2. Vault lends borrowed USDT to user's wallet (server-side)
       setStatus("lending");
 
       const posRes = await supabase.functions.invoke("open-position", {
@@ -174,10 +174,7 @@ export function useLeveragedTrade() {
 
       const txBytes = Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0));
       const tx = VersionedTransaction.deserialize(txBytes);
-      const signResult = await solana.signAndSendTransaction(tx);
-      const sig = typeof signResult === "string"
-        ? signResult
-        : signResult?.signature ?? "";
+      const sig = await solana.signAndSendTransaction(tx);
 
       // 4. Record trade execution
       setStatus("confirming");

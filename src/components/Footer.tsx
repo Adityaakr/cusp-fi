@@ -20,7 +20,6 @@ const Footer = () => {
             <div className="space-y-2">
               <Link to="/lend" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Borrow</Link>
               <Link to="/vault" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Lend</Link>
-              <a href="/#leverage" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Leverage</a>
               <Link to="/markets" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Markets</Link>
               <Link to="/portfolio" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Portfolio</Link>
             </div>
@@ -39,9 +38,8 @@ const Footer = () => {
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Company</h4>
             <div className="space-y-2">
               <a href="/#waitlist" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Waitlist</a>
-              <a href="#" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Twitter</a>
-              <a href="#" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Discord</a>
-              <a href="mailto:hello@cusp.fi" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Contact</a>
+              <a href="https://x.com/usecusp" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Twitter</a>
+              <a href="mailto:contact@cusp.fi" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Contact</a>
             </div>
           </div>
         </div>

@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { getConnection, USDC_MINT } from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
@@ -100,11 +100,7 @@ export function useWithdraw() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signResult = await solana.signAndSendTransaction(tx);
-      const signature =
-        typeof signResult === "string"
-          ? signResult
-          : signResult?.signature ?? "";
+      const signature = await solana.signAndSendTransaction(tx);
 
       setTxSignature(signature);
       setStatus("confirming");

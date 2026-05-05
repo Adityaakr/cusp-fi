@@ -1,5 +1,5 @@
-import { useParams, Link } from "react-router-dom";
-import { useMemo, useState, useEffect, useRef } from "react";
+import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
@@ -9,9 +9,15 @@ import {
   ChartTooltipContent,
 } from "@/components/ui/chart";
 import { Area, AreaChart, XAxis, YAxis, CartesianGrid } from "recharts";
-import { useDflowMarket, useDflowCandlesticks, useDflowOrderbook, type CandlestickTimeframe } from "@/hooks/useDflowMarkets";
+import {
+  useDflowMarket,
+  useDflowMarkets,
+  useDflowCandlesticks,
+  useDflowOrderbook,
+  type CandlestickTimeframe,
+} from "@/hooks/useDflowMarkets";
 import { useDflowWebSocket } from "@/hooks/useDflowWebSocket";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { VersionedTransaction } from "@solana/web3.js";
 import { fetchOrderQuote } from "@/lib/dflow-api";
 import { MAINNET_USDC_MINT } from "@/lib/network-config";
@@ -22,7 +28,15 @@ import { useLeveragedTrade } from "@/hooks/useLeveragedTrade";
 import { useUserPortfolio } from "@/hooks/useUserPortfolio";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { Skeleton } from "@/components/ui/skeleton";
-import { ChevronLeft, BarChart3, Circle, Wifi, WifiOff, ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
+import {
+  Dialog,
+  DialogContent,
+  DialogTitle,
+  DialogDescription,
+} from "@/components/ui/dialog";
+import { MarketOutcomeTable } from "@/components/MarketOutcomeTable";
+import { MarketTradePanel, type MarketTradePanelProps } from "@/components/MarketTradePanel";
+import { ChevronLeft, BarChart3, Circle, Wifi, WifiOff } from "lucide-react";
 
 const chartConfig = {
   yesPrice: {
@@ -36,6 +50,18 @@ const chartConfig = {
 };
 
 const TIMEFRAMES: CandlestickTimeframe[] = ["1D", "1W", "1M", "3M", "1Y"];
+
+function parseTradeSide(searchParams: URLSearchParams): "YES" | "NO" {
+  const s = searchParams.get("side");
+  return s === "NO" ? "NO" : "YES";
+}
+
+function parseLeverageFromSearchParams(searchParams: URLSearchParams): 1 | 2 | 3 {
+  const raw = searchParams.get("leverage");
+  if (raw === "1" || raw === "2" || raw === "3") return Number(raw) as 1 | 2 | 3;
+  if (searchParams.get("mode") === "leverage") return 2;
+  return 1;
+}
 
 function formatOrderbookEntries(
   bids: Record<string, string>,
@@ -76,11 +102,24 @@ function computeDepthData(
 
 const MarketDetail = () => {
   const { ticker } = useParams<{ ticker: string }>();
+  const [searchParams, setSearchParams] = useSearchParams();
+  const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
   const { isLive, prices: livePrices, orderbook: liveOrderbook, orderbookUpdatedAt, recentTrades } = useDflowWebSocket(ticker);
   const { data: market, isLoading, error } = useDflowMarket(ticker, {
     refetchInterval: isLive ? 30_000 : 10_000,
   });
+  const { data: eventMarkets = [], isPending: eventMarketsLoading } = useDflowMarkets({
+    status: "active",
+    limit: 50,
+    eventTicker: market?.eventTicker,
+    refetchInterval: 30_000,
+    enabled: !!market?.eventTicker,
+  });
+  const sortedEventMarkets = useMemo(
+    () => [...eventMarkets].sort((a, b) => b.probability - a.probability),
+    [eventMarkets]
+  );
   const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(ticker, timeframe, {
     refetchInterval: timeframe === "1D" || timeframe === "1W" ? 15_000 : 30_000,
   });
@@ -89,10 +128,28 @@ const MarketDetail = () => {
   });
   const { isConnected, addresses } = usePhantom();
   const { solana, isAvailable } = useSolana();
-  const [tradeSide, setTradeSide] = useState<"YES" | "NO">("YES");
-  const [amount, setAmount] = useState("");
-  const [tradeMode, setTradeMode] = useState<"direct" | "leveraged">("direct");
-  const [leverage, setLeverage] = useState(1);
+  const [tradeSide, setTradeSide] = useState<"YES" | "NO">(() => parseTradeSide(searchParams));
+  const [tradeModalOpen, setTradeModalOpen] = useState(false);
+  const [contracts, setContracts] = useState("");
+  const [leverage, setLeverage] = useState<1 | 2 | 3>(() =>
+    parseLeverageFromSearchParams(searchParams)
+  );
+
+  useEffect(() => {
+    setTradeSide(parseTradeSide(searchParams));
+  }, [searchParams]);
+
+  useEffect(() => {
+    if (searchParams.get("openTrade") !== "1") return;
+    setTradeModalOpen(true);
+    const next = new URLSearchParams(searchParams);
+    next.delete("openTrade");
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  useEffect(() => {
+    setLeverage(parseLeverageFromSearchParams(searchParams));
+  }, [ticker, searchParams]);
   const [tradeStatus, setTradeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [priceFlash, setPriceFlash] = useState(false);
@@ -102,6 +159,18 @@ const MarketDetail = () => {
   const { data: portfolio, refetch: refetchPortfolio } = useUserPortfolio();
   const { state: protocolState } = useProtocolState();
   const [successDetails, setSuccessDetails] = useState<{ side: string; amount: number; ticker: string } | null>(null);
+
+  const goOutcomeTrade = useCallback(
+    (outcomeTicker: string, side: "YES" | "NO") => {
+      const next = new URLSearchParams(searchParams);
+      next.set("side", side);
+      if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
+        next.set("openTrade", "1");
+      }
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`);
+    },
+    [navigate, searchParams]
+  );
 
   const myPositions = useMemo(() => {
     if (!portfolio?.positions || !ticker) return [];
@@ -208,10 +277,18 @@ const MarketDetail = () => {
     String(a.addressType || "").toLowerCase().includes("solana")
   )?.address;
 
-  const amountNum = parseFloat(amount);
-  const isValidAmount = !isNaN(amountNum) && amountNum > 0;
+  const contractsNum = parseFloat(contracts);
+  const isValidContracts = !isNaN(contractsNum) && contractsNum > 0;
   const currentPrice = tradeSide === "YES" ? displayYesPrice : displayNoPrice;
-  const estimatedShares = isValidAmount && currentPrice > 0 ? amountNum / currentPrice : 0;
+  const totalPositionUsdc =
+    isValidContracts && currentPrice > 0 ? contractsNum * currentPrice : NaN;
+  /** USDT: full notional for 1x; margin for 2x–3x. */
+  const amountNum = Number.isFinite(totalPositionUsdc)
+    ? leverage === 1
+      ? totalPositionUsdc
+      : totalPositionUsdc / leverage
+    : NaN;
+  const isValidAmount = Number.isFinite(amountNum) && amountNum > 0;
 
   // Auto-reduce leverage based on mainnet vault reserve
   const mainnetReserve = protocolState?.mainnet_reserve ?? 0;
@@ -224,6 +301,11 @@ const MarketDetail = () => {
     return Math.max(1, Math.floor((1 + maxBorrow / amountNum) * 10) / 10);
   }, [leverage, amountNum, mainnetReserve, isValidAmount]);
   const leverageReduced = effectiveLeverage < leverage;
+
+  const estimatedShares =
+    isValidAmount && currentPrice > 0
+      ? (leverage > 1 ? (amountNum * effectiveLeverage) : amountNum) / currentPrice
+      : 0;
 
   // Flash effect when live price updates (only on change, not initial)
   useEffect(() => {
@@ -245,15 +327,15 @@ const MarketDetail = () => {
     }
 
     console.log("[trade] Connected wallet:", solanaAddress);
-    console.log("[trade] Mode:", tradeMode, "| Side:", tradeSide, "| Amount:", amountNum);
+    console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDT:", amountNum);
 
     if (!isValidAmount) {
-      setTradeError("Enter a valid amount");
+      setTradeError("Enter a valid contract size");
       return;
     }
     if (amountNum < MIN_TRADE_USDC) {
       setTradeError(
-        `Minimum ${tradeMode === "leveraged" ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDC`
+        `Minimum ${leverage > 1 ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDT`
       );
       return;
     }
@@ -267,20 +349,20 @@ const MarketDetail = () => {
     console.log("[trade] Settlement mint:", market.settlementMint);
     console.log("[trade] KYC verified:", kycVerified);
 
-    // DFlow markets operate on mainnet — verify the user has enough mainnet USDC
-    const userMainnetUsdc = portfolio?.mainnet_usdc_balance ?? 0;
-    const requiredUsdc = tradeMode === "leveraged" ? amountNum : amountNum;
+    // DFlow markets operate on mainnet — verify the user has enough mainnet stablecoins
+    const userMainnetUsdc = (portfolio?.mainnet_usdt_balance ?? 0) + (portfolio?.mainnet_usdc_balance ?? 0);
+    const requiredUsdc = amountNum;
     if (userMainnetUsdc < requiredUsdc) {
       setTradeError(
-        `Insufficient mainnet USDC. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. DFlow trades require real mainnet USDC in your Phantom wallet.`
+        `Insufficient balance. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. Deposit USDT to your Solflare wallet to trade.`
       );
       return;
     }
 
-    if (tradeMode === "leveraged") {
+    if (leverage > 1) {
       if (effectiveLeverage <= 1) {
         setTradeError(
-          `Vault lending pool ($${mainnetReserve.toFixed(2)}) is too low to support leverage. Deposit more to the Trading pool or use Direct mode.`
+          `Vault lending pool ($${mainnetReserve.toFixed(2)}) is too low to support leverage. Deposit more to the Trading pool or use 1x.`
         );
         return;
       }
@@ -294,7 +376,7 @@ const MarketDetail = () => {
         outputMint,
       });
       if (result) {
-        setAmount("");
+        setContracts("");
         setSuccessDetails({ side: tradeSide, amount: amountNum * effectiveLeverage, ticker: market.ticker });
         refetchPortfolio();
         setTimeout(() => setSuccessDetails(null), 5000);
@@ -331,13 +413,13 @@ const MarketDetail = () => {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
         if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("simulation")) {
           throw new Error(
-            `Transaction simulation failed. This usually means insufficient mainnet USDC (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Ensure your Phantom wallet has enough mainnet USDC and a small SOL balance.`
+            `Transaction simulation failed. This usually means insufficient balance (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Deposit more USDT to your Solflare wallet.`
           );
         }
         throw signErr;
       }
 
-      const sig = typeof result === "string" ? result : result?.signature ?? "";
+      const sig = result;
 
       if (supabase && sig) {
         try {
@@ -356,7 +438,7 @@ const MarketDetail = () => {
 
       setTradeStatus("success");
       setSuccessDetails({ side: tradeSide, amount: amountNum, ticker: market.ticker });
-      setAmount("");
+      setContracts("");
       refetchPortfolio();
       setTimeout(() => setSuccessDetails(null), 5000);
     } catch (err) {
@@ -365,14 +447,77 @@ const MarketDetail = () => {
     }
   };
 
+  const tradePanelProps = useMemo((): MarketTradePanelProps | null => {
+    if (!market) return null;
+    return {
+      market,
+      tradeSide,
+      setTradeSide,
+      contracts,
+      setContracts,
+      leverage,
+      setLeverage,
+      displayYesPrice,
+      displayNoPrice,
+      currentPrice,
+      mainnetReserve,
+      effectiveLeverage,
+      leverageReduced,
+      amountNum,
+      estimatedShares,
+      isValidAmount,
+      isConnected,
+      kycVerified,
+      kycLoading,
+      startVerification,
+      portfolio,
+      myPositions,
+      successDetails,
+      tradeError,
+      leveragedError,
+      leveragedStatus,
+      leveragedResult,
+      tradeStatus,
+      onTrade: handleTrade,
+      onTradeErrorClear: () => setTradeError(null),
+      onTradeStatusIdle: () => setTradeStatus("idle"),
+    };
+  }, [
+    market,
+    tradeSide,
+    contracts,
+    leverage,
+    displayYesPrice,
+    displayNoPrice,
+    currentPrice,
+    mainnetReserve,
+    effectiveLeverage,
+    leverageReduced,
+    amountNum,
+    estimatedShares,
+    isValidAmount,
+    isConnected,
+    kycVerified,
+    kycLoading,
+    portfolio,
+    myPositions,
+    successDetails,
+    tradeError,
+    leveragedError,
+    leveragedStatus,
+    leveragedResult,
+    tradeStatus,
+    handleTrade,
+  ]);
+
   if (isLoading || !ticker) {
     return (
       <Layout>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
-          <Skeleton className="h-5 w-32 mb-6" />
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8" aria-busy aria-label="Loading market">
+          <Skeleton className="h-5 w-32 mb-6" shimmer />
           <Skeleton className="h-10 w-full max-w-2xl mb-8" />
           <div className="grid lg:grid-cols-3 gap-6">
-            <Skeleton className="lg:col-span-2 h-[320px] rounded-xl" />
+            <Skeleton className="lg:col-span-2 h-[320px] rounded-xl" shimmer />
             <Skeleton className="h-[320px] rounded-xl" />
           </div>
         </div>
@@ -395,7 +540,7 @@ const MarketDetail = () => {
 
   return (
     <Layout>
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 lg:pb-8">
         {/* Breadcrumb */}
         <Link
           to="/markets"
@@ -505,8 +650,9 @@ const MarketDetail = () => {
         )}
 
         <div className="grid lg:grid-cols-3 gap-6 items-start">
+          <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
           {/* Chart - full market (YES + NO) */}
-          <div className="lg:col-span-2 bg-bg-1 border border-border rounded-xl p-5 sm:p-6 min-w-0">
+          <div className="bg-bg-1 border border-border rounded-xl p-5 sm:p-6 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
               <div className="flex items-center gap-3 min-w-0">
                 <h3 className="text-sm font-semibold text-foreground truncate">
@@ -545,7 +691,7 @@ const MarketDetail = () => {
               </div>
             </div>
             {chartLoading ? (
-              <Skeleton className="h-[300px] w-full rounded-lg" />
+              <Skeleton className="h-[300px] w-full rounded-lg" shimmer aria-busy aria-label="Loading chart" />
             ) : chartData.length > 0 ? (
               <ChartContainer config={chartConfig} className="h-[300px] w-full min-h-0">
                 <AreaChart data={chartData} margin={{ top: 8, right: 8, left: 0, bottom: 0 }}>
@@ -615,303 +761,43 @@ const MarketDetail = () => {
             )}
           </div>
 
-          {/* Trade Panel */}
-          <div className="bg-bg-1 border border-border rounded-xl p-5 sm:p-6">
-            <div className="flex items-center justify-between mb-4">
-              <h3 className="text-sm font-semibold text-foreground">Trade</h3>
-              {isConnected && (
-                <span className={`inline-flex items-center gap-1 text-[10px] font-medium ${kycVerified ? "text-cusp-green" : "text-cusp-amber"}`}>
-                  {kycVerified ? <ShieldCheck className="size-3" /> : <AlertTriangle className="size-3" />}
-                  {kycVerified ? "KYC Verified" : "KYC Required"}
-                </span>
-              )}
-            </div>
+            <MarketOutcomeTable
+              markets={sortedEventMarkets}
+              activeTicker={ticker}
+              loading={eventMarketsLoading}
+              onYes={(t) => goOutcomeTrade(t, "YES")}
+              onNo={(t) => goOutcomeTrade(t, "NO")}
+            />
+          </div>
 
-            {/* Existing Position Badge */}
-            {myPositions.length > 0 && (
-              <div className="mb-4 space-y-2">
-                {myPositions.map((pos) => (
-                  <div
-                    key={pos.id}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-lg border transition-all ${
-                      pos.side === "YES"
-                        ? "bg-cusp-green/8 border-cusp-green/25"
-                        : "bg-cusp-red/8 border-cusp-red/25"
-                    }`}
-                  >
-                    <div className={`shrink-0 size-6 rounded-full flex items-center justify-center ${
-                      pos.side === "YES" ? "bg-cusp-green/20" : "bg-cusp-red/20"
-                    }`}>
-                      <CheckCircle2 className={`size-4 ${
-                        pos.side === "YES" ? "text-cusp-green" : "text-cusp-red"
-                      }`} />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center gap-1.5">
-                        <span className={`text-xs font-semibold ${
-                          pos.side === "YES" ? "text-cusp-green" : "text-cusp-red"
-                        }`}>
-                          {pos.side}
-                        </span>
-                        <span className="text-[10px] text-muted-foreground">placed</span>
-                      </div>
-                      <span className="text-[10px] text-muted-foreground font-mono">
-                        ${pos.usdc_cost.toFixed(2)} · {pos.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })} shares
-                      </span>
-                    </div>
-                    <Link
-                      to="/portfolio"
-                      className="text-[10px] text-cusp-teal hover:underline shrink-0"
-                    >
-                      View
-                    </Link>
-                  </div>
-                ))}
-              </div>
-            )}
-
-            {/* Success Confirmation */}
-            {successDetails && (
-              <div className="mb-4 px-3 py-3 rounded-lg bg-cusp-green/10 border border-cusp-green/30 animate-in fade-in slide-in-from-top-2 duration-300">
-                <div className="flex items-center gap-2">
-                  <div className="size-7 rounded-full bg-cusp-green/20 flex items-center justify-center animate-in zoom-in duration-500">
-                    <CheckCircle2 className="size-5 text-cusp-green" />
-                  </div>
-                  <div>
-                    <p className="text-xs font-semibold text-cusp-green">Bet Placed Successfully!</p>
-                    <p className="text-[10px] text-muted-foreground">
-                      {successDetails.side} · ${successDetails.amount.toFixed(2)} USDC on {successDetails.ticker}
-                    </p>
-                  </div>
-                </div>
-              </div>
-            )}
-
-            {/* Trade Mode Toggle */}
-            <div className="flex gap-1 p-1 bg-bg-2 rounded-lg mb-4">
-              <button
-                onClick={() => { setTradeMode("direct"); setLeverage(1); setTradeError(null); setTradeStatus("idle"); }}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  tradeMode === "direct" ? "bg-bg-1 text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Direct
-              </button>
-              <button
-                onClick={() => { setTradeMode("leveraged"); setLeverage(2); setTradeError(null); setTradeStatus("idle"); }}
-                className={`flex-1 py-1.5 text-xs font-medium rounded-md transition-colors ${
-                  tradeMode === "leveraged" ? "bg-bg-1 text-foreground shadow-sm" : "text-muted-foreground"
-                }`}
-              >
-                Leveraged
-              </button>
-            </div>
-
-            <div className="flex gap-2 mb-4">
-              <button
-                onClick={() => { setTradeSide("YES"); setTradeError(null); setTradeStatus("idle"); }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all truncate min-w-0 ${
-                  tradeSide === "YES"
-                    ? "bg-cusp-green/15 text-cusp-green border border-cusp-green/50 shadow-sm"
-                    : "bg-bg-2 text-muted-foreground border border-transparent hover:border-border"
-                }`}
-                title={`Buy ${market.yesLabel || "YES"}`}
-              >
-                Buy {market.yesLabel || "YES"}
-              </button>
-              <button
-                onClick={() => { setTradeSide("NO"); setTradeError(null); setTradeStatus("idle"); }}
-                className={`flex-1 py-2.5 rounded-lg text-sm font-medium transition-all truncate min-w-0 ${
-                  tradeSide === "NO"
-                    ? "bg-cusp-red/15 text-cusp-red border border-cusp-red/50 shadow-sm"
-                    : "bg-bg-2 text-muted-foreground border border-transparent hover:border-border"
-                }`}
-                title={`Buy ${market.noLabel || "NO"}`}
-              >
-                Buy {market.noLabel || "NO"}
-              </button>
-            </div>
-            <div className="space-y-3 mb-4">
-              <div>
-                <label className="text-xs text-muted-foreground block mb-1.5">
-                  Amount (USDC)
-                </label>
-                <div className="relative">
-                  <input
-                    type="number"
-                    placeholder="0.00"
-                    min="0"
-                    step="0.01"
-                    value={amount}
-                    onChange={(e) => { setAmount(e.target.value); setTradeError(null); }}
-                    className="w-full bg-bg-2 border border-border rounded-lg px-4 py-3 pr-14 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-cusp-teal/50 focus:border-cusp-teal/50"
-                  />
-                  <button
-                    type="button"
-                    onClick={() => setAmount("")}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-xs font-medium text-cusp-teal/80 hover:text-cusp-teal"
-                  >
-                    Clear
-                  </button>
-                </div>
-              </div>
-              {tradeMode === "direct" && isConnected && portfolio && (
-                <div className="flex items-center justify-between text-[10px] mt-2">
-                  <span className="text-muted-foreground">Your mainnet USDC</span>
-                  <button
-                    onClick={() => setAmount(String(portfolio.mainnet_usdc_balance ?? 0))}
-                    className="font-mono text-cusp-amber hover:text-cusp-teal transition-colors"
-                  >
-                    ${(portfolio.mainnet_usdc_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                    <span className="ml-1 text-cusp-teal uppercase">max</span>
-                  </button>
-                </div>
-              )}
-              {tradeMode === "leveraged" && (
-                <div className="mt-3">
-                  <label className="text-xs text-muted-foreground block mb-1.5">
-                    Leverage
-                  </label>
-                  <div className="flex gap-2">
-                    {[1.5, 2, 2.5, 3].map((lev) => (
-                      <button
-                        key={lev}
-                        onClick={() => { setLeverage(lev); setTradeError(null); }}
-                        className={`flex-1 py-2 rounded-lg text-xs font-mono font-medium transition-all ${
-                          leverage === lev
-                            ? "bg-cusp-teal/15 text-cusp-teal border border-cusp-teal/50"
-                            : "bg-bg-2 text-muted-foreground border border-transparent hover:border-border"
-                        }`}
-                      >
-                        {lev}x
-                      </button>
-                    ))}
-                  </div>
-                  <div className="mt-2 space-y-1">
-                    {isConnected && portfolio && (
-                      <div className="flex items-center justify-between text-[10px]">
-                        <span className="text-muted-foreground">Your mainnet USDC</span>
-                        <button
-                          onClick={() => setAmount(String(portfolio.mainnet_usdc_balance ?? 0))}
-                          className="font-mono text-cusp-amber hover:text-cusp-teal transition-colors"
-                        >
-                          ${(portfolio.mainnet_usdc_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                          <span className="ml-1 text-cusp-teal uppercase">max</span>
-                        </button>
-                      </div>
-                    )}
-                    <div className="flex items-center justify-between text-[10px]">
-                      <span className="text-muted-foreground">Vault lending pool</span>
-                      <span className={`font-mono ${mainnetReserve > 0 ? "text-cusp-green" : "text-cusp-red"}`}>
-                        ${mainnetReserve.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                      </span>
-                    </div>
-                    {mainnetReserve <= 0 && (
-                      <p className="text-[10px] text-cusp-red mt-1">
-                        Vault lending pool is empty. Deposit mainnet USDC to the vault's Trading pool to enable leverage.
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
-
-              {isValidAmount && (
-                <div className="rounded-lg bg-bg-2/80 px-3 py-2.5 text-xs space-y-1 mt-3">
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Price</span>
-                    <span className="text-foreground font-mono">
-                      ${currentPrice.toFixed(2)}
-                    </span>
-                  </div>
-                  {tradeMode === "leveraged" && (
-                    <>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Your margin</span>
-                        <span className="text-foreground font-mono">${amountNum.toFixed(2)}</span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Borrowed from vault</span>
-                        <span className={`font-mono ${effectiveLeverage > 1 ? "text-cusp-amber" : "text-muted-foreground"}`}>
-                          ${(amountNum * (effectiveLeverage - 1)).toFixed(2)}
-                        </span>
-                      </div>
-                      <div className="flex justify-between text-muted-foreground">
-                        <span>Total position</span>
-                        <span className="text-foreground font-mono font-semibold">${(amountNum * effectiveLeverage).toFixed(2)}</span>
-                      </div>
-                      {leverageReduced && (
-                        <div className="text-[10px] text-cusp-amber mt-1">
-                          Leverage reduced to {effectiveLeverage.toFixed(1)}x — vault pool only has ${mainnetReserve.toFixed(2)} available to lend
-                        </div>
-                      )}
-                    </>
-                  )}
-                  <div className="flex justify-between text-muted-foreground">
-                    <span>Est. shares</span>
-                    <span className="text-foreground font-mono">
-                      {((tradeMode === "leveraged" ? amountNum * effectiveLeverage : amountNum) / currentPrice).toLocaleString(undefined, {
-                        maximumFractionDigits: 2,
-                      })}
-                    </span>
-                  </div>
-                </div>
-              )}
-            </div>
-            {(tradeError || leveragedError) && (
-              <p className="text-xs text-cusp-red mb-3 px-2">{tradeError || leveragedError}</p>
-            )}
-
-            {leveragedStatus === "success" && leveragedResult && (
-              <p className="text-xs text-cusp-green mb-3 px-2">
-                Position opened! {leveragedResult.leverage}x at ${leveragedResult.total_usdc.toFixed(2)}
-              </p>
-            )}
-
-            {isConnected && !kycVerified && !kycLoading ? (
-              <button
-                onClick={startVerification}
-                className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-teal hover:bg-cusp-teal/90 text-primary-foreground transition-all"
-              >
-                Complete KYC to Trade
-              </button>
-            ) : (
-              <button
-                onClick={handleTrade}
-                disabled={
-                  !isConnected ||
-                  tradeStatus === "loading" ||
-                  leveragedStatus === "lending" ||
-                  leveragedStatus === "signing" ||
-                  leveragedStatus === "risk_check" ||
-                  leveragedStatus === "confirming" ||
-                  (tradeMode === "leveraged" && effectiveLeverage <= 1)
-                }
-                className={`w-full py-3 rounded-lg text-sm font-semibold transition-all ${
-                  tradeSide === "YES"
-                    ? "bg-cusp-green hover:bg-cusp-green/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                    : "bg-cusp-red hover:bg-cusp-red/90 text-white disabled:opacity-50 disabled:cursor-not-allowed"
-                }`}
-              >
-                {!isConnected
-                  ? "Connect Wallet to Trade"
-                  : tradeStatus === "loading" || leveragedStatus === "lending" || leveragedStatus === "signing" || leveragedStatus === "risk_check" || leveragedStatus === "confirming"
-                    ? "Processing..."
-                    : tradeMode === "leveraged" && effectiveLeverage <= 1
-                      ? "Insufficient pool liquidity"
-                      : tradeMode === "leveraged"
-                        ? `${effectiveLeverage}x ${tradeSide === "YES" ? (market.yesLabel || "YES") : (market.noLabel || "NO")}`
-                        : `Buy ${tradeSide === "YES" ? (market.yesLabel || "YES") : (market.noLabel || "NO")}`}
-              </button>
-            )}
-
-            {!isConnected && (
-              <p className="text-[11px] text-muted-foreground mt-3 text-center">
-                Prediction market trading requires Proof KYC. Connect wallet to
-                get started.
-              </p>
-            )}
+          <div className="hidden lg:block lg:sticky lg:top-20 self-start min-w-0 w-full">
+            {tradePanelProps && <MarketTradePanel {...tradePanelProps} />}
           </div>
         </div>
+
+        <div className="lg:hidden fixed bottom-0 left-0 right-0 z-40 p-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] border-t border-border bg-bg-1/95 backdrop-blur-sm supports-[backdrop-filter]:bg-bg-1/85">
+          <button
+            type="button"
+            onClick={() => setTradeModalOpen(true)}
+            className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-teal hover:bg-cusp-teal/90 text-primary-foreground shadow-lg"
+          >
+            Trade
+          </button>
+        </div>
+
+        <Dialog open={tradeModalOpen} onOpenChange={setTradeModalOpen}>
+          <DialogContent className="max-h-[min(90vh,720px)] w-[min(100vw-1rem,32rem)] max-w-[calc(100vw-1rem)] overflow-y-auto gap-0 border-border p-0 left-[50%] top-[50%] translate-x-[-50%] translate-y-[-50%]">
+            <DialogTitle className="sr-only">Place order</DialogTitle>
+            <DialogDescription className="sr-only">
+              Buy or sell outcome shares for this market
+            </DialogDescription>
+            {tradePanelProps && (
+              <div className="p-4 sm:p-5 max-h-[inherit] overflow-y-auto">
+                <MarketTradePanel {...tradePanelProps} className="shadow-none border-0" />
+              </div>
+            )}
+          </DialogContent>
+        </Dialog>
 
         {/* Order Book with Depth - Live (real DFlow orders via REST + WebSocket) */}
         <div className="mt-6 bg-bg-1 border border-border rounded-xl p-5 sm:p-6">
@@ -939,9 +825,19 @@ const MarketDetail = () => {
               ))}
           </div>
           {orderbookLoading && !orderbook ? (
-            <div className="grid md:grid-cols-2 gap-6">
-              <Skeleton className="h-48 rounded-lg" />
-              <Skeleton className="h-48 rounded-lg" />
+            <div className="grid md:grid-cols-2 gap-6" aria-busy aria-label="Loading order book">
+              <div className="space-y-2 rounded-lg border border-border bg-bg-1/50 p-3">
+                <Skeleton className="h-3 w-20" />
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-6 w-full" shimmer={i < 2} />
+                ))}
+              </div>
+              <div className="space-y-2 rounded-lg border border-border bg-bg-1/50 p-3">
+                <Skeleton className="h-3 w-20" />
+                {Array.from({ length: 8 }).map((_, i) => (
+                  <Skeleton key={i} className="h-6 w-full" shimmer={i < 2} />
+                ))}
+              </div>
             </div>
           ) : (
             <div className="grid md:grid-cols-2 gap-6">

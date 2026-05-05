@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { usePhantom } from "@phantom/react-sdk";
+import { usePhantom } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
-import { getConnection, getMainnetConnection, USDC_MINT, MAINNET_USDC } from "@/lib/solana";
+import { getConnection, getMainnetConnection, USDC_MINT, MAINNET_USDC, MAINNET_USDT } from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
   getAccount,
@@ -101,6 +101,7 @@ export interface UserPortfolio {
   total_cusdc: number;
   usdc_balance: number;
   mainnet_usdc_balance: number;
+  mainnet_usdt_balance: number;
   unified_usdc_balance: number;
   total_invested: number;
   total_current_value: number;
@@ -112,6 +113,7 @@ interface OnChainBalances {
   total_cusdc: number;
   usdc_balance: number;
   mainnet_usdc_balance: number;
+  mainnet_usdt_balance: number;
 }
 
 interface DbPortfolio {
@@ -140,21 +142,25 @@ async function fetchOnChainBalances(solanaAddress: string): Promise<OnChainBalan
   let cusdcBalance = 0;
   let usdcBalance = 0;
   let mainnetUsdcBalance = 0;
+  let mainnetUsdtBalance = 0;
 
-  const [cusdcResult, usdcResult, mainnetResult] = await Promise.allSettled([
+  const [cusdcResult, usdcResult, mainnetUsdcResult, mainnetUsdtResult] = await Promise.allSettled([
     getAssociatedTokenAddress(CUSDC_MINT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(connection, ata)),
     getAssociatedTokenAddress(USDC_MINT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(connection, ata)),
     getAssociatedTokenAddress(MAINNET_USDC, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(mainnetConnection, ata)),
+    getAssociatedTokenAddress(MAINNET_USDT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
+      .then((ata) => getAccount(mainnetConnection, ata)),
   ]);
 
   if (cusdcResult.status === "fulfilled") cusdcBalance = Number(cusdcResult.value.amount) / 1e6;
   if (usdcResult.status === "fulfilled") usdcBalance = Number(usdcResult.value.amount) / 1e6;
-  if (mainnetResult.status === "fulfilled") mainnetUsdcBalance = Number(mainnetResult.value.amount) / 1e6;
+  if (mainnetUsdcResult.status === "fulfilled") mainnetUsdcBalance = Number(mainnetUsdcResult.value.amount) / 1e6;
+  if (mainnetUsdtResult.status === "fulfilled") mainnetUsdtBalance = Number(mainnetUsdtResult.value.amount) / 1e6;
 
-  return { total_cusdc: cusdcBalance, usdc_balance: usdcBalance, mainnet_usdc_balance: mainnetUsdcBalance };
+  return { total_cusdc: cusdcBalance, usdc_balance: usdcBalance, mainnet_usdc_balance: mainnetUsdcBalance, mainnet_usdt_balance: mainnetUsdtBalance };
 }
 
 async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & { userId: string | null }> {
@@ -326,7 +332,8 @@ async function fetchPortfolio(solanaAddress: string): Promise<UserPortfolio & { 
     total_cusdc: onChain.total_cusdc,
     usdc_balance: onChain.usdc_balance,
     mainnet_usdc_balance: onChain.mainnet_usdc_balance,
-    unified_usdc_balance: onChain.usdc_balance + onChain.mainnet_usdc_balance,
+    mainnet_usdt_balance: onChain.mainnet_usdt_balance,
+    unified_usdc_balance: onChain.usdc_balance + onChain.mainnet_usdc_balance + onChain.mainnet_usdt_balance,
     total_invested: totalInvested,
     total_current_value: totalCurrentValue,
     unrealized_pnl: totalCurrentValue - totalInvested,
