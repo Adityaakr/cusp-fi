@@ -60,10 +60,7 @@ export function useKYC() {
     try {
       const { message, timestamp } = buildKycSignMessage();
       const encodedMessage = new TextEncoder().encode(message);
-      const signResult = await solana.signMessage(encodedMessage);
-
-      const signatureBytes =
-        signResult instanceof Uint8Array ? signResult : signResult.signature;
+      const signatureBytes = await solana.signMessage(encodedMessage);
       const signatureBase58 = bs58.encode(signatureBytes);
 
       const redirectUri = `${window.location.origin}/auth/callback`;

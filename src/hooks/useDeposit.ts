@@ -120,11 +120,7 @@ export function useDeposit() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signResult = await solana.signAndSendTransaction(tx);
-      const signature =
-        typeof signResult === "string"
-          ? signResult
-          : signResult?.signature ?? "";
+      const signature = await solana.signAndSendTransaction(tx);
 
       setTxSignature(signature);
       setStatus("confirming");

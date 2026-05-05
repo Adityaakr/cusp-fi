@@ -294,7 +294,7 @@ const Index = () => {
                 whileInView="visible"
                 viewport={{ once: true, amount: 0.45 }}
                 variants={blurRevealUnderline}
-                className="mx-auto mt-16 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
+                className="mx-auto mt-16 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal to-transparent animate-line-pulse"
                 aria-hidden
               />
             </div>

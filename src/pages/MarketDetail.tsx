@@ -419,7 +419,7 @@ const MarketDetail = () => {
         throw signErr;
       }
 
-      const sig = typeof result === "string" ? result : result?.signature ?? "";
+      const sig = result;
 
       if (supabase && sig) {
         try {

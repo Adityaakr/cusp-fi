@@ -129,6 +129,8 @@ export interface CuspMarket {
   yesBestBid: number;
   /** Best YES ask (0–1 dollars) */
   yesBestAsk: number;
+  /** Best NO ask (0–1 dollars) */
+  noBestAsk: number;
   /** YES bid–ask spread in dollars; null when one side missing */
   yesSpread: number | null;
 }
@@ -631,6 +633,7 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     subtitle: m.subtitle || undefined,
     yesBestBid: yesBid,
     yesBestAsk: yesAsk > 0 ? yesAsk : 1 - noBid,
+    noBestAsk: noAsk > 0 ? noAsk : 1 - yesBid,
     yesSpread,
   };
 }

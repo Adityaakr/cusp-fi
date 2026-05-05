@@ -174,10 +174,7 @@ export function useLeveragedTrade() {
 
       const txBytes = Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0));
       const tx = VersionedTransaction.deserialize(txBytes);
-      const signResult = await solana.signAndSendTransaction(tx);
-      const sig = typeof signResult === "string"
-        ? signResult
-        : signResult?.signature ?? "";
+      const sig = await solana.signAndSendTransaction(tx);
 
       // 4. Record trade execution
       setStatus("confirming");

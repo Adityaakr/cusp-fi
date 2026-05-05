@@ -1,6 +1,7 @@
 import type { CuspMarket } from "@/lib/dflow-api";
 import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
+import { cn } from "@/lib/utils";
 
 function yesNoCents(m: CuspMarket, side: "yes" | "no"): string {
   const p =

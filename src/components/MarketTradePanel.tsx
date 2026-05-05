@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import type { CuspMarket } from "@/lib/dflow-api";
-import type { UserPortfolio } from "@/hooks/useUserPortfolio";
+import type { UserPortfolio, Position } from "@/hooks/useUserPortfolio";
 import { MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
 import { ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
 import type { LeveragedTradeStatus } from "@/hooks/useLeveragedTrade";
@@ -394,13 +394,14 @@ export function MarketTradePanel({
         </p>
       )}
 
-      {isConnected && !kycVerified && !kycLoading ? (
+      {isConnected && !kycVerified ? (
         <button
           type="button"
           onClick={startVerification}
-          className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-teal hover:bg-cusp-teal/90 text-primary-foreground transition-all"
+          disabled={kycLoading}
+          className="w-full py-3 rounded-lg text-sm font-semibold bg-cusp-teal hover:bg-cusp-teal/90 disabled:opacity-60 disabled:cursor-not-allowed text-primary-foreground transition-all"
         >
-          Complete KYC to Trade
+          {kycLoading ? "Completing KYC…" : "Complete KYC to Trade"}
         </button>
       ) : (
         <button
