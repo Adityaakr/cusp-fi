@@ -165,7 +165,7 @@ const Index = () => {
                     <span className="font-mono text-sm text-foreground">150</span>
                   </div>
                   <div>
-                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">cUSDC Rate</span>
+                    <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">cUSDT Rate</span>
                     <span className="font-mono text-sm text-cusp-teal">${(protocolState?.cusdc_exchange_rate ?? 1).toFixed(4)}</span>
                   </div>
                 </div>
@@ -231,7 +231,7 @@ const Index = () => {
           <PillarRow
             eyebrow="UP TO 50% OF POSITION'S VALUE"
             title="Borrow against your Kalshi shares"
-            body="Use your YES/NO outcome tokens as collateral and borrow USDC instantly. Capped interest rates, repay anytime, positions auto-close two hours before resolution so binary risk never touches lenders."
+            body="Use your YES/NO outcome tokens as collateral and borrow USDT instantly. Capped interest rates, repay anytime, positions auto-close two hours before resolution so binary risk never touches lenders."
             href="/lend"
             cta="Open Borrow"
             visual={
@@ -251,7 +251,7 @@ const Index = () => {
                   <div className="flex items-center justify-center text-muted-foreground">↓</div>
                   <div className="flex items-center justify-between p-3 bg-cusp-teal/5 border border-cusp-teal/30 rounded-md">
                     <div>
-                      <div className="text-[10px] font-mono text-muted-foreground">Borrowed USDC</div>
+                      <div className="text-[10px] font-mono text-muted-foreground">Borrowed</div>
                       <div className="text-sm font-mono text-cusp-teal">$1,250.00</div>
                     </div>
                     <span className="text-[10px] font-mono text-muted-foreground">LTV 50%</span>
@@ -306,7 +306,7 @@ const Index = () => {
             hideTopBorder
             eyebrow="UP TO 25% APY"
             title="Lend to Kalshi traders"
-            body="Deposit USDC into the Cusp Vault and earn yield sourced from real borrower interest, high-probability outcome farming, and LP fees on Kalshi markets. No emissions, uncorrelated with crypto."
+            body="Deposit USDT into the Cusp Vault and earn yield sourced from real borrower interest, high-probability outcome farming, and LP fees on Kalshi markets. No emissions, uncorrelated with crypto."
             href="/vault"
             cta="Open Vault"
             visual={
