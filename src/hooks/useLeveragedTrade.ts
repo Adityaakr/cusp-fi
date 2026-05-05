@@ -80,7 +80,7 @@ export function useLeveragedTrade() {
     }
 
     if (!Number.isFinite(params.marginUsdc) || params.marginUsdc < MIN_TRADE_USDC) {
-      setError(`Minimum margin is $${MIN_TRADE_USDC} USDC`);
+      setError(`Minimum margin is $${MIN_TRADE_USDC} USDT`);
       setStatus("error");
       return;
     }
@@ -121,7 +121,7 @@ export function useLeveragedTrade() {
         throw new Error(actionable);
       }
 
-      // 2. Vault lends borrowed USDC to user's wallet (server-side)
+      // 2. Vault lends borrowed USDT to user's wallet (server-side)
       setStatus("lending");
 
       const posRes = await supabase.functions.invoke("open-position", {
