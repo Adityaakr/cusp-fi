@@ -67,7 +67,7 @@ export function useDeposit() {
       const userPubkey = new PublicKey(solanaAddress);
       const amountAtomic = Math.round(amountUsdc * 1e6);
 
-      // Get user's USDC and cUSDC token accounts
+      // Get user's USDT and cUSDT token accounts
       const userUsdcAta = await getAssociatedTokenAddress(
         USDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
@@ -77,7 +77,7 @@ export function useDeposit() {
 
       const instructions: TransactionInstruction[] = [];
 
-      // Create cUSDC ATA if it doesn't exist
+      // Create cUSDT ATA if it doesn't exist
       const cusdcAccount = await connection.getAccountInfo(userCusdcAta);
       if (!cusdcAccount) {
         instructions.push(
