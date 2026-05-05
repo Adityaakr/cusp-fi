@@ -282,7 +282,7 @@ const MarketDetail = () => {
   const currentPrice = tradeSide === "YES" ? displayYesPrice : displayNoPrice;
   const totalPositionUsdc =
     isValidContracts && currentPrice > 0 ? contractsNum * currentPrice : NaN;
-  /** USDC: full notional for 1x; margin for 2x–3x. */
+  /** USDT: full notional for 1x; margin for 2x–3x. */
   const amountNum = Number.isFinite(totalPositionUsdc)
     ? leverage === 1
       ? totalPositionUsdc
@@ -327,7 +327,7 @@ const MarketDetail = () => {
     }
 
     console.log("[trade] Connected wallet:", solanaAddress);
-    console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDC:", amountNum);
+    console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDT:", amountNum);
 
     if (!isValidAmount) {
       setTradeError("Enter a valid contract size");
@@ -335,7 +335,7 @@ const MarketDetail = () => {
     }
     if (amountNum < MIN_TRADE_USDC) {
       setTradeError(
-        `Minimum ${leverage > 1 ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDC`
+        `Minimum ${leverage > 1 ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDT`
       );
       return;
     }
@@ -349,12 +349,12 @@ const MarketDetail = () => {
     console.log("[trade] Settlement mint:", market.settlementMint);
     console.log("[trade] KYC verified:", kycVerified);
 
-    // DFlow markets operate on mainnet — verify the user has enough mainnet USDC
-    const userMainnetUsdc = portfolio?.mainnet_usdc_balance ?? 0;
+    // DFlow markets operate on mainnet — verify the user has enough mainnet stablecoins
+    const userMainnetUsdc = (portfolio?.mainnet_usdt_balance ?? 0) + (portfolio?.mainnet_usdc_balance ?? 0);
     const requiredUsdc = amountNum;
     if (userMainnetUsdc < requiredUsdc) {
       setTradeError(
-        `Insufficient mainnet USDC. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. DFlow trades require real mainnet USDC in your Solflare wallet.`
+        `Insufficient balance. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. Deposit USDT to your Solflare wallet to trade.`
       );
       return;
     }
@@ -413,7 +413,7 @@ const MarketDetail = () => {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
         if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("simulation")) {
           throw new Error(
-            `Transaction simulation failed. This usually means insufficient mainnet USDC (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Ensure your Solflare wallet has enough mainnet USDC and a small SOL balance.`
+            `Transaction simulation failed. This usually means insufficient balance (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Deposit more USDT to your Solflare wallet.`
           );
         }
         throw signErr;
