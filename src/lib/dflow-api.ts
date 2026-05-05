@@ -464,10 +464,11 @@ function parsePrice(val: string | null): number {
 }
 
 export function toTitleCaseCategory(key: string): string {
-  return key
-    .replace(/_/g, " ")
-    .replace(/\b\w/g, (c) => c.toUpperCase())
-    .trim();
+  const lower = key.replace(/_/g, " ").trim().toLowerCase();
+  const exceptions = new Set(["and", "of", "the", "in", "for", "on", "to", "with"]);
+  return lower.replace(/\b\w+/g, (w) =>
+    exceptions.has(w) ? w : w.charAt(0).toUpperCase() + w.slice(1)
+  );
 }
 
 /** Same rules as tag matching inside `resolveMarketCategory` (prefix / substring on event ticker). */
@@ -518,7 +519,7 @@ export function resolveMarketCategory(
   return inferCategory(eventTicker, title);
 }
 
-const FALLBACK_CATEGORY_TABS = ["Crypto", "Sports", "Politics", "Economics", "Finance", "Other"];
+const FALLBACK_CATEGORY_TABS = ["Crypto", "Sports", "Politics", "Economics", "Finance", "Entertainment", "Science & Tech", "Health", "Climate & Weather", "Other"];
 
 /** Category pills: All + DFlow API categories (when present) + heuristic buckets not already listed. */
 export function buildCategoryTabList(tags: DFlowTagsResponse | null | undefined): string[] {
@@ -548,6 +549,8 @@ export function buildCategoryTabList(tags: DFlowTagsResponse | null | undefined)
 /** Map DFlow-style categories to our UI categories */
 function inferCategory(eventTicker: string, title: string): string {
   const t = (eventTicker + title).toLowerCase();
+  // Climate & Weather: temperature, snow, rain, hurricane, natural disaster, etc.
+  if (/climate|weather|temperature|snow|rain|hurrican|tornado|drought|flood|wildfire|earthquake|storm|natural disaster|highest temp|kxhigh|kxlow|kxrain|kxsnow|kxwind/.test(t)) return "Climate & Weather";
   // Crypto: BTC, ETH, SOL, DOGE, XRP, etc.
   if (/btc|eth|sol|doge|xrp|crypto|bitcoin|blockchain/.test(t)) return "Crypto";
   // Economics: Fed, GDP, inflation, employment, etc.
@@ -556,8 +559,14 @@ function inferCategory(eventTicker: string, title: string): string {
   if (/s&p|nasdaq|stock|spx|dow|treasury|wti|eur\/usd|usd\/jpy|financial|earnings|ipo|kpi/.test(t)) return "Finance";
   // Politics: elections, congress, etc.
   if (/trump|election|senate|congress|mayor|primary|scotus|court|house|republican|democrat|nominee|president/.test(t)) return "Politics";
+  // Science & Tech: AI, space, medicine, energy
+  if (/ai|space|spacex|nasa|medicine|energy|quantum|tech|nuclear|fusion/.test(t)) return "Science & Tech";
   // Sports: all major leagues and sports
-  if (/championship|nba|nfl|mlb|nhl|soccer|basketball|football|baseball|hockey|golf|tennis|boxing|mma|esports|premier league|champions league|world series|super bowl|finals/.test(t)) return "Sports";
+  if (/championship|nba|nfl|mlb|nhl|soccer|basketball|football|baseball|hockey|golf|tennis|boxing|mma|esports|premier league|champions league|world series|super bowl|finals|stanley cup|world cup|f1|formula/.test(t)) return "Sports";
+  // Entertainment: movies, music, awards, TV, etc.
+  if (/oscar|grammy|movie|box office|music|album|tv show|streaming|netflix|disney|game of thrones|emmy|golden globe|celebrity|award/.test(t)) return "Entertainment";
+  // Health: diseases, FDA, etc.
+  if (/health|disease|fda|vaccine|outbreak|pandemic|bird flu|flu|cancer/.test(t)) return "Health";
   return "Other";
 }
 
