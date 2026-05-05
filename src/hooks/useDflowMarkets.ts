@@ -68,7 +68,7 @@ export function useDflowMarkets(params?: {
     queryFn: async () => {
       const res = await fetchMarkets({
         status: queryParams.status ?? "active",
-        limit: queryParams.limit ?? 50,
+        limit: queryParams.limit ?? 200,
         eventTicker: queryParams.eventTicker,
       });
       return res.markets.map((m) => dflowMarketToCusp(m));
@@ -135,7 +135,7 @@ export function useDflowSearchMarkets(query: string) {
   const trimmed = query.trim();
   return useQuery({
     queryKey: [...QUERY_KEYS.searchMarkets, trimmed],
-    queryFn: () => searchMarkets(trimmed, 100),
+    queryFn: () => searchMarkets(trimmed, 200),
     enabled: trimmed.length >= 2,
     staleTime: 30_000,
   });
@@ -226,7 +226,7 @@ export function useDflowOrderbook(ticker: string | undefined, options?: { refetc
 }
 
 export function useDflowMarketStats() {
-  const marketsQuery = useDflowMarkets({ status: "active", limit: 500 });
+  const marketsQuery = useDflowMarkets({ status: "active", limit: 200 });
   const eventsQuery = useDflowEvents(100);
   const totalQuery = useDflowActiveMarketsTotal({ enabled: true });
 

@@ -1,6 +1,7 @@
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
 import { getConnection, getMainnetVaultUsdcBalance } from "@/lib/solana";
+import { fetchVaultMetrics } from "@/lib/kamino";
 
 const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
@@ -15,10 +16,14 @@ export interface ProtocolState {
   deployed_usdc: number;
   total_cusdc_supply: number;
   is_paused: boolean;
-  /** Vault keypair's mainnet USDC balance — real capital for leveraged trades */
+  /** Vault keypair's mainnet USDT balance — real capital for leveraged trades */
   mainnet_reserve: number;
-  /** Unified TVL = devnet vault + mainnet reserve */
+  /** Unified TVL = devnet vault + mainnet reserve + Kamino vault */
   unified_tvl: number;
+  /** Kamino vault TVL (USDC in Steakhouse vault) */
+  kamino_reserve: number;
+  /** Kamino vault APY */
+  kamino_apy: number;
 }
 
 /**
@@ -77,22 +82,25 @@ function parseVaultState(data: Buffer): Omit<ProtocolState, "mainnet_reserve" | 
 }
 
 async function fetchProtocolState(): Promise<ProtocolState | null> {
-  // Fetch devnet vault state and mainnet reserve independently so one failing doesn't block the other
-  const [accountInfoResult, mainnetResult] = await Promise.allSettled([
+  const [accountInfoResult, mainnetResult, kaminoResult] = await Promise.allSettled([
     getConnection().getAccountInfo(VAULT_STATE),
     getMainnetVaultUsdcBalance(),
+    fetchVaultMetrics(),
   ]);
 
   const accountInfo = accountInfoResult.status === "fulfilled" ? accountInfoResult.value : null;
   const mainnetReserve = mainnetResult.status === "fulfilled" ? mainnetResult.value : 0;
+  const kaminoVault = kaminoResult.status === "fulfilled" ? kaminoResult.value : null;
+  const kaminoReserve = kaminoVault?.tvl ?? 0;
+  const kaminoApy = kaminoVault?.apy ?? 0;
 
-  console.log("[protocolState] devnet vault found:", !!accountInfo?.data, "| mainnet reserve:", mainnetReserve);
+  console.log("[protocolState] devnet vault found:", !!accountInfo?.data, "| mainnet reserve:", mainnetReserve, "| kamino TVL:", kaminoReserve);
 
   if (accountInfoResult.status === "rejected") {
     console.warn("[protocolState] Failed to fetch devnet vault:", accountInfoResult.reason);
   }
-  if (mainnetResult.status === "rejected") {
-    console.warn("[protocolState] Failed to fetch mainnet reserve:", mainnetResult.reason);
+  if (kaminoResult.status === "rejected") {
+    console.warn("[protocolState] Failed to fetch Kamino vault:", kaminoResult.reason);
   }
 
   if (!accountInfo || !accountInfo.data) {
@@ -104,7 +112,9 @@ async function fetchProtocolState(): Promise<ProtocolState | null> {
       total_cusdc_supply: 0,
       is_paused: false,
       mainnet_reserve: mainnetReserve,
-      unified_tvl: mainnetReserve,
+      unified_tvl: mainnetReserve + kaminoReserve,
+      kamino_reserve: kaminoReserve,
+      kamino_apy: kaminoApy,
     };
   }
 
@@ -113,7 +123,9 @@ async function fetchProtocolState(): Promise<ProtocolState | null> {
     return {
       ...state,
       mainnet_reserve: mainnetReserve,
-      unified_tvl: state.total_tvl + mainnetReserve,
+      unified_tvl: state.total_tvl + mainnetReserve + kaminoReserve,
+      kamino_reserve: kaminoReserve,
+      kamino_apy: kaminoApy,
     };
   } catch (err) {
     console.warn("[protocolState] Failed to parse vault state, using mainnet reserve only:", err);
@@ -125,7 +137,9 @@ async function fetchProtocolState(): Promise<ProtocolState | null> {
       total_cusdc_supply: 0,
       is_paused: false,
       mainnet_reserve: mainnetReserve,
-      unified_tvl: mainnetReserve,
+      unified_tvl: mainnetReserve + kaminoReserve,
+      kamino_reserve: kaminoReserve,
+      kamino_apy: kaminoApy,
     };
   }
 }

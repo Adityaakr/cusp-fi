@@ -11,8 +11,9 @@ import {
   getAccount,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  createAssociatedTokenAccountInstruction,
 } from "@solana/spl-token";
-import { SOLANA_RPC_URL, USDC_MINT_ADDRESS, MAINNET_RPC_URL, MAINNET_USDC_MINT } from "./network-config";
+import { SOLANA_RPC_URL, USDC_MINT_ADDRESS, USDT_MINT_ADDRESS, MAINNET_RPC_URL, MAINNET_USDC_MINT, MAINNET_USDT_MINT, EARN_VAULT_PROGRAM_ID, EARN_VAULT_STATE, CUSDT_MINT, EARN_VAULT_USDC_ATA } from "./network-config";
 
 const RPC_URL = SOLANA_RPC_URL;
 
@@ -37,6 +38,15 @@ export function getMainnetConnection(): Connection {
 
 export const USDC_MINT = new PublicKey(USDC_MINT_ADDRESS);
 export const MAINNET_USDC = new PublicKey(MAINNET_USDC_MINT);
+export const USDT_MINT = new PublicKey(USDT_MINT_ADDRESS);
+export const MAINNET_USDT = new PublicKey(MAINNET_USDT_MINT);
+
+// ── Earn Vault PDA exports ──────────────────────────────────────────────────
+
+export const EARN_VAULT_STATE_PDA = EARN_VAULT_STATE;
+export const CUSDT_MINT_PDA = CUSDT_MINT;
+export const EARN_VAULT_USDC_ATA_PDA = EARN_VAULT_USDC_ATA;
+export const EARN_VAULT_PROGRAM = EARN_VAULT_PROGRAM_ID;
 
 export function getCusdcMint(): PublicKey | null {
   const mint = import.meta.env.VITE_CUSDC_MINT;
@@ -110,7 +120,7 @@ export function solToLamports(sol: number): number {
   return Math.round(sol * LAMPORTS_PER_SOL);
 }
 
-/** Fetch the vault keypair's mainnet USDC balance (the real lending pool for leverage) */
+/** Fetch the vault keypair's mainnet USDT balance (the real lending pool for leverage) */
 export async function getMainnetVaultUsdcBalance(): Promise<number> {
   const vaultPubkey = getVaultPublicKey();
   if (!vaultPubkey) return 0;
@@ -125,10 +135,98 @@ export async function getMainnetVaultUsdcBalance(): Promise<number> {
     );
     const account = await getAccount(connection, ata);
     const balance = Number(account.amount) / 1e6;
-    console.log("[solana] Mainnet vault USDC balance:", balance);
+    console.log("[solana] Mainnet vault USDT balance:", balance);
     return balance;
   } catch (err) {
-    console.warn("[solana] Failed to fetch mainnet vault USDC balance:", err);
+    console.warn("[solana] Failed to fetch mainnet vault USDT balance:", err);
     return 0;
+  }
+}
+
+// ── Earn Vault on-chain state ──────────────────────────────────────────────
+
+export interface EarnVaultState {
+  admin: PublicKey;
+  usdcMint: PublicKey;
+  usdtMint: PublicKey;
+  cusdtMint: PublicKey;
+  vaultUsdcAccount: PublicKey;
+  totalUsdcBalance: number;
+  totalCusdtSupply: number;
+  kaminoSharesValue: number;
+  kaminoApyBps: number;
+  performanceFeeBps: number;
+  bump: number;
+  cusdtMintBump: number;
+  isPaused: boolean;
+  secondsSinceEpoch: number;
+  exchangeRate: number;
+}
+
+const EARN_VAULT_DISCRIMINATOR = Buffer.from([251, 209, 241, 183, 47, 65, 154, 86]);
+
+export async function getEarnVaultState(): Promise<EarnVaultState | null> {
+  const connection = getMainnetConnection();
+  try {
+    const accountInfo = await connection.getAccountInfo(EARN_VAULT_STATE_PDA);
+    if (!accountInfo || !accountInfo.data) {
+      console.warn("[solana] Earn vault state not found");
+      return null;
+    }
+
+    const data = accountInfo.data;
+    let offset = 8; // skip Anchor discriminator
+
+    const admin = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    const usdcMint = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    const usdtMint = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    const cusdtMint = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    const vaultUsdcAccount = new PublicKey(data.slice(offset, offset + 32));
+    offset += 32;
+    const totalUsdcBalance = Number(data.readBigUInt64LE(offset)) / 1e6;
+    offset += 8;
+    const totalCusdtSupply = Number(data.readBigUInt64LE(offset)) / 1e6;
+    offset += 8;
+    const kaminoSharesValue = Number(data.readBigUInt64LE(offset)) / 1e6;
+    offset += 8;
+    const kaminoApyBps = Number(data.readBigUInt64LE(offset));
+    offset += 8;
+    const performanceFeeBps = Number(data.readBigUInt64LE(offset));
+    offset += 8;
+    const bump = data[offset];
+    offset += 1;
+    const cusdtMintBump = data[offset];
+    offset += 1;
+    const isPaused = data[offset] === 1;
+    offset += 1;
+    const secondsSinceEpoch = Number(data.readBigUInt64LE(offset));
+
+    const exchangeRate =
+      totalCusdtSupply > 0 ? totalUsdcBalance / totalCusdtSupply : 1.0;
+
+    return {
+      admin,
+      usdcMint,
+      usdtMint,
+      cusdtMint,
+      vaultUsdcAccount,
+      totalUsdcBalance,
+      totalCusdtSupply,
+      kaminoSharesValue,
+      kaminoApyBps,
+      performanceFeeBps,
+      bump,
+      cusdtMintBump,
+      isPaused,
+      secondsSinceEpoch,
+      exchangeRate,
+    };
+  } catch (err) {
+    console.warn("[solana] Failed to parse earn vault state:", err);
+    return null;
   }
 }

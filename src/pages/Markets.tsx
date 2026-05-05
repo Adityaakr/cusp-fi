@@ -144,7 +144,7 @@ const MarketsPage = () => {
     error: listErr,
   } = useDflowMarketsInfinite({
     status: "active",
-    pageLimit: 100,
+    pageLimit: 200,
     refetchInterval: 30_000,
     enabled: debouncedSearch.length < 2,
   });

@@ -431,7 +431,7 @@ const PortfolioPage = () => {
                 </span>
                 {totalCusdc > 0 && (
                   <span className="text-[9px] text-muted-foreground block mt-0.5">
-                    {totalCusdc.toFixed(4)} cUSDC
+                    {totalCusdc.toFixed(4)} cUSDT
                   </span>
                 )}
               </div>
@@ -693,7 +693,7 @@ const PortfolioPage = () => {
                 </div>
                 <div className="bg-bg-1 border border-border rounded-xl p-4">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                    cUSDC Balance
+                    cUSDT Balance
                   </span>
                   <span className="font-mono text-lg font-semibold text-foreground">
                     {totalCusdc.toLocaleString(undefined, { maximumFractionDigits: 4 })}
@@ -719,10 +719,10 @@ const PortfolioPage = () => {
                   >
                     <div>
                       <span className="text-sm font-medium text-foreground">
-                        ${d.amount_usdc.toLocaleString()} USDC
+                        ${d.amount_usdc.toLocaleString()} USDT
                       </span>
                       <span className="text-xs text-muted-foreground ml-2">
-                        &rarr; {d.cusdc_minted.toLocaleString(undefined, { maximumFractionDigits: 4 })} cUSDC
+                        &rarr; {d.cusdc_minted.toLocaleString(undefined, { maximumFractionDigits: 4 })} cUSDT
                       </span>
                       <span className="text-[10px] text-muted-foreground block mt-0.5">
                         {formatDate(d.created_at)} at rate ${d.exchange_rate.toFixed(4)}
@@ -740,7 +740,7 @@ const PortfolioPage = () => {
                 <CreditCard className="size-10 text-muted-foreground/30 mx-auto mb-4" />
                 <p className="text-sm font-medium text-muted-foreground mb-1">No vault activity</p>
                 <p className="text-[11px] text-muted-foreground/60 mb-4">
-                  Deposit USDC to earn yield from the lending pool.
+                  Deposit USDT to earn yield from the lending pool.
                 </p>
                 <Link
                   to="/vault"

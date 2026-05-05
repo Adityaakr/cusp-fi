@@ -10,7 +10,7 @@ export interface FundConfig {
   tier: RiskTier;
   label: string;
   shortLabel: "C" | "M" | "G";
-  cusdcSymbol: "cUSDC-C" | "cUSDC-M" | "cUSDC-G";
+  cusdcSymbol: "cUSDT-C" | "cUSDT-M" | "cUSDT-G";
   interestCapBps: number;
   targetApyRange: [number, number];
   minReserveBps: number;
@@ -70,7 +70,7 @@ export const RISK_TIER_CONFIGS: Record<RiskTier, FundConfig> = {
     tier: "conservative",
     label: "Conservative",
     shortLabel: "C",
-    cusdcSymbol: "cUSDC-C",
+    cusdcSymbol: "cUSDT-C",
     interestCapBps: 1_000,
     targetApyRange: [8, 12],
     minReserveBps: MIN_RESERVE_BPS,
@@ -81,7 +81,7 @@ export const RISK_TIER_CONFIGS: Record<RiskTier, FundConfig> = {
     tier: "moderate",
     label: "Moderate",
     shortLabel: "M",
-    cusdcSymbol: "cUSDC-M",
+    cusdcSymbol: "cUSDT-M",
     interestCapBps: 2_000,
     targetApyRange: [12, 18],
     minReserveBps: MIN_RESERVE_BPS,
@@ -92,7 +92,7 @@ export const RISK_TIER_CONFIGS: Record<RiskTier, FundConfig> = {
     tier: "growth",
     label: "Growth",
     shortLabel: "G",
-    cusdcSymbol: "cUSDC-G",
+    cusdcSymbol: "cUSDT-G",
     interestCapBps: 3_000,
     targetApyRange: [18, 28],
     minReserveBps: MIN_RESERVE_BPS,

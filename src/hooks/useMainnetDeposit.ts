@@ -3,7 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePhantom, useSolana } from "@/lib/wallet";
 import {
   getMainnetConnection,
-  MAINNET_USDC,
+  MAINNET_USDT,
   getVaultPublicKey,
 } from "@/lib/solana";
 import {
@@ -36,7 +36,7 @@ export function useMainnetDeposit() {
     String(a.addressType || "").toLowerCase().includes("solana")
   )?.address;
 
-  async function deposit(amountUsdc: number) {
+  async function deposit(amount: number) {
     setError(null);
     setTxSignature(null);
 
@@ -51,37 +51,39 @@ export function useMainnetDeposit() {
       return;
     }
 
-    if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
+    if (!Number.isFinite(amount) || amount <= 0) {
       setError("Enter a valid amount");
       setStatus("error");
       return;
     }
+
+    const mint = MAINNET_USDT;
 
     try {
       setStatus("building");
 
       const connection = getMainnetConnection();
       const userPubkey = new PublicKey(solanaAddress);
-      const amountAtomic = Math.round(amountUsdc * 1e6);
+      const amountAtomic = Math.round(amount * 1e6);
 
-      const userUsdcAta = await getAssociatedTokenAddress(
-        MAINNET_USDC, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+      const userAta = await getAssociatedTokenAddress(
+        mint, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
-      const vaultUsdcAta = await getAssociatedTokenAddress(
-        MAINNET_USDC, vaultPubkey, true, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+      const vaultAta = await getAssociatedTokenAddress(
+        mint, vaultPubkey, true, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
 
       const instructions: TransactionInstruction[] = [];
 
-      // Create vault's mainnet USDC ATA if it doesn't exist yet
-      const vaultAtaInfo = await connection.getAccountInfo(vaultUsdcAta);
+      // Create vault's ATA if it doesn't exist yet
+      const vaultAtaInfo = await connection.getAccountInfo(vaultAta);
       if (!vaultAtaInfo) {
         instructions.push(
           createAssociatedTokenAccountInstruction(
-            userPubkey,      // payer
-            vaultUsdcAta,    // ATA to create
-            vaultPubkey,     // owner of the ATA
-            MAINNET_USDC,    // mint
+            userPubkey,
+            vaultAta,
+            vaultPubkey,
+            mint,
             TOKEN_PROGRAM_ID,
             ASSOCIATED_TOKEN_PROGRAM_ID
           )
@@ -90,8 +92,8 @@ export function useMainnetDeposit() {
 
       instructions.push(
         createTransferInstruction(
-          userUsdcAta,
-          vaultUsdcAta,
+          userAta,
+          vaultAta,
           userPubkey,
           amountAtomic,
           [],

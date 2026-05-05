@@ -2,6 +2,7 @@
 members = [
     "cusp-vault",
     "cusp-leverage",
+    "cusp-earn-vault",
 ]
 resolver = "2"
 
