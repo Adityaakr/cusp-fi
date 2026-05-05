@@ -1,7 +1,7 @@
 use anchor_lang::prelude::*;
 use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
 
-declare_id!("Duyqj2n1CxiVhCN4fgNFf8dbtSeyrZVE3XCBtG6VUgx9");
+declare_id!("HTPcC7PNEGG3w6Tj5VSR9HQTQhELqqQRxKTiWkDUm6uF");
 
 /// Cusp Leverage Program
 ///
