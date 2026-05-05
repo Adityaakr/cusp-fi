@@ -19,7 +19,7 @@ const BorrowPanel = () => {
   return (
     <div className="bg-bg-1 border border-border rounded-lg overflow-hidden">
       <div className="p-4 border-b border-border">
-        <h3 className="text-sm font-medium text-foreground mb-1">Borrow USDC</h3>
+        <h3 className="text-sm font-medium text-foreground mb-1">Borrow USDT</h3>
         <p className="text-xs text-muted-foreground">Select a position to use as collateral</p>
       </div>
 
@@ -64,7 +64,7 @@ const BorrowPanel = () => {
                 max={selected.maxBorrow}
                 className="w-full bg-bg-2 border border-border rounded-md px-3 py-2.5 font-mono text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:border-active transition-colors"
               />
-              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">USDC</span>
+              <span className="absolute right-3 top-1/2 -translate-y-1/2 text-xs text-muted-foreground font-mono">USDT</span>
             </div>
           </div>
 
@@ -87,7 +87,7 @@ const BorrowPanel = () => {
             disabled={numBorrow <= 0 || numBorrow > selected.maxBorrow}
             className="w-full py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-40 disabled:cursor-not-allowed"
           >
-            Borrow USDC
+Borrow USDT
           </button>
         </div>
       )}
