@@ -49,6 +49,11 @@ export interface DFlowMarketAccount {
   scalarOutcomePct?: number;
 }
 
+export interface DFlowMarketDerivedMetadata {
+  competition?: string;
+  [key: string]: unknown;
+}
+
 export interface DFlowMarket {
   ticker: string;
   eventTicker: string;
@@ -76,6 +81,7 @@ export interface DFlowMarket {
   canCloseEarly: boolean;
   rulesPrimary?: string;
   rulesSecondary?: string;
+  product_metadata_derived?: DFlowMarketDerivedMetadata;
   accounts: Record<string, DFlowMarketAccount>;
 }
 
@@ -127,6 +133,7 @@ export interface CuspMarket {
   category: string;
   subCategory?: string;
   sourceTag?: string;
+  competition?: string;
   yesPrice: number;
   noPrice: number;
   probability: number;
@@ -150,6 +157,7 @@ export interface CuspMarket {
   /** Open interest ($ at stake) */
   openInterest?: number;
   subtitle?: string;
+  imageUrl?: string;
   /** Best YES bid (0–1 dollars) */
   yesBestBid: number;
   /** Best YES ask (0–1 dollars) */
@@ -249,6 +257,7 @@ export async function fetchEvents(params?: {
   }
   if (params?.status) search.set("status", params.status);
   if (params?.isInitialized !== undefined) search.set("isInitialized", String(params.isInitialized));
+  if (params?.limit) search.set("limit", String(normalizePageLimit(params.limit, DFLOW_MARKETS_MAX_PAGE_LIMIT)));
   if (params?.sort) search.set("sort", params.sort);
   const qs = search.toString();
   return fetchJson(`${METADATA_API}/api/v1/events${qs ? `?${qs}` : ""}`);
@@ -259,12 +268,14 @@ export async function fetchSeries(params?: {
   tags?: string;
   status?: string;
   isInitialized?: boolean;
+  limit?: number;
 }): Promise<DFlowSeriesResponse> {
   const search = new URLSearchParams();
   if (params?.category) search.set("category", params.category);
   if (params?.tags) search.set("tags", params.tags);
   if (params?.status) search.set("status", params.status);
   if (params?.isInitialized !== undefined) search.set("isInitialized", String(params.isInitialized));
+  if (params?.limit) search.set("limit", String(normalizePageLimit(params.limit, DFLOW_MARKETS_MAX_PAGE_LIMIT)));
   const qs = search.toString();
   return fetchJson(`${METADATA_API}/api/v1/series${qs ? `?${qs}` : ""}`);
 }
@@ -384,6 +395,7 @@ async function fetchActiveMarketsForSeriesTickers(params: {
   seriesTickers: string[];
   categoryLabel: string;
   sourceTag?: string;
+  competition?: string;
   limit?: number;
 }): Promise<CuspMarket[]> {
   const tickers = [...new Set(params.seriesTickers.filter(Boolean))];
@@ -395,6 +407,7 @@ async function fetchActiveMarketsForSeriesTickers(params: {
   );
   const seen = new Set<string>();
   const markets: CuspMarket[] = [];
+  let currentEventImageUrl: string | undefined;
   const pushMarket = (market: DFlowMarket) => {
     if (market.status !== "active") return;
     if (seen.has(market.ticker)) return;
@@ -404,6 +417,7 @@ async function fetchActiveMarketsForSeriesTickers(params: {
       category: params.categoryLabel,
       subCategory: params.sourceTag,
       sourceTag: params.sourceTag,
+      imageUrl: currentEventImageUrl,
     });
   };
 
@@ -416,6 +430,7 @@ async function fetchActiveMarketsForSeriesTickers(params: {
       limit,
     });
     for (const ev of res.events ?? []) {
+      currentEventImageUrl = ev.imageUrl;
       for (const market of ev.markets ?? []) {
         pushMarket(market);
         if (markets.length >= limit) break;
@@ -442,6 +457,7 @@ export async function fetchScopedMarkets(params: {
   const seriesRes = await fetchSeries({
     category: categoryLabel,
     tags: sourceTag,
+    limit,
   });
   const seriesTickers = (seriesRes.series ?? [])
     .map((series) => series.ticker)
@@ -915,6 +931,7 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     rulesSecondary: m.rulesSecondary,
     openInterest: parseAmount(m.openInterestFp, m.openInterest),
     subtitle: m.subtitle || undefined,
+    competition: typeof m.product_metadata_derived?.competition === "string" ? m.product_metadata_derived.competition.trim() || undefined : undefined,
     yesBestBid: yesBid,
     yesBestAsk: yesAsk > 0 ? yesAsk : 1 - noBid,
     noBestAsk: noAsk > 0 ? noAsk : 1 - yesBid,

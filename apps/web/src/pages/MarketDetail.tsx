@@ -1,4 +1,4 @@
-import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
+import { useParams, Link, useSearchParams } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
@@ -108,30 +108,42 @@ function computeDepthData(
 }
 
 const MarketDetail = () => {
-  const { ticker } = useParams<{ ticker: string }>();
+  const { ticker: routeTicker } = useParams<{ ticker: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
-  const navigate = useNavigate();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
-  const dflowMarketQuery = useDflowMarket(ticker, {
+  const [activeTicker, setActiveTicker] = useState<string | undefined>(routeTicker);
+
+  useEffect(() => {
+    setActiveTicker(routeTicker);
+  }, [routeTicker]);
+
+  const dflowMarketQuery = useDflowMarket(activeTicker, {
     refetchInterval: 30_000,
   });
-  const market = dflowMarketQuery.data;
+  const queriedMarket = dflowMarketQuery.data;
   const {
     isLive,
     prices: livePrices,
     orderbook: liveOrderbook,
     orderbookUpdatedAt,
     recentTrades,
-  } = useDflowWebSocket(market ? ticker : undefined);
-  const isLoading = !ticker || (!market && dflowMarketQuery.isLoading);
-  const error = !market ? dflowMarketQuery.error : null;
-  const eventQuery = useDflowEvent(market?.eventTicker, {
+  } = useDflowWebSocket(activeTicker);
+  const eventQuery = useDflowEvent(queriedMarket?.eventTicker, {
     refetchInterval: 30_000,
   });
   const eventMarkets = useMemo(
     () => (eventQuery.data?.markets ?? []).filter((m) => m.status === "active").map((m) => dflowMarketToCusp(m)),
     [eventQuery.data?.markets]
   );
+  const market = useMemo(() => {
+    if (!activeTicker) return queriedMarket;
+    return (
+      eventMarkets.find((outcome) => outcome.ticker.toLowerCase() === activeTicker.toLowerCase()) ??
+      queriedMarket
+    );
+  }, [activeTicker, eventMarkets, queriedMarket]);
+  const isLoading = !activeTicker || (!market && dflowMarketQuery.isLoading);
+  const error = !market ? dflowMarketQuery.error : null;
   const eventMarketsLoading = eventQuery.isPending;
   const sortedEventMarkets = useMemo(() => {
     const byTicker = new Map<string, typeof eventMarkets[number]>();
@@ -152,7 +164,7 @@ const MarketDetail = () => {
       return b.probability - a.probability;
     });
   }, [eventMarkets, market]);
-  const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(ticker, timeframe, {
+  const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(activeTicker, timeframe, {
     refetchInterval: timeframe === "1D" || timeframe === "1W" ? 15_000 : 30_000,
     enabled: !!market,
   });
@@ -179,7 +191,7 @@ const MarketDetail = () => {
 
   useEffect(() => {
     setLeverage(parseLeverageFromSearchParams(searchParams));
-  }, [ticker, searchParams]);
+  }, [activeTicker, searchParams]);
   const [tradeStatus, setTradeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [priceFlash, setPriceFlash] = useState(false);
@@ -192,32 +204,30 @@ const MarketDetail = () => {
 
   const goOutcomeTrade = useCallback(
     (outcomeTicker: string, side: "YES" | "NO") => {
+      setActiveTicker(outcomeTicker);
       const next = new URLSearchParams(searchParams);
       next.set("side", side);
       if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
         next.set("openTrade", "1");
       }
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`);
+      setSearchParams(next, { replace: true });
     },
-    [navigate, searchParams]
+    [searchParams, setSearchParams]
   );
 
   const goOutcomeView = useCallback(
     (outcomeTicker: string) => {
-      const next = new URLSearchParams(searchParams);
-      next.delete("side");
-      next.delete("openTrade");
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}${next.toString() ? `?${next.toString()}` : ""}`);
+      setActiveTicker(outcomeTicker);
     },
-    [navigate, searchParams]
+    []
   );
 
   const myPositions = useMemo(() => {
-    if (!portfolio?.positions || !ticker) return [];
+    if (!portfolio?.positions || !activeTicker) return [];
     return portfolio.positions.filter(
-      (p) => p.market_ticker.toLowerCase() === ticker.toLowerCase() && p.status === "open"
+      (p) => p.market_ticker.toLowerCase() === activeTicker.toLowerCase() && p.status === "open"
     );
-  }, [portfolio?.positions, ticker]);
+  }, [portfolio?.positions, activeTicker]);
 
   // Wall clock for WS freshness (updates every second so we re-evaluate without a dummy hook dep)
   const [orderbookClock, setOrderbookClock] = useState(() => Date.now());
@@ -549,7 +559,7 @@ const MarketDetail = () => {
     handleTrade,
   ]);
 
-  if (isLoading || !ticker) {
+  if (isLoading || !activeTicker) {
     return (
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8" aria-busy aria-label="Loading market">
@@ -798,7 +808,7 @@ const MarketDetail = () => {
 
             <MarketOutcomeTable
               markets={sortedEventMarkets}
-              activeTicker={ticker}
+              activeTicker={activeTicker}
               eventTitle={eventQuery.data?.title ?? market?.name}
               loading={eventMarketsLoading}
               onSelect={goOutcomeView}

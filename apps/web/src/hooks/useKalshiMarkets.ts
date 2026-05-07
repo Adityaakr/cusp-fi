@@ -10,6 +10,7 @@ import {
   fetchKalshiTagsByCategories,
   kalshiSearchItemsToMarkets,
   kalshiMarketToCusp,
+  type KalshiSearchSeriesVariant,
 } from "@/lib/kalshi-api";
 
 const QUERY_KEYS = {
@@ -27,6 +28,7 @@ export function useKalshiMarkets(params?: {
   status?: "unopened" | "open" | "paused" | "closed" | "settled";
   limit?: number;
   enabled?: boolean;
+  variant?: KalshiSearchSeriesVariant;
 }) {
   const status = params?.status ?? "open";
   const limit = Math.min(params?.limit ?? 1000, 1000);
@@ -104,16 +106,21 @@ export function useKalshiSportsFilters() {
   });
 }
 
-export function useKalshiCategorySeries(category: string | undefined, enabled = true) {
+export function useKalshiCategorySeries(
+  category: string | undefined,
+  enabled = true,
+  variant: KalshiSearchSeriesVariant = "hydrated_open_unopened"
+) {
   const normalizedCategory = category?.trim() ?? "";
 
   const query = useQuery({
-    queryKey: [...QUERY_KEYS.categorySeries, normalizedCategory] as const,
+    queryKey: [...QUERY_KEYS.categorySeries, normalizedCategory, variant] as const,
     queryFn: () =>
       fetchAllKalshiSearchSeries({
         category: normalizedCategory,
-        status: "open",
-        pageSize: 100,
+        status: variant === "trending_open" ? "open" : "open,unopened",
+        pageSize: variant === "trending_open" ? 25 : 24,
+        variant,
       }),
     enabled: enabled && normalizedCategory.length > 0,
     staleTime: KALSHI_MARKETS_STALE_MS,
@@ -139,22 +146,25 @@ export function useKalshiScopedMarkets(params?: {
   competition?: string | null;
   scope?: string | null;
   enabled?: boolean;
+  variant?: KalshiSearchSeriesVariant;
 }) {
   const category = params?.category?.trim() ?? "";
   const tag = params?.tag?.trim() ?? "";
   const competition = params?.competition?.trim() ?? "";
   const scope = params?.scope?.trim() ?? "";
+  const variant = params?.variant ?? "hydrated_open_unopened";
 
   const query = useQuery({
-    queryKey: [...QUERY_KEYS.scopedSeries, category, tag, competition, scope] as const,
+    queryKey: [...QUERY_KEYS.scopedSeries, category, tag, competition, scope, variant] as const,
     queryFn: async () => {
       const items = await fetchAllKalshiSearchSeries({
         category,
-        status: "open",
+        status: variant === "trending_open" ? "open" : "open,unopened",
         tag: tag || undefined,
         competition: competition || undefined,
         scope: scope || undefined,
-        pageSize: 100,
+        pageSize: variant === "trending_open" ? 25 : 24,
+        variant,
       });
       return {
         items,
