@@ -1,9 +1,17 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import MarketsTable, { type MarketsSortKey } from "@/components/MarketsTable";
-import { useDflowMarkets } from "@/hooks/useDflowMarkets";
-import { type CuspMarket } from "@/lib/dflow-api";
+import { useDflowMarkets, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
+import {
+  getTagsListForCategoryLabel,
+  toTitleCaseCategory,
+  type CuspMarket,
+} from "@/lib/dflow-api";
+
+type GroupedMarketRow = CuspMarket & {
+  outcomeMarkets?: CuspMarket[];
+};
 
 function useDebouncedValue<T>(value: T, delay: number): T {
   const [debounced, setDebounced] = useState(value);
@@ -48,63 +56,154 @@ function compareMarkets(a: CuspMarket, b: CuspMarket, key: MarketsSortKey, dir: 
   }
 }
 
-function marketMatchesSearch(market: CuspMarket, query: string): boolean {
+function marketMatchesSearch(market: GroupedMarketRow, query: string): boolean {
   const q = query.trim().toLowerCase();
   if (!q) return true;
-  return [
+  const baseFields = [
     market.name,
     market.subtitle,
     market.ticker,
     market.eventTicker,
     market.category,
     market.subCategory,
-  ]
+  ];
+  const siblingFields =
+    "outcomeMarkets" in market
+      ? (market.outcomeMarkets ?? []).flatMap((m) => [
+          m.name,
+          m.subtitle,
+          m.ticker,
+          m.eventTicker,
+          m.yesLabel,
+          m.noLabel,
+        ])
+      : [];
+
+  return [...baseFields, ...siblingFields]
     .filter(Boolean)
     .some((value) => value!.toLowerCase().includes(q));
 }
 
+function groupMarketsForListing(markets: CuspMarket[]): GroupedMarketRow[] {
+  const groups = new Map<string, CuspMarket[]>();
+
+  for (const market of markets) {
+    const key = market.eventTicker?.trim() || market.ticker;
+    const list = groups.get(key);
+    if (list) {
+      list.push(market);
+    } else {
+      groups.set(key, [market]);
+    }
+  }
+
+  return Array.from(groups.values()).map((group) => {
+    const uniqueByTicker = Array.from(
+      new Map(group.map((market) => [market.ticker.toLowerCase(), market])).values()
+    );
+    const representative = [...uniqueByTicker].sort((a, b) => {
+      const bScore = (b.volume24h ?? 0) || b.volume || 0;
+      const aScore = (a.volume24h ?? 0) || a.volume || 0;
+      return bScore - aScore;
+    })[0];
+
+    if (uniqueByTicker.length <= 1) {
+      return { ...representative };
+    }
+
+    return {
+      ...representative,
+      subtitle: `${uniqueByTicker.length} options available`,
+      outcomeMarkets: uniqueByTicker.sort((a, b) => {
+        const bScore = (b.volume24h ?? 0) || b.volume || 0;
+        const aScore = (a.volume24h ?? 0) || a.volume || 0;
+        return bScore - aScore;
+      }),
+    };
+  });
+}
+
 const MarketsPage = () => {
   const navigate = useNavigate();
-  const [category, setCategory] = useState("All");
+  const [searchParams, setSearchParams] = useSearchParams();
+  const category = searchParams.get("category") || "All";
+  const subCategory = searchParams.get("subCategory") || "All";
   const [sortKey, setSortKey] = useState<MarketsSortKey>("volume24h");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState("");
 
   const debouncedSearch = useDebouncedValue(search, 350);
+  const tagsQuery = useDflowTags();
+  const tagsByCategories = tagsQuery.data?.tagsByCategories ?? {};
+  const hasApiCategories = Object.values(tagsByCategories).some((tags) => (tags?.length ?? 0) > 0);
   const marketsQuery = useDflowMarkets({
     status: "active",
     limit: 200,
     refetchInterval: 30_000,
   });
+  const scopedMarketsQuery = useDflowScopedMarkets({
+    categoryLabel: category === "All" ? undefined : category,
+    tag: subCategory === "All" ? null : subCategory,
+    limit: 200,
+    enabled: hasApiCategories && category !== "All",
+  });
   const isSearching = debouncedSearch.length >= 2;
 
   const allMarkets = useMemo(() => marketsQuery.data ?? [], [marketsQuery.data]);
   const categoryTabs = useMemo(() => {
+    const apiCategories = Object.entries(tagsByCategories)
+      .filter(([, tags]) => (tags?.length ?? 0) > 0)
+      .map(([key]) => toTitleCaseCategory(key))
+      .sort((a, b) => a.localeCompare(b));
+
+    if (apiCategories.length > 0) {
+      return ["All", ...apiCategories];
+    }
+
     const categories = [...new Set(allMarkets.map((m) => m.category).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b)
     );
     return ["All", ...categories];
-  }, [allMarkets]);
+  }, [allMarkets, tagsByCategories]);
+
+  const subCategoryTabs = useMemo(() => {
+    if (!hasApiCategories || category === "All") return [];
+    return getTagsListForCategoryLabel(tagsQuery.data, category) ?? [];
+  }, [category, hasApiCategories, tagsQuery.data]);
 
   useEffect(() => {
     if (category !== "All" && categoryTabs.length > 0 && !categoryTabs.includes(category)) {
-      setCategory("All");
+      setSearchParams(prev => { prev.delete("category"); prev.delete("subCategory"); return prev; }, { replace: true });
     }
-  }, [category, categoryTabs]);
+  }, [category, categoryTabs, setSearchParams]);
+
+  useEffect(() => {
+    if (subCategory !== "All" && !subCategoryTabs.includes(subCategory)) {
+      setSearchParams(prev => { prev.delete("subCategory"); return prev; }, { replace: true });
+    }
+  }, [subCategory, subCategoryTabs, setSearchParams]);
 
   const markets = useMemo(() => {
-    let list = category === "All" ? allMarkets : allMarkets.filter((m) => m.category === category);
+    let list =
+      category === "All"
+        ? allMarkets
+        : hasApiCategories
+          ? scopedMarketsQuery.data ?? []
+          : allMarkets.filter((m) => m.category === category);
 
     if (isSearching) {
       list = list.filter((m) => marketMatchesSearch(m, debouncedSearch));
     }
 
-    return list;
-  }, [allMarkets, category, isSearching, debouncedSearch]);
+    return groupMarketsForListing(list);
+  }, [allMarkets, category, hasApiCategories, scopedMarketsQuery.data, isSearching, debouncedSearch]);
 
-  const isLoading = marketsQuery.isLoading;
-  const isError = marketsQuery.isError;
-  const activeError = marketsQuery.error;
+  const isLoading =
+    category === "All" || !hasApiCategories ? marketsQuery.isLoading : scopedMarketsQuery.isLoading;
+  const isError =
+    category === "All" || !hasApiCategories ? marketsQuery.isError : scopedMarketsQuery.isError;
+  const activeError =
+    category === "All" || !hasApiCategories ? marketsQuery.error : scopedMarketsQuery.error;
 
   const handleSort = useCallback((key: MarketsSortKey) => {
     setSortKey((prev) => {
@@ -122,8 +221,21 @@ const MarketsPage = () => {
   }, [markets, sortKey, sortDir]);
 
   const selectCategoryPill = useCallback((cat: string) => {
-    setCategory(cat);
-  }, []);
+    setSearchParams(prev => {
+      if (cat === "All") prev.delete("category");
+      else prev.set("category", cat);
+      prev.delete("subCategory");
+      return prev;
+    });
+  }, [setSearchParams]);
+
+  const selectSubCategoryPill = useCallback((tag: string) => {
+    setSearchParams(prev => {
+      if (tag === "All") prev.delete("subCategory");
+      else prev.set("subCategory", tag);
+      return prev;
+    });
+  }, [setSearchParams]);
 
   const onOpenMarket = useCallback(
     (ticker: string) => {
@@ -167,6 +279,35 @@ const MarketsPage = () => {
             </button>
           ))}
         </div>
+        {category !== "All" && subCategoryTabs.length > 0 && (
+          <div className="flex gap-1 overflow-x-auto pb-1 -mx-1 px-1 lg:hidden">
+            <button
+              type="button"
+              onClick={() => selectSubCategoryPill("All")}
+              className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap shrink-0 transition-colors border ${
+                subCategory === "All"
+                  ? "bg-bg-2 text-cusp-teal border-active"
+                  : "text-muted-foreground hover:text-foreground bg-bg-1 border-border"
+              }`}
+            >
+              All
+            </button>
+            {subCategoryTabs.map((tag) => (
+              <button
+                key={tag}
+                type="button"
+                onClick={() => selectSubCategoryPill(tag)}
+                className={`px-3 py-1.5 text-xs rounded-md whitespace-nowrap shrink-0 transition-colors border ${
+                  subCategory === tag
+                    ? "bg-bg-2 text-cusp-teal border-active"
+                    : "text-muted-foreground hover:text-foreground bg-bg-1 border-border"
+                }`}
+              >
+                {tag}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       {isLoading && (
@@ -226,24 +367,75 @@ const MarketsPage = () => {
           </p>
         </div>
 
-        <div className="hidden lg:flex gap-2 overflow-x-auto pb-3 mb-4">
-          {categoryTabs.map((cat) => (
-            <button
-              key={cat}
-              type="button"
-              onClick={() => selectCategoryPill(cat)}
-              className={`px-3 py-2 text-sm rounded-md whitespace-nowrap shrink-0 transition-colors border ${
-                category === cat
-                  ? "bg-bg-2 text-cusp-teal border-active"
-                  : "text-muted-foreground hover:text-foreground bg-bg-1 border-border"
-              }`}
-            >
-              {cat}
-            </button>
-          ))}
+        <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] xl:grid-cols-[240px_1fr] gap-6">
+          <div className="hidden lg:block">
+            <nav className="flex flex-col gap-1 pr-4 min-h-[500px]">
+              <h2 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider mb-2 px-3">Categories</h2>
+              {tagsQuery.isLoading ? (
+                <div className="space-y-3 mt-2 px-3">
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[80%]" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[90%]" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[70%]" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[85%]" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[60%]" />
+                  <div className="h-6 bg-bg-2 rounded-md animate-pulse w-[75%]" />
+                </div>
+              ) : (
+                categoryTabs.map((cat) => {
+                  const isActiveCategory = cat === category;
+                  const subs = isActiveCategory ? subCategoryTabs : [];
+                  return (
+                    <div key={cat} className="flex flex-col mb-1">
+                    <button
+                      type="button"
+                      onClick={() => selectCategoryPill(cat)}
+                      className={`text-left px-3 py-2 rounded-md text-sm transition-colors ${
+                        isActiveCategory
+                          ? "bg-bg-2 text-foreground font-medium"
+                          : "text-muted-foreground hover:bg-bg-2/50 hover:text-foreground font-medium"
+                      }`}
+                    >
+                      {cat}
+                    </button>
+                    {isActiveCategory && subs.length > 0 && (
+                      <div className="flex flex-col pl-4 mt-1 space-y-0.5 border-l-2 border-border/50 ml-4">
+                        <button
+                          type="button"
+                          onClick={() => selectSubCategoryPill("All")}
+                          className={`text-left px-3 py-1.5 rounded-md text-xs transition-colors ${
+                            subCategory === "All"
+                              ? "text-cusp-teal font-medium"
+                              : "text-muted-foreground hover:text-foreground"
+                          }`}
+                        >
+                          All {cat}
+                        </button>
+                        {subs.map((tag) => (
+                          <button
+                            key={tag}
+                            type="button"
+                            onClick={() => selectSubCategoryPill(tag)}
+                            className={`text-left px-3 py-1.5 rounded-md text-xs transition-colors ${
+                              subCategory === tag
+                                ? "text-cusp-teal font-medium"
+                                : "text-muted-foreground hover:text-foreground"
+                            }`}
+                          >
+                            {tag}
+                          </button>
+                        ))}
+                      </div>
+                    )}
+                    </div>
+                  );
+                })
+              )}
+            </nav>
+          </div>
+          <div className="min-w-0">{mainColumn}</div>
         </div>
-
-        <div className="min-w-0">{mainColumn}</div>
       </div>
     </Layout>
   );

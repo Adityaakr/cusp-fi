@@ -223,6 +223,17 @@ export async function fetchKalshiSearchSeries(params: {
   return fetchJson(`${KALSHI_API}/v1/search/series?${search}`);
 }
 
+export async function searchKalshiMarketsByQuery(query: string, limit: number = 25): Promise<KalshiSearchSeriesResponse> {
+  const search = new URLSearchParams();
+  search.set("query", query);
+  search.set("order_by", "querymatch");
+  search.set("page_size", String(limit));
+  search.set("fuzzy_threshold", "4");
+  search.set("experiment_key", "shd");
+  search.set("with_milestones", "true");
+  return fetchJson(`${KALSHI_API}/v1/search/series?${search}`);
+}
+
 export async function fetchAllKalshiSearchSeries(params: {
   category: string;
   status?: "open" | "closed" | "settled" | "unopened";

@@ -26,6 +26,20 @@ export interface DFlowEvent {
   markets?: DFlowMarket[];
 }
 
+export interface DFlowSettlementSource {
+  name: string;
+  url: string;
+}
+
+export interface DFlowEventDetail extends DFlowEvent {
+  settlementSources?: DFlowSettlementSource[] | null;
+  strikeDate?: number | null;
+  strikePeriod?: string | null;
+  volumeFp?: string | null;
+  volume24hFp?: string | null;
+  openInterestFp?: string | null;
+}
+
 export interface DFlowMarketAccount {
   marketLedger: string;
   yesMint: string;
@@ -200,6 +214,16 @@ export async function fetchMarket(ticker: string): Promise<DFlowMarket> {
   return fetchJson(`${METADATA_API}/api/v1/market/${ticker}`);
 }
 
+export async function fetchEvent(
+  eventTicker: string,
+  params?: { withNestedMarkets?: boolean }
+): Promise<DFlowEventDetail> {
+  const search = new URLSearchParams();
+  if (params?.withNestedMarkets === true) search.set("withNestedMarkets", "true");
+  const qs = search.toString();
+  return fetchJson(`${METADATA_API}/api/v1/event/${eventTicker}${qs ? `?${qs}` : ""}`);
+}
+
 export async function fetchEvents(params?: {
   limit?: number;
   cursor?: number;
@@ -249,8 +273,15 @@ export async function fetchTagsByCategories(): Promise<DFlowTagsResponse> {
   return fetchJson(`${METADATA_API}/api/v1/tags_by_categories`);
 }
 
-export async function searchEvents(query: string, limit = 20): Promise<DFlowEventsResponse> {
+export async function searchEvents(
+  query: string,
+  limit = 20,
+  options?: { withNestedMarkets?: boolean; withMarketAccounts?: boolean; status?: string }
+): Promise<DFlowEventsResponse> {
   const search = new URLSearchParams({ q: query, limit: String(limit) });
+  if (options?.withNestedMarkets === true) search.set("withNestedMarkets", "true");
+  if (options?.withMarketAccounts === true) search.set("withMarketAccounts", "true");
+  if (options?.status) search.set("status", options.status);
   return fetchJson(`${METADATA_API}/api/v1/search?${search}`);
 }
 
@@ -259,24 +290,22 @@ export async function searchMarkets(query: string, limit = 50): Promise<CuspMark
   const trimmed = query.trim();
   if (!trimmed) return [];
 
-  const { events } = await searchEvents(trimmed, 30);
+  const { events } = await searchEvents(trimmed, 30, {
+    withNestedMarkets: true,
+    withMarketAccounts: true,
+    status: "active",
+  });
   if (events.length === 0) return [];
-
-  const marketArrays = await Promise.all(
-    events.map((e) =>
-      fetchMarkets({ eventTicker: e.ticker, status: "active", limit: 20 }).then((r) =>
-        r.markets.map((m) => dflowMarketToCusp(m))
-      )
-    )
-  );
 
   const seen = new Set<string>();
   const result: CuspMarket[] = [];
-  for (const arr of marketArrays) {
-    for (const m of arr) {
+  for (const event of events) {
+    const nestedMarkets = (event.markets ?? []).filter((market) => market.status === "active");
+    for (const m of nestedMarkets) {
+      const normalized = dflowMarketToCusp(m);
       if (!seen.has(m.ticker)) {
-        seen.add(m.ticker);
-        result.push(m);
+        seen.add(normalized.ticker);
+        result.push(normalized);
         if (result.length >= limit) return result;
       }
     }
@@ -693,6 +722,24 @@ function parsePrice(val: string | null): number {
   return isNaN(n) ? 0 : n;
 }
 
+function parseAmount(
+  primary: number | string | null | undefined,
+  fallback?: number | string | null
+): number {
+  const candidates = [primary, fallback];
+  for (const candidate of candidates) {
+    if (candidate == null || candidate === "") continue;
+    if (typeof candidate === "number") {
+      return Number.isFinite(candidate) ? candidate : 0;
+    }
+    const parsed = parseFloat(candidate);
+    if (!Number.isNaN(parsed) && Number.isFinite(parsed)) {
+      return parsed;
+    }
+  }
+  return 0;
+}
+
 export function toTitleCaseCategory(key: string): string {
   const lower = key.replace(/_/g, " ").trim().toLowerCase();
   const exceptions = new Set(["and", "of", "the", "in", "for", "on", "to", "with"]);
@@ -853,8 +900,8 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     yesPrice: yesPrice || 0.5,
     noPrice: noPrice || 0.5,
     probability,
-    volume: m.volume,
-    volume24h: m.volume24h,
+    volume: parseAmount(m.volumeFp, m.volume),
+    volume24h: parseAmount(m.volume24hFp, m.volume24h),
     resolutionDate: new Date(m.expirationTime * 1000).toISOString(),
     status: m.status,
     yesMint: accounts?.yesMint,
@@ -866,7 +913,7 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     noLabel,
     rulesPrimary: m.rulesPrimary,
     rulesSecondary: m.rulesSecondary,
-    openInterest: m.openInterest,
+    openInterest: parseAmount(m.openInterestFp, m.openInterest),
     subtitle: m.subtitle || undefined,
     yesBestBid: yesBid,
     yesBestAsk: yesAsk > 0 ? yesAsk : 1 - noBid,

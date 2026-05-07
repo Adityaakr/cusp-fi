@@ -11,14 +11,14 @@ import {
 import { Area, AreaChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   useDflowMarket,
-  useDflowMarkets,
+  useDflowEvent,
   useDflowCandlesticks,
   type CandlestickTimeframe,
 } from "@/hooks/useDflowMarkets";
 import { useDflowWebSocket } from "@/hooks/useDflowWebSocket";
 import { usePhantom, useSolana } from "@/lib/wallet";
 import { VersionedTransaction } from "@solana/web3.js";
-import { fetchOrderQuote } from "@/lib/dflow-api";
+import { dflowMarketToCusp, fetchOrderQuote } from "@/lib/dflow-api";
 import { MAINNET_USDC_MINT } from "@/lib/network-config";
 import { MIN_TRADE_USDC } from "@/lib/protocol-constants";
 import { supabase } from "@/lib/supabase";
@@ -49,6 +49,14 @@ const chartConfig = {
 };
 
 const TIMEFRAMES: CandlestickTimeframe[] = ["1D", "1W", "1M", "3M", "1Y"];
+
+function formatUsdCompact(n: number): string {
+  if (!Number.isFinite(n) || n < 0) return "—";
+  if (n === 0) return "$0";
+  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`;
+  if (n >= 1_000) return `$${(n / 1_000).toFixed(1)}K`;
+  return `$${n.toFixed(0)}`;
+}
 
 function parseTradeSide(searchParams: URLSearchParams): "YES" | "NO" {
   const s = searchParams.get("side");
@@ -117,17 +125,33 @@ const MarketDetail = () => {
   } = useDflowWebSocket(market ? ticker : undefined);
   const isLoading = !ticker || (!market && dflowMarketQuery.isLoading);
   const error = !market ? dflowMarketQuery.error : null;
-  const { data: eventMarkets = [], isPending: eventMarketsLoading } = useDflowMarkets({
-    status: "active",
-    limit: 50,
-    eventTicker: market?.eventTicker,
+  const eventQuery = useDflowEvent(market?.eventTicker, {
     refetchInterval: 30_000,
-    enabled: !!market?.eventTicker,
   });
-  const sortedEventMarkets = useMemo(
-    () => [...eventMarkets].sort((a, b) => b.probability - a.probability),
-    [eventMarkets]
+  const eventMarkets = useMemo(
+    () => (eventQuery.data?.markets ?? []).filter((m) => m.status === "active").map((m) => dflowMarketToCusp(m)),
+    [eventQuery.data?.markets]
   );
+  const eventMarketsLoading = eventQuery.isPending;
+  const sortedEventMarkets = useMemo(() => {
+    const byTicker = new Map<string, typeof eventMarkets[number]>();
+    for (const outcome of eventMarkets) {
+      byTicker.set(outcome.ticker.toLowerCase(), outcome);
+    }
+    if (market) {
+      byTicker.set(market.ticker.toLowerCase(), market);
+    }
+    return Array.from(byTicker.values()).sort((a, b) => {
+      if (market) {
+        if (a.ticker.toLowerCase() === market.ticker.toLowerCase()) return -1;
+        if (b.ticker.toLowerCase() === market.ticker.toLowerCase()) return 1;
+      }
+      const bScore = (b.volume24h ?? 0) || b.volume || 0;
+      const aScore = (a.volume24h ?? 0) || a.volume || 0;
+      if (bScore !== aScore) return bScore - aScore;
+      return b.probability - a.probability;
+    });
+  }, [eventMarkets, market]);
   const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(ticker, timeframe, {
     refetchInterval: timeframe === "1D" || timeframe === "1W" ? 15_000 : 30_000,
     enabled: !!market,
@@ -174,6 +198,16 @@ const MarketDetail = () => {
         next.set("openTrade", "1");
       }
       navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`);
+    },
+    [navigate, searchParams]
+  );
+
+  const goOutcomeView = useCallback(
+    (outcomeTicker: string) => {
+      const next = new URLSearchParams(searchParams);
+      next.delete("side");
+      next.delete("openTrade");
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}${next.toString() ? `?${next.toString()}` : ""}`);
     },
     [navigate, searchParams]
   );
@@ -588,9 +622,7 @@ const MarketDetail = () => {
               Volume
             </span>
             <p className="font-mono text-base sm:text-lg font-semibold text-foreground">
-              {market.volume >= 1_000_000
-                ? `$${(market.volume / 1_000_000).toFixed(1)}M`
-                : `$${(market.volume / 1_000).toFixed(1)}K`}
+              {formatUsdCompact(market.volume)}
             </p>
           </div>
           <div className="bg-bg-1 border border-border rounded-xl p-4 sm:p-5">
@@ -632,9 +664,7 @@ const MarketDetail = () => {
                 Open Interest
               </span>
               <p className="font-mono text-base sm:text-lg font-semibold text-foreground">
-                {market.openInterest >= 1_000_000
-                  ? `$${(market.openInterest / 1_000_000).toFixed(1)}M`
-                  : `$${(market.openInterest / 1_000).toFixed(1)}K`}
+                {formatUsdCompact(market.openInterest)}
               </p>
             </div>
           )}
@@ -769,7 +799,9 @@ const MarketDetail = () => {
             <MarketOutcomeTable
               markets={sortedEventMarkets}
               activeTicker={ticker}
+              eventTitle={eventQuery.data?.title ?? market?.name}
               loading={eventMarketsLoading}
+              onSelect={goOutcomeView}
               onYes={(t) => goOutcomeTrade(t, "YES")}
               onNo={(t) => goOutcomeTrade(t, "NO")}
             />

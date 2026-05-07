@@ -3,6 +3,7 @@ import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   fetchMarkets,
   fetchMarket,
+  fetchEvent,
   fetchEvents,
   fetchTagsByCategories,
   fetchCandlesticks,
@@ -20,6 +21,7 @@ const QUERY_KEYS = {
   markets: ["dflow", "markets"] as const,
   searchMarkets: ["dflow", "searchMarkets"] as const,
   market: ["dflow", "market"] as const,
+  event: ["dflow", "event"] as const,
   events: ["dflow", "events"] as const,
   tags: ["dflow", "tags"] as const,
   scopedMarkets: ["dflow", "scopedMarkets"] as const,
@@ -216,6 +218,24 @@ export function useDflowMarket(ticker: string | undefined, options?: { refetchIn
       return dflowMarketToCusp(m);
     },
     enabled: !!ticker,
+    staleTime: 15_000,
+    refetchInterval: options?.refetchInterval,
+  });
+}
+
+export function useDflowEvent(
+  eventTicker: string | undefined,
+  options?: { refetchInterval?: number | false; withNestedMarkets?: boolean }
+) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.event, eventTicker ?? "", options?.withNestedMarkets ?? true],
+    queryFn: async () => {
+      if (!eventTicker) throw new Error("No event ticker");
+      return fetchEvent(eventTicker, {
+        withNestedMarkets: options?.withNestedMarkets ?? true,
+      });
+    },
+    enabled: !!eventTicker,
     staleTime: 15_000,
     refetchInterval: options?.refetchInterval,
   });

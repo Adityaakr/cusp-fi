@@ -130,14 +130,19 @@ function MarketSearchInput({
     }
     setLoading(true);
     try {
-      const res = await fetch(`/api/dflow/markets?search=${encodeURIComponent(q)}`);
-      if (res.ok) {
-        const data = await res.json();
-        const results = Array.isArray(data)
-          ? data.map((m: { ticker: string; title?: string }) => ({ ticker: m.ticker, title: m.title || m.ticker }))
-          : [];
-        setMarkets(results.slice(0, 8));
+      const { searchKalshiMarketsByQuery } = await import('@/lib/kalshi-api');
+      const data = await searchKalshiMarketsByQuery(q, 25);
+      
+      const results: { ticker: string; title: string }[] = [];
+      for (const item of data.current_page || []) {
+        for (const market of item.markets || []) {
+          results.push({
+            ticker: market.ticker,
+            title: market.title || item.event_title || item.series_title || market.ticker
+          });
+        }
       }
+      setMarkets(results.slice(0, 8));
     } catch {
       setMarkets([]);
     } finally {
