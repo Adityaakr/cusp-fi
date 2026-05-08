@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
 import {
   fetchMarkets,
   fetchMarket,
@@ -220,6 +220,8 @@ export function useDflowMarket(ticker: string | undefined, options?: { refetchIn
     enabled: !!ticker,
     staleTime: 15_000,
     refetchInterval: options?.refetchInterval,
+    /** Avoid dropping event scope while the active outcome ticker changes (sibling markets). */
+    placeholderData: keepPreviousData,
   });
 }
 

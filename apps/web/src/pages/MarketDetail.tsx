@@ -1,4 +1,4 @@
-import { useParams, Link, useSearchParams } from "react-router-dom";
+import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
@@ -109,9 +109,12 @@ function computeDepthData(
 
 const MarketDetail = () => {
   const { ticker: routeTicker } = useParams<{ ticker: string }>();
+  const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
   const [activeTicker, setActiveTicker] = useState<string | undefined>(routeTicker);
+  /** While single-market REST is pending, keep event scope so sibling outcome rows do not disappear. */
+  const lastEventTickerRef = useRef<string | undefined>(undefined);
 
   useEffect(() => {
     setActiveTicker(routeTicker);
@@ -128,13 +131,22 @@ const MarketDetail = () => {
     orderbookUpdatedAt,
     recentTrades,
   } = useDflowWebSocket(activeTicker);
-  const eventQuery = useDflowEvent(queriedMarket?.eventTicker, {
+  const eventTickerForQuery = queriedMarket?.eventTicker ?? lastEventTickerRef.current;
+
+  const eventQuery = useDflowEvent(eventTickerForQuery, {
     refetchInterval: 30_000,
   });
   const eventMarkets = useMemo(
     () => (eventQuery.data?.markets ?? []).filter((m) => m.status === "active").map((m) => dflowMarketToCusp(m)),
     [eventQuery.data?.markets]
   );
+
+  useEffect(() => {
+    const et =
+      queriedMarket?.eventTicker ??
+      eventMarkets.find((m) => m.ticker.toLowerCase() === activeTicker?.toLowerCase())?.eventTicker;
+    if (et) lastEventTickerRef.current = et;
+  }, [queriedMarket?.eventTicker, eventMarkets, activeTicker]);
   const market = useMemo(() => {
     if (!activeTicker) return queriedMarket;
     return (
@@ -214,16 +226,17 @@ const MarketDetail = () => {
       if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
         next.set("openTrade", "1");
       }
-      setSearchParams(next, { replace: true });
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`, { replace: true });
     },
-    [searchParams, setSearchParams]
+    [navigate, searchParams]
   );
 
   const goOutcomeView = useCallback(
     (outcomeTicker: string) => {
       setActiveTicker(outcomeTicker);
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${searchParams.toString()}`, { replace: true });
     },
-    []
+    [navigate, searchParams]
   );
 
   const myPositions = useMemo(() => {

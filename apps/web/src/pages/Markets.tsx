@@ -1,6 +1,6 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
-import { ChevronDown, Search, SlidersHorizontal, TrendingUp, Grid2x2 } from "lucide-react";
+import { ChevronDown, Search } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useDflowMarkets, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
 import {
@@ -383,9 +383,6 @@ const MarketsPage = () => {
     return [...markets].sort((a, b) => compareMarkets(a, b, sortKey, sortDir));
   }, [markets, sortKey, sortDir]);
 
-  const activeSortLabel =
-    SORT_OPTIONS.find((option) => option.key === sortKey && option.dir === sortDir)?.label || "Trending";
-
   const selectCategory = useCallback((cat: string) => {
     setSearchParams((prev) => {
       if (cat === "All") prev.delete("category");
@@ -503,33 +500,22 @@ const MarketsPage = () => {
                     />
                   </label>
 
-                  <div className="flex gap-3">
-                    <div className="relative">
-                      <select
-                        value={`${sortKey}:${sortDir}`}
-                        onChange={(e) => {
-                          const [key, dir] = e.target.value.split(":") as [MarketsSortKey, "asc" | "desc"];
-                          setSortOption(key, dir);
-                        }}
-                        className="appearance-none rounded-full border border-border bg-bg-1 px-5 py-3 pr-11 text-sm font-semibold text-foreground outline-none"
-                      >
-                        {SORT_OPTIONS.map((option) => (
-                          <option key={`${option.key}:${option.dir}`} value={`${option.key}:${option.dir}`}>
-                            {option.label}
-                          </option>
-                        ))}
-                      </select>
-                      <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    </div>
-
-                    <button
-                      type="button"
-                      className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-1 px-5 py-3 text-sm font-semibold text-foreground"
+                  <div className="relative">
+                    <select
+                      value={`${sortKey}:${sortDir}`}
+                      onChange={(e) => {
+                        const [key, dir] = e.target.value.split(":") as [MarketsSortKey, "asc" | "desc"];
+                        setSortOption(key, dir);
+                      }}
+                      className="appearance-none rounded-full border border-border bg-bg-1 px-5 py-3 pr-11 text-sm font-semibold text-foreground outline-none"
                     >
-                      <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
-                      Frequency
-                      <ChevronDown className="h-4 w-4 text-muted-foreground" />
-                    </button>
+                      {SORT_OPTIONS.map((option) => (
+                        <option key={`${option.key}:${option.dir}`} value={`${option.key}:${option.dir}`}>
+                          {option.label}
+                        </option>
+                      ))}
+                    </select>
+                    <ChevronDown className="pointer-events-none absolute right-4 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                   </div>
                 </div>
               </div>
@@ -559,17 +545,6 @@ const MarketsPage = () => {
                   })}
                 </div>
               )}
-
-              <div className="mb-6 flex items-center gap-3 text-sm text-muted-foreground">
-                <div className="inline-flex items-center gap-2 rounded-full bg-bg-1 px-4 py-2 border border-border">
-                  <Grid2x2 className="h-4 w-4" />
-                  {filtered.length} cards
-                </div>
-                <div className="inline-flex items-center gap-2 rounded-full bg-bg-1 px-4 py-2 border border-border">
-                  <TrendingUp className="h-4 w-4" />
-                  {activeSortLabel}
-                </div>
-              </div>
 
               {isLoading && (
                 <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
