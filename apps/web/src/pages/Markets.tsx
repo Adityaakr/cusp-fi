@@ -189,7 +189,7 @@ function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?:
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_72px_86px] items-center gap-4">
       <div className="min-w-0">
-        <div className="truncate text-[15px] font-medium text-foreground">{market.yesLabel || market.name}</div>
+        <div className="truncate text-sm font-medium text-foreground">{market.yesLabel || market.name}</div>
         <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-bg-3">
           <div
             className={cn("h-full rounded-full", accentClasses[accent])}
@@ -197,10 +197,10 @@ function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?:
           />
         </div>
       </div>
-      <div className="text-right text-[14px] font-semibold tabular-nums text-muted-foreground">
+      <div className="text-right text-sm font-semibold tabular-nums text-muted-foreground">
         {formatMultiple(market.probability)}
       </div>
-      <div className="justify-self-end rounded-full border border-active bg-bg-0 px-4 py-2 text-[18px] font-bold tabular-nums text-foreground">
+      <div className="justify-self-end rounded-full border border-active bg-bg-0 px-3 py-1.5 text-base font-bold tabular-nums text-foreground sm:px-4 sm:py-2 sm:text-lg">
         {market.probability}%
       </div>
     </div>
@@ -222,7 +222,7 @@ function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; o
       <div className="mb-5 flex items-center gap-3">
         <MarketAvatar market={market} />
         <div className="min-w-0">
-          <div className="truncate text-[13px] font-bold uppercase tracking-[0.18em] text-muted-foreground">
+          <div className="truncate text-xs font-semibold uppercase tracking-wider text-muted-foreground">
             {metadataLabel}
           </div>
           {market.subtitle && (
@@ -231,7 +231,7 @@ function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; o
         </div>
       </div>
 
-      <h3 className="mb-7 text-[18px] font-semibold leading-[1.3] text-foreground sm:text-[20px]">
+      <h3 className="mb-7 text-base font-semibold leading-snug text-foreground sm:text-lg">
         {market.name}
       </h3>
 
@@ -247,10 +247,10 @@ function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; o
 
       <div className="mt-8 flex items-end justify-between gap-4 text-muted-foreground">
         <div>
-          <div className="text-[13px] font-medium">{formatUsd(market.volume24h ?? market.volume)} vol</div>
+          <div className="text-sm font-medium">{formatUsd(market.volume24h ?? market.volume)} vol</div>
           <div className="mt-1 text-xs text-muted-foreground/70">{formatResolutionLabel(market.resolutionDate)}</div>
         </div>
-        <div className="text-right text-[13px] font-medium text-muted-foreground">
+        <div className="text-right text-sm font-medium text-muted-foreground">
           {(market.outcomeMarkets?.length ?? 1)} {(market.outcomeMarkets?.length ?? 1) === 1 ? "market" : "markets"}
         </div>
       </div>
@@ -268,7 +268,7 @@ function MarketCardSkeleton() {
           <div className="h-2.5 w-20 animate-pulse rounded bg-bg-2" />
         </div>
       </div>
-      <div className="mb-8 h-12 w-5/6 animate-pulse rounded-2xl bg-bg-2" />
+      <div className="mb-7 h-10 w-5/6 animate-pulse rounded-xl bg-bg-2 sm:h-11" />
       <div className="space-y-5">
         {[0, 1].map((i) => (
           <div key={i} className="grid grid-cols-[minmax(0,1fr)_72px_86px] items-center gap-4">
@@ -277,7 +277,7 @@ function MarketCardSkeleton() {
               <div className="h-[3px] w-full animate-pulse rounded-full bg-bg-3" />
             </div>
             <div className="h-5 w-14 animate-pulse rounded bg-bg-2" />
-            <div className="h-12 w-20 animate-pulse rounded-full bg-bg-2" />
+            <div className="h-10 w-[4.5rem] animate-pulse rounded-full bg-bg-2 sm:h-11 sm:w-20" />
           </div>
         ))}
       </div>
@@ -417,7 +417,7 @@ const MarketsPage = () => {
       <div className="min-h-[calc(100vh-56px)] bg-bg-0 text-foreground">
         <div className="border-b border-border bg-bg-0/95 backdrop-blur">
           <div className="mx-auto max-w-[1560px] px-4 sm:px-6 lg:px-8">
-            <div className="flex gap-5 overflow-x-auto py-4 text-[17px] font-semibold text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+            <div className="flex gap-5 overflow-x-auto py-4 text-sm text-muted-foreground [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
               {categoryTabs.map((cat) => (
                 <button
                   key={cat}
@@ -426,8 +426,8 @@ const MarketsPage = () => {
                   className={cn(
                     "whitespace-nowrap border-b-2 pb-3 pt-1 transition-colors",
                     category === cat
-                      ? "border-cusp-teal text-foreground"
-                      : "border-transparent hover:text-foreground"
+                      ? "border-cusp-teal font-semibold text-foreground"
+                      : "border-transparent font-medium hover:text-foreground"
                   )}
                 >
                   {cat}
@@ -438,21 +438,23 @@ const MarketsPage = () => {
         </div>
 
         <div className="mx-auto max-w-[1560px] px-4 py-8 sm:px-6 lg:px-8">
-          <div className="grid grid-cols-1 gap-8 lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)]">
-            <aside className="hidden lg:block">
-              <div className="sticky top-24 rounded-[28px] border border-border bg-bg-1 p-6">
-                <button
-                  type="button"
-                  onClick={() => selectCategory("All")}
-                  className={cn(
-                    "mb-6 text-left text-[18px] font-semibold transition-colors",
-                    category === "All" ? "text-cusp-teal" : "text-foreground hover:text-cusp-teal"
-                  )}
-                >
-                  All markets
-                </button>
+          <div
+            className={cn(
+              "grid grid-cols-1 gap-8",
+              category !== "All" && "lg:grid-cols-[250px_minmax(0,1fr)] xl:grid-cols-[270px_minmax(0,1fr)]"
+            )}
+          >
+            {category !== "All" && (
+              <aside className="hidden lg:block">
+                <div className="sticky top-24 rounded-[28px] border border-border bg-bg-1 p-6">
+                  <button
+                    type="button"
+                    onClick={() => selectCategory("All")}
+                    className="mb-6 text-left text-sm font-semibold text-foreground transition-colors hover:text-cusp-teal"
+                  >
+                    All markets
+                  </button>
 
-                {category !== "All" && (
                   <div className="space-y-1">
                     {[
                       { label: `All ${category}`, value: "All" },
@@ -463,7 +465,7 @@ const MarketsPage = () => {
                         type="button"
                         onClick={() => selectSubCategory(item.value)}
                         className={cn(
-                          "block w-full rounded-xl px-3 py-2.5 text-left text-[17px] font-medium transition-colors",
+                          "block w-full rounded-xl px-3 py-2.5 text-left text-sm font-medium transition-colors",
                           subCategory === item.value
                             ? "bg-bg-2 text-foreground"
                             : "text-muted-foreground hover:bg-bg-2 hover:text-foreground"
@@ -473,29 +475,14 @@ const MarketsPage = () => {
                       </button>
                     ))}
                   </div>
-                )}
-
-                {category === "All" && categoryTabs.length > 1 && (
-                  <div className="space-y-1">
-                    {categoryTabs.slice(1).map((cat) => (
-                      <button
-                        key={cat}
-                        type="button"
-                        onClick={() => selectCategory(cat)}
-                        className="block w-full rounded-xl px-3 py-2.5 text-left text-[17px] font-medium text-muted-foreground transition-colors hover:bg-bg-2 hover:text-foreground"
-                      >
-                        {cat}
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </aside>
+                </div>
+              </aside>
+            )}
 
             <section className="min-w-0">
               <div className="mb-6 flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
                 <div>
-                  <h1 className="text-[32px] font-semibold tracking-tight text-foreground">
+                  <h1 className="text-xl font-semibold tracking-tight text-foreground sm:text-2xl">
                     {category === "All" ? "Markets" : category}
                   </h1>
                   <p className="mt-2 text-sm text-muted-foreground">
@@ -524,7 +511,7 @@ const MarketsPage = () => {
                           const [key, dir] = e.target.value.split(":") as [MarketsSortKey, "asc" | "desc"];
                           setSortOption(key, dir);
                         }}
-                        className="appearance-none rounded-full border border-border bg-bg-1 px-5 py-3 pr-11 text-base font-semibold text-foreground outline-none"
+                        className="appearance-none rounded-full border border-border bg-bg-1 px-5 py-3 pr-11 text-sm font-semibold text-foreground outline-none"
                       >
                         {SORT_OPTIONS.map((option) => (
                           <option key={`${option.key}:${option.dir}`} value={`${option.key}:${option.dir}`}>
@@ -537,7 +524,7 @@ const MarketsPage = () => {
 
                     <button
                       type="button"
-                      className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-1 px-5 py-3 text-base font-semibold text-foreground"
+                      className="inline-flex items-center gap-2 rounded-full border border-border bg-bg-1 px-5 py-3 text-sm font-semibold text-foreground"
                     >
                       <SlidersHorizontal className="h-4 w-4 text-muted-foreground" />
                       Frequency
@@ -560,10 +547,10 @@ const MarketsPage = () => {
                         type="button"
                         onClick={onClick}
                         className={cn(
-                          "whitespace-nowrap rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors",
+                          "whitespace-nowrap rounded-full border px-4 py-2.5 text-sm transition-colors",
                           active
-                            ? "border-active bg-bg-2 text-foreground"
-                            : "border-border bg-bg-1 text-muted-foreground"
+                            ? "border-active bg-bg-2 font-semibold text-foreground"
+                            : "border-border bg-bg-1 font-medium text-muted-foreground"
                         )}
                       >
                         {item === "All" && category !== "All" ? `All ${category}` : item}
@@ -608,7 +595,7 @@ const MarketsPage = () => {
                     </div>
                   ) : (
                     <div className="rounded-[28px] border border-border bg-bg-1 p-12 text-center">
-                      <p className="text-base text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         {isSearching
                           ? `No markets found for “${debouncedSearch}”. Try another search.`
                           : "No markets match this section yet."}

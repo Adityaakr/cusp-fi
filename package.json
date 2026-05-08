@@ -13,5 +13,9 @@
   "devDependencies": {
     "turbo": "^2.4.0",
     "typescript": "^5.8.3"
+  },
+  "dependencies": {
+    "@qvac/cli": "^0.3.0",
+    "@qvac/sdk": "^0.10.2"
   }
 }

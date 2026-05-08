@@ -1,9 +1,12 @@
 import { useQvac } from "@/components/qvac/QvacProvider";
 import QvacStepInput from "@/components/qvac/QvacStepInput";
+import { usePhantom } from "@/lib/wallet";
 
 export default function QvacChat() {
-  const { state, setStepValue, nextStep, prevStep, submitForPreview } = useQvac();
+  const { state, setStepValue, nextStep, prevStep, submitForPreview, setExecutionPlan, setError } = useQvac();
+  const { addresses } = usePhantom();
   const { flow, stepIndex, stepValues } = state;
+  const wallet = addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ?? "";
 
   if (!flow) return null;
 
@@ -30,11 +33,24 @@ export default function QvacChat() {
 
   const allStepsFilled = steps.every((s) => stepValues[s.key] !== undefined && stepValues[s.key] !== "");
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!flow || !allStepsFilled) return;
-    const wallet = "";
     const command = flow.buildCommand(stepValues, wallet);
     submitForPreview(command);
+    try {
+      const res = await fetch("/api/qvac", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(command),
+      });
+      const data = await res.json();
+      if (!res.ok || !data?.execution_plan) {
+        throw new Error(data?.error || "Failed to prepare preview");
+      }
+      setExecutionPlan(data.execution_plan);
+    } catch (error) {
+      setError(error instanceof Error ? error.message : "Failed to prepare preview");
+    }
   };
 
   return (

@@ -5,6 +5,7 @@ import { useUserPortfolio, type Position, type LeveragedTrade, type TradeExecuti
 import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { usePhantom } from "@/lib/wallet";
+import { useQvac } from "@/components/qvac/QvacProvider";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   ExternalLink,
@@ -134,6 +135,7 @@ function SolscanTxLink({ sig }: { sig: string | null | undefined }) {
 }
 
 function PositionCard({ p }: { p: Position }) {
+  const { openQvac, setAssistantContext } = useQvac();
   const isYes = p.side === "YES";
   const currentPrice = isYes ? p.current_yes_price : p.current_no_price;
   const isOpen = p.status === "open";
@@ -204,18 +206,37 @@ function PositionCard({ p }: { p: Position }) {
 
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
         <span className="text-[10px] text-muted-foreground">{formatDate(p.created_at)}</span>
-        <Link
-          to={`/markets/${p.market_ticker}`}
-          className="text-[10px] text-cusp-teal hover:underline"
-        >
-          View Market
-        </Link>
+        <div className="flex items-center gap-3">
+          {isOpen && p.position_type === "leveraged" ? (
+            <button
+              type="button"
+              onClick={() => {
+                setAssistantContext({
+                  current_market_ticker: p.market_ticker,
+                  current_market_title: p.market_title,
+                  position_id: p.id,
+                });
+                openQvac();
+              }}
+              className="text-[10px] font-medium text-cusp-teal hover:underline"
+            >
+              Close with QVAC
+            </button>
+          ) : null}
+          <Link
+            to={`/markets/${p.market_ticker}`}
+            className="text-[10px] text-cusp-teal hover:underline"
+          >
+            View Market
+          </Link>
+        </div>
       </div>
     </div>
   );
 }
 
 function LeveragedCard({ lt }: { lt: LeveragedTrade }) {
+  const { openQvac, setAssistantContext } = useQvac();
   const hfColor =
     lt.health_factor >= 1.5 ? "text-cusp-green" : lt.health_factor >= 1.1 ? "text-cusp-amber" : "text-cusp-red";
   const hfBg =
@@ -273,9 +294,25 @@ function LeveragedCard({ lt }: { lt: LeveragedTrade }) {
 
       <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
         <span className="text-[10px] text-muted-foreground">{formatDate(lt.created_at)}</span>
-        <span className="text-[10px] text-muted-foreground font-mono">
-          Rate: {(lt.borrow_rate_bps / 100).toFixed(1)}% APR
-        </span>
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={() => {
+              setAssistantContext({
+                current_market_ticker: lt.market_ticker,
+                current_market_title: lt.market_title,
+                position_id: lt.position_id,
+              });
+              openQvac();
+            }}
+            className="text-[10px] font-medium text-cusp-teal hover:underline"
+          >
+            Close with QVAC
+          </button>
+          <span className="text-[10px] text-muted-foreground font-mono">
+            Rate: {(lt.borrow_rate_bps / 100).toFixed(1)}% APR
+          </span>
+        </div>
       </div>
     </div>
   );

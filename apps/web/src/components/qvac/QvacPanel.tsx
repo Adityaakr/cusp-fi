@@ -6,7 +6,7 @@ import QvacChat from "@/components/qvac/QvacChat";
 import ExecutionSheet from "@/components/qvac/ExecutionSheet";
 
 export default function QvacPanel() {
-  const { state, closeQvac, reset } = useQvac();
+  const { state, closeQvac, reset, openQvac, setAssistantContext } = useQvac();
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -23,9 +23,20 @@ export default function QvacPanel() {
         closeQvac();
       }
     };
+    const openHandler = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      if (customEvent.detail) {
+        setAssistantContext(customEvent.detail);
+      }
+      openQvac();
+    };
     window.addEventListener("keydown", handler);
-    return () => window.removeEventListener("keydown", handler);
-  }, [state.phase, closeQvac]);
+    window.addEventListener("qvac:open", openHandler);
+    return () => {
+      window.removeEventListener("keydown", handler);
+      window.removeEventListener("qvac:open", openHandler);
+    };
+  }, [state.phase, closeQvac, openQvac, setAssistantContext]);
 
   const handleBackdropClick = useCallback(() => {
     closeQvac();

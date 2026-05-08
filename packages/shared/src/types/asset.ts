@@ -144,6 +144,48 @@ export interface TradePreview {
   health_factor?: number;
 }
 
+export type QvacAssistantIntentType =
+  | "direct_trade"
+  | "leverage_open"
+  | "leverage_close"
+  | "market_search"
+  | "position_summary"
+  | "risk_explain"
+  | "unknown";
+
+export interface QvacAssistantIntent {
+  type: QvacAssistantIntentType;
+  service?: ServiceName;
+  action?: ServiceAction;
+  assistant_message: string;
+  market_reference_text?: string;
+  resolved_market_ticker?: string;
+  resolved_market_title?: string;
+  position_reference_text?: string;
+  resolved_position_id?: string;
+  side?: TradeSide;
+  amount_ui?: number;
+  asset?: Asset;
+  leverage?: number;
+  confidence: number;
+  needs_confirmation: boolean;
+  missing_fields: string[];
+}
+
+export interface QvacAssistantPreviewResult {
+  success: boolean;
+  intent: QvacAssistantIntent;
+  command?: AnyQvacCommand;
+  execution_plan?: ExecutionPlan;
+  error?: string;
+  candidates?: Array<{
+    kind: "market" | "position";
+    id: string;
+    label: string;
+    subtitle?: string;
+  }>;
+}
+
 export interface FundConfig {
   tier: RiskTier;
   label: string;

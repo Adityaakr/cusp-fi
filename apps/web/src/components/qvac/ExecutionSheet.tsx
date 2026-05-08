@@ -1,5 +1,4 @@
 import { useQvac } from "@/components/qvac/QvacProvider";
-import type { ExecutionPlan } from "@cusp/shared";
 import {
   Sheet,
   SheetContent,
@@ -9,6 +8,7 @@ import {
   SheetFooter,
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
+import { useQvacAssistant } from "@/hooks/useQvacAssistant";
 
 function StepIcon({ stepName }: { stepName: string }) {
   if (stepName.includes("deposit") || stepName.includes("lock") || stepName.includes("margin"))
@@ -22,20 +22,38 @@ function StepIcon({ stepName }: { stepName: string }) {
 
 export default function ExecutionSheet() {
   const { state, setExecuting, setSuccess, setError, closeQvac } = useQvac();
-  const { executionPlan, command, phase } = state;
+  const { executionPlan, phase, assistantPreview } = state;
+  const { execute } = useQvacAssistant();
 
   if (!executionPlan || phase !== "preview") return null;
 
   const onConfirm = () => {
+    if (!assistantPreview) {
+      setError("This manual QVAC flow is preview-only right now.");
+      return;
+    }
     setExecuting();
-    executeCommand(command, executionPlan)
-      .then((txSignature) => {
-        setSuccess(txSignature ?? "confirmed");
+    execute(assistantPreview!)
+      .then((result) => {
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        if (result.navigateTo) {
+          closeQvac();
+          return;
+        }
+        setSuccess(result.txSignature ?? "");
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Execution failed");
       });
   };
+
+  const confirmLabel =
+    assistantPreview?.intent.type === "direct_trade" || assistantPreview?.intent.type === "leverage_open"
+      ? "Open Trade Ticket"
+      : "Confirm Action";
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) closeQvac(); }}>
@@ -102,7 +120,7 @@ export default function ExecutionSheet() {
             onClick={onConfirm}
             className="w-full bg-cusp-teal text-primary-foreground hover:bg-cusp-teal/90 font-medium"
           >
-            Confirm Transaction
+            {confirmLabel}
           </Button>
           <Button variant="ghost" onClick={closeQvac} className="w-full text-muted-foreground">
             Cancel
@@ -111,13 +129,4 @@ export default function ExecutionSheet() {
       </SheetContent>
     </Sheet>
   );
-}
-
-async function executeCommand(
-  _command: unknown,
-  _plan: ExecutionPlan
-): Promise<string | null> {
-  return new Promise((resolve) => {
-    setTimeout(() => resolve("placeholder_signature"), 1500);
-  });
 }

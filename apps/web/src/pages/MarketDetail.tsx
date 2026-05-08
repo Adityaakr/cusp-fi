@@ -172,7 +172,7 @@ const MarketDetail = () => {
   const { solana, isAvailable } = useSolana();
   const [tradeSide, setTradeSide] = useState<"YES" | "NO">(() => parseTradeSide(searchParams));
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
-  const [contracts, setContracts] = useState("");
+  const [contracts, setContracts] = useState(() => searchParams.get("qvacAmount") ?? "");
   const [leverage, setLeverage] = useState<1 | 2 | 3>(() =>
     parseLeverageFromSearchParams(searchParams)
   );
@@ -192,6 +192,10 @@ const MarketDetail = () => {
   useEffect(() => {
     setLeverage(parseLeverageFromSearchParams(searchParams));
   }, [activeTicker, searchParams]);
+  useEffect(() => {
+    const amount = searchParams.get("qvacAmount");
+    if (amount) setContracts(amount);
+  }, [searchParams]);
   const [tradeStatus, setTradeStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
   const [tradeError, setTradeError] = useState<string | null>(null);
   const [priceFlash, setPriceFlash] = useState(false);

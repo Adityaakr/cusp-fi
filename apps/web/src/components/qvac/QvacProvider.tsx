@@ -1,5 +1,5 @@
 import { useState, useCallback, createContext, useContext, type ReactNode } from "react";
-import type { AnyQvacCommand, ExecutionPlan } from "@cusp/shared";
+import type { AnyQvacCommand, ExecutionPlan, QvacAssistantIntent, QvacAssistantPreviewResult } from "@cusp/shared";
 import type { QvacFlow } from "@/components/qvac/qvacFlows";
 
 export type QvacPhase =
@@ -20,6 +20,14 @@ interface QvacState {
   executionPlan: ExecutionPlan | null;
   error: string | null;
   txSignature: string | null;
+  messages: Array<{ role: "user" | "assistant"; content: string }>;
+  assistantBusy: boolean;
+  assistantPreview: QvacAssistantPreviewResult | null;
+  assistantContext: {
+    current_market_ticker?: string;
+    current_market_title?: string;
+    position_id?: string;
+  } | null;
 }
 
 interface QvacContextValue {
@@ -35,6 +43,11 @@ interface QvacContextValue {
   setExecuting: () => void;
   setSuccess: (txSignature: string) => void;
   setError: (error: string) => void;
+  setAssistantBusy: (busy: boolean) => void;
+  appendMessage: (message: { role: "user" | "assistant"; content: string }) => void;
+  setAssistantPreview: (preview: QvacAssistantPreviewResult | null) => void;
+  setAssistantContext: (context: QvacState["assistantContext"]) => void;
+  setAssistantIntentResolved: (intent: QvacAssistantIntent) => void;
   reset: () => void;
 }
 
@@ -47,6 +60,10 @@ const initialState: QvacState = {
   executionPlan: null,
   error: null,
   txSignature: null,
+  messages: [],
+  assistantBusy: false,
+  assistantPreview: null,
+  assistantContext: null,
 };
 
 const QvacContext = createContext<QvacContextValue | null>(null);
@@ -55,7 +72,12 @@ export function QvacProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<QvacState>(initialState);
 
   const openQvac = useCallback(() => {
-    setState({ ...initialState, phase: "selecting" });
+    setState((prev) => ({
+      ...initialState,
+      phase: "selecting",
+      messages: prev.messages,
+      assistantContext: prev.assistantContext,
+    }));
   }, []);
 
   const closeQvac = useCallback(() => {
@@ -109,8 +131,43 @@ export function QvacProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, phase: "error", error }));
   }, []);
 
+  const setAssistantBusy = useCallback((busy: boolean) => {
+    setState((prev) => ({ ...prev, assistantBusy: busy }));
+  }, []);
+
+  const appendMessage = useCallback((message: { role: "user" | "assistant"; content: string }) => {
+    setState((prev) => ({ ...prev, messages: [...prev.messages, message] }));
+  }, []);
+
+  const setAssistantPreview = useCallback((preview: QvacAssistantPreviewResult | null) => {
+    setState((prev) => ({
+      ...prev,
+      assistantPreview: preview,
+      executionPlan: preview?.execution_plan ?? null,
+      command: preview?.command ?? null,
+      phase: preview?.execution_plan ? "preview" : preview === null && prev.phase === "preview" ? "selecting" : prev.phase,
+    }));
+  }, []);
+
+  const setAssistantContext = useCallback((context: QvacState["assistantContext"]) => {
+    setState((prev) => ({ ...prev, assistantContext: context }));
+  }, []);
+
+  const setAssistantIntentResolved = useCallback((intent: QvacAssistantIntent) => {
+    setState((prev) => ({
+      ...prev,
+      assistantPreview: prev.assistantPreview
+        ? { ...prev.assistantPreview, intent }
+        : null,
+    }));
+  }, []);
+
   const reset = useCallback(() => {
-    setState(initialState);
+    setState((prev) => ({
+      ...initialState,
+      messages: prev.messages,
+      assistantContext: prev.assistantContext,
+    }));
   }, []);
 
   return (
@@ -128,6 +185,11 @@ export function QvacProvider({ children }: { children: ReactNode }) {
         setExecuting,
         setSuccess,
         setError,
+        setAssistantBusy,
+        appendMessage,
+        setAssistantPreview,
+        setAssistantContext,
+        setAssistantIntentResolved,
         reset,
       }}
     >
