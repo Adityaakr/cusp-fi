@@ -9,6 +9,7 @@ import {
   fetchCandlesticks,
   fetchOrderbook,
   fetchScopedMarkets,
+  fetchAllActiveMarketsViaEvents,
   searchMarkets,
   dflowMarketToCusp,
   fetchTotalActiveMarketsCount,
@@ -85,17 +86,34 @@ export function useDflowMarkets(params?: {
   eventTicker?: string;
   refetchInterval?: number | false;
   enabled?: boolean;
+  /** One GET /events page + optional maxMarkets cap (see `/markets` All tab). */
+  activeMarketsSinglePage?: boolean;
 }) {
   const { enabled = true, ...queryParams } = params ?? {};
   return useQuery({
     queryKey: [...QUERY_KEYS.markets, queryParams],
     queryFn: async () => {
-      const res = await fetchMarkets({
-        status: queryParams.status ?? "active",
-        limit: queryParams.limit ?? 200,
-        eventTicker: queryParams.eventTicker,
+      if ((queryParams.status ?? "active") !== "active" || queryParams.eventTicker) {
+        const res = await fetchMarkets({
+          status: queryParams.status ?? "active",
+          limit: queryParams.limit ?? 200,
+          eventTicker: queryParams.eventTicker,
+        });
+        return res.markets.map((m) => dflowMarketToCusp(m));
+      }
+
+      const pageLimit = queryParams.limit ?? 200;
+      if (queryParams.activeMarketsSinglePage) {
+        return fetchAllActiveMarketsViaEvents({
+          pageLimit,
+          maxPages: 1,
+          maxMarkets: pageLimit,
+        });
+      }
+
+      return fetchAllActiveMarketsViaEvents({
+        pageLimit,
       });
-      return res.markets.map((m) => dflowMarketToCusp(m));
     },
     staleTime: MARKETS_STALE_MS,
     refetchInterval: queryParams.refetchInterval,

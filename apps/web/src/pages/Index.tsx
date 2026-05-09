@@ -1,4 +1,5 @@
 import APYBreakdown from "@/components/APYBreakdown";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import YieldCounter from "@/components/YieldCounter";
@@ -391,7 +392,9 @@ const Index = () => {
                           {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
                         </span>
                       </div>
-                      <h4 className="text-sm text-foreground mb-2 leading-snug">{market.name}</h4>
+                      <h4 className="text-sm text-foreground mb-2 leading-snug">
+                        <InlineMarkdownText text={market.name} />
+                      </h4>
                       <ProbabilityBar probability={market.probability} size="sm" />
                       <div className="flex justify-between mt-2">
                         <span className="font-mono text-xs text-muted-foreground">${market.yesPrice.toFixed(2)}</span>

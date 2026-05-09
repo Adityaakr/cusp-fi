@@ -1,5 +1,6 @@
 import type { CuspMarket } from "@/lib/dflow-api";
 import { useState } from "react";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -123,10 +124,12 @@ export function MarketOutcomeTable({
                 >
                   <td className={cn("py-3 pr-3 align-middle", active && "pl-3")}>
                     <div className="min-w-0">
-                      <span className="font-semibold text-foreground leading-snug block">{primary}</span>
+                      <span className="font-semibold text-foreground leading-snug block">
+                        <InlineMarkdownText text={primary} />
+                      </span>
                       {secondary && (
                         <span className="text-[11px] text-muted-foreground leading-snug block mt-0.5">
-                          {secondary}
+                          <InlineMarkdownText text={secondary} />
                         </span>
                       )}
                     </div>

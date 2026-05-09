@@ -1,7 +1,9 @@
 import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
+import { MarketAvatar } from "@/components/MarketAvatar";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
 import {
@@ -151,11 +153,16 @@ const MarketDetail = () => {
   }, [queriedMarket?.eventTicker, eventMarkets, activeTicker]);
   const market = useMemo(() => {
     if (!activeTicker) return queriedMarket;
-    return (
+    const resolvedMarket = (
       eventMarkets.find((outcome) => outcome.ticker.toLowerCase() === activeTicker.toLowerCase()) ??
       queriedMarket
     );
-  }, [activeTicker, eventMarkets, queriedMarket]);
+    if (!resolvedMarket) return resolvedMarket;
+    return {
+      ...resolvedMarket,
+      imageUrl: resolvedMarket.imageUrl ?? eventQuery.data?.imageUrl,
+    };
+  }, [activeTicker, eventMarkets, queriedMarket, eventQuery.data?.imageUrl]);
   const isLoading = !activeTicker || (!market && dflowMarketQuery.isLoading);
   const error = !market ? dflowMarketQuery.error : null;
   const eventMarketsLoading = eventQuery.isPending;
@@ -621,26 +628,31 @@ const MarketDetail = () => {
 
         {/* Header */}
         <div className="mb-8">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <h1 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
-              {market.name}
-            </h1>
-            {isLive && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cusp-green/15 text-cusp-green text-[11px] font-medium animate-live-pulse">
-                <Circle className="size-1.5 fill-current" />
-                Live
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[11px] font-mono px-2 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-              {market.ticker}
-            </span>
-            <span className="text-xs px-2.5 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-              {market.category}
-            </span>
-            <div className="flex items-center gap-2 min-w-[140px]">
-              <ProbabilityBar probability={displayProbability} size="sm" />
+          <div className="flex items-start gap-4">
+            <MarketAvatar market={market} className="h-14 w-14 shrink-0 rounded-2xl" />
+            <div className="min-w-0 flex-1">
+              <div className="flex flex-wrap items-center gap-2 mb-3">
+                <h1 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
+                  <InlineMarkdownText text={market.name} />
+                </h1>
+                {isLive && (
+                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cusp-green/15 text-cusp-green text-[11px] font-medium animate-live-pulse">
+                    <Circle className="size-1.5 fill-current" />
+                    Live
+                  </span>
+                )}
+              </div>
+              <div className="flex flex-wrap items-center gap-3">
+                <span className="text-[11px] font-mono px-2 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
+                  {market.ticker}
+                </span>
+                <span className="text-xs px-2.5 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
+                  {market.category}
+                </span>
+                <div className="flex items-center gap-2 min-w-[140px]">
+                  <ProbabilityBar probability={displayProbability} size="sm" />
+                </div>
+              </div>
             </div>
           </div>
         </div>

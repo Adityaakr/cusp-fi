@@ -1,5 +1,10 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { fetchMarketCategoryIndex, fetchScopedMarkets, type DFlowMarket } from "@/lib/dflow-api";
+import {
+  fetchAllActiveMarketsViaEvents,
+  fetchMarketCategoryIndex,
+  fetchScopedMarkets,
+  type DFlowMarket,
+} from "@/lib/dflow-api";
 
 vi.mock("@/lib/network-config", () => ({
   DFLOW_METADATA_API: "",
@@ -192,11 +197,192 @@ describe("fetchMarketCategoryIndex", () => {
       subCategory: "Basketball",
       sourceTag: "Basketball",
     });
-    expect(calls).toContain("/api/v1/series?category=Sports&tags=Basketball");
+    expect(calls.some((c) => c.startsWith("/api/v1/series") && c.includes("category=Sports") && c.includes("tags=Basketball"))).toBe(
+      true
+    );
     expect(calls).toContain(
       "/api/v1/events?limit=200&withNestedMarkets=true&seriesTickers=KXNBA&status=active"
     );
     expect(calls.some((call) => call.startsWith("/api/v1/markets"))).toBe(false);
     expect(calls.some((call) => call.includes("cursor="))).toBe(false);
+  });
+
+  it("fetches all active markets from events instead of the markets endpoint", async () => {
+    const soccer = market({
+      ticker: "KXSOC-REALMAN",
+      eventTicker: "KXSOC-REALMAN",
+      title: "Real Madrid vs Man City Winner",
+    });
+    const baseball = market({
+      ticker: "KXMLB-YANRED",
+      eventTicker: "KXMLB-YANRED",
+      title: "Yankees vs Red Sox Winner",
+    });
+
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(String(input), "http://localhost");
+        calls.push(`${url.pathname}${url.search}`);
+
+        if (url.pathname.endsWith("/api/v1/events") && !url.searchParams.get("cursor")) {
+          return Response.json({
+            events: [
+              {
+                ticker: "EVT-1",
+                seriesTicker: "KXSOC",
+                title: "Soccer event",
+                subtitle: "",
+                volume: 0,
+                volume24h: 0,
+                liquidity: 0,
+                openInterest: 0,
+                markets: [soccer],
+              },
+            ],
+            cursor: 1,
+          });
+        }
+
+        if (url.pathname.endsWith("/api/v1/events") && url.searchParams.get("cursor") === "1") {
+          return Response.json({
+            events: [
+              {
+                ticker: "EVT-2",
+                seriesTicker: "KXMLB",
+                title: "Baseball event",
+                subtitle: "",
+                volume: 0,
+                volume24h: 0,
+                liquidity: 0,
+                openInterest: 0,
+                markets: [baseball],
+              },
+            ],
+            cursor: null,
+          });
+        }
+
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    const markets = await fetchAllActiveMarketsViaEvents({ pageLimit: 1 });
+
+    expect(markets).toHaveLength(2);
+    expect(markets.map((m) => m.ticker)).toEqual(["KXSOC-REALMAN", "KXMLB-YANRED"]);
+    expect(calls).toEqual([
+      "/api/v1/events?limit=1&withNestedMarkets=true&status=active",
+      "/api/v1/events?limit=1&cursor=1&withNestedMarkets=true&status=active",
+    ]);
+    expect(calls.some((call) => call.startsWith("/api/v1/markets"))).toBe(false);
+  });
+
+  it("single-page mode calls /events once and truncates by volume signal", async () => {
+    const low = market({
+      ticker: "LOW",
+      eventTicker: "EVT1",
+      title: "Low",
+      volume24h: 10,
+      volume: 10,
+    });
+    const mid = market({
+      ticker: "MID",
+      eventTicker: "EVT1",
+      title: "Mid",
+      volume24h: 50,
+      volume: 50,
+    });
+    const high = market({
+      ticker: "HIGH",
+      eventTicker: "EVT1",
+      title: "High",
+      volume24h: 100,
+      volume: 100,
+    });
+
+    const calls: string[] = [];
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(String(input), "http://localhost");
+        calls.push(`${url.pathname}${url.search}`);
+
+        if (url.pathname.endsWith("/api/v1/events")) {
+          expect(url.searchParams.get("cursor")).toBeNull();
+          return Response.json({
+            events: [
+              {
+                ticker: "EVT1",
+                seriesTicker: "KX",
+                title: "One event",
+                subtitle: "",
+                volume: 0,
+                volume24h: 0,
+                liquidity: 0,
+                openInterest: 0,
+                markets: [low, mid, high],
+              },
+            ],
+            cursor: 99,
+          });
+        }
+
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    const markets = await fetchAllActiveMarketsViaEvents({
+      pageLimit: 50,
+      maxPages: 1,
+      maxMarkets: 2,
+    });
+
+    expect(markets.map((m) => m.ticker)).toEqual(["HIGH", "MID"]);
+    expect(calls).toEqual(["/api/v1/events?limit=50&withNestedMarkets=true&status=active"]);
+  });
+
+  it("merges event-level competition when flattening nested markets", async () => {
+    const m = market({
+      ticker: "KX-ONE",
+      eventTicker: "KX-E",
+      title: "Outcome market",
+    });
+
+    vi.stubGlobal(
+      "fetch",
+      vi.fn(async (input: string | URL | Request) => {
+        const url = new URL(String(input), "http://localhost");
+        if (url.pathname.endsWith("/api/v1/events")) {
+          return Response.json({
+            events: [
+              {
+                ticker: "KX-E",
+                seriesTicker: "KX",
+                title: "Event",
+                subtitle: "",
+                volume: 0,
+                volume24h: 0,
+                liquidity: 0,
+                openInterest: 0,
+                competition: "NFL",
+                markets: [m],
+              },
+            ],
+          });
+        }
+        return new Response("not found", { status: 404 });
+      })
+    );
+
+    const markets = await fetchAllActiveMarketsViaEvents({
+      pageLimit: 10,
+      maxPages: 1,
+      maxMarkets: 10,
+    });
+
+    expect(markets).toHaveLength(1);
+    expect(markets[0].competition).toBe("NFL");
   });
 });

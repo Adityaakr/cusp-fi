@@ -1,5 +1,6 @@
 import ProbabilityBar from "./ProbabilityBar";
 import CountdownTimer from "./CountdownTimer";
+import { InlineMarkdownText } from "./InlineMarkdownText";
 import type { CuspMarket } from "@/lib/dflow-api";
 
 interface MarketCardProps {
@@ -17,7 +18,9 @@ const MarketCard = ({ market, onClick }: MarketCardProps) => {
       className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 transition-colors group cursor-pointer"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
-        <h3 className="text-sm font-medium text-foreground leading-snug flex-1">{market.name}</h3>
+        <h3 className="text-sm font-medium text-foreground leading-snug flex-1">
+          <InlineMarkdownText text={market.name} />
+        </h3>
         {market.vaultExposure && (
           <span className="text-[10px] font-mono bg-cusp-teal/10 text-cusp-teal px-1.5 py-0.5 rounded-sm shrink-0">
             VAULT

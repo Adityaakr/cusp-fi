@@ -4,6 +4,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { InlineMarkdownText } from "./InlineMarkdownText";
 import ProbabilityBar from "./ProbabilityBar";
 import CountdownTimer from "./CountdownTimer";
 import type { CuspMarket } from "@/lib/dflow-api";
@@ -26,7 +27,7 @@ const MarketDetailModal = ({ market, open, onOpenChange }: MarketDetailModalProp
       <DialogContent className="max-w-lg bg-bg-2 border-border">
         <DialogHeader>
           <DialogTitle className="text-base font-medium text-foreground pr-8">
-            {market.name}
+            <InlineMarkdownText text={market.name} />
           </DialogTitle>
         </DialogHeader>
 

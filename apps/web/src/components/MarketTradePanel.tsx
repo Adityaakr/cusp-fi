@@ -1,4 +1,6 @@
 import { Link } from "react-router-dom";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
+import { MarketAvatar } from "@/components/MarketAvatar";
 import type { CuspMarket } from "@/lib/dflow-api";
 import type { UserPortfolio, Position } from "@/hooks/useUserPortfolio";
 import { MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
@@ -84,15 +86,10 @@ export function MarketTradePanel({
   return (
     <div className={`bg-bg-1 border border-border rounded-xl p-5 sm:p-6 shadow-sm ${className}`}>
       <div className="flex items-start gap-3 mb-4">
-        <div
-          className="shrink-0 size-9 rounded-md flex items-center justify-center bg-cusp-teal/15 border border-cusp-teal/30"
-          aria-hidden
-        >
-          <span className="text-lg font-bold text-cusp-teal">K</span>
-        </div>
+        <MarketAvatar market={market} className="size-9 shrink-0 rounded-md" />
         <div className="min-w-0 flex-1">
           <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
-            {market.name}
+            <InlineMarkdownText text={market.name} />
           </h3>
           <p className="text-[11px] text-muted-foreground mt-0.5">
             Buy {tradeSide === "YES" ? market.yesLabel || "Yes" : market.noLabel || "No"}

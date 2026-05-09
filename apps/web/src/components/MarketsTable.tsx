@@ -1,4 +1,5 @@
 import type { CuspMarket } from "@/lib/dflow-api";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
 import {
@@ -104,8 +105,14 @@ const MarketsTable = ({
     <>
       <td className="px-2 py-2 align-top">
         <div className="min-w-0 max-w-md">
-          <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">{m.name}</p>
-          {m.subtitle && <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">{m.subtitle}</p>}
+          <p className="text-sm font-medium text-foreground leading-snug line-clamp-2">
+            <InlineMarkdownText text={m.name} />
+          </p>
+          {m.subtitle && (
+            <p className="text-[10px] text-muted-foreground mt-0.5 line-clamp-1">
+              <InlineMarkdownText text={m.subtitle} />
+            </p>
+          )}
         </div>
       </td>
       <td className="px-2 py-2 align-middle w-36">
@@ -219,7 +226,9 @@ const MarketsTable = ({
               onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onOpenMarket(m.ticker)}
               className="p-3 hover:bg-bg-2/80 transition-colors cursor-pointer"
             >
-              <p className="text-sm font-medium text-foreground leading-snug mb-2">{m.name}</p>
+              <p className="text-sm font-medium text-foreground leading-snug mb-2">
+                <InlineMarkdownText text={m.name} />
+              </p>
               <div className="max-w-full mb-2">
                 <ProbabilityBar probability={m.probability} size="sm" showLabel />
               </div>

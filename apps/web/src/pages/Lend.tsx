@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { Link } from "react-router-dom";
 import Layout from "@/components/Layout";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import LoanCard from "@/components/LoanCard";
 import BorrowPanel from "@/components/BorrowPanel";
 import MainnetPoolPanel from "@/components/MainnetPoolPanel";
@@ -478,7 +479,7 @@ const LendPage = () => {
                       className="group rounded-lg border border-border bg-bg-1 p-3 hover:bg-bg-2 hover:border-active/40 transition-all"
                     >
                       <p className="text-[11px] font-medium text-foreground line-clamp-2 leading-snug mb-2 group-hover:text-cusp-teal transition-colors">
-                        {m.name}
+                        <InlineMarkdownText text={m.name} />
                       </p>
                       <div className="flex items-center justify-between text-[10px] text-muted-foreground font-mono">
                         <span className="truncate">{m.category ?? "Market"}</span>

@@ -1,7 +1,9 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
 import { useSearchParams, useNavigate } from "react-router-dom";
 import { ChevronDown, Search } from "lucide-react";
+import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
+import { MarketAvatar as BaseMarketAvatar } from "@/components/MarketAvatar";
 import { useDflowMarkets, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
 import {
   getTagsListForCategoryLabel,
@@ -137,46 +139,8 @@ function formatResolutionLabel(dateIso: string): string {
   })}`;
 }
 
-function initialsFromText(text: string): string {
-  const cleaned = text.replace(/[^A-Za-z0-9 ]/g, " ").trim();
-  if (!cleaned) return "MK";
-  const words = cleaned.split(/\s+/).slice(0, 2);
-  return words.map((w) => w[0]?.toUpperCase() ?? "").join("") || cleaned.slice(0, 2).toUpperCase();
-}
-
-function imageFallbackClass(category: string): string {
-  const key = category.toLowerCase();
-  if (key.includes("polit")) return "from-sky-600 to-slate-700";
-  if (key.includes("climate") || key.includes("weather")) return "from-emerald-500 to-cyan-600";
-  if (key.includes("crypto")) return "from-amber-500 to-orange-600";
-  if (key.includes("sport")) return "from-rose-500 to-orange-500";
-  if (key.includes("econom")) return "from-violet-500 to-indigo-600";
-  return "from-slate-500 to-slate-700";
-}
-
 function MarketAvatar({ market }: { market: GroupedMarketRow }) {
-  const label = market.competition || market.subCategory || market.category || market.name;
-  if (market.imageUrl) {
-    return (
-      <img
-        src={market.imageUrl}
-        alt={label}
-        className="h-11 w-11 rounded-xl object-cover ring-1 ring-black/5"
-        loading="lazy"
-      />
-    );
-  }
-
-  return (
-    <div
-      className={cn(
-        "flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br text-sm font-bold text-white shadow-sm ring-1 ring-black/5",
-        imageFallbackClass(market.category)
-      )}
-    >
-      {initialsFromText(label)}
-    </div>
-  );
+  return <BaseMarketAvatar market={market} className="h-11 w-11" />;
 }
 
 function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?: "green" | "blue" | "red" }) {
@@ -189,7 +153,9 @@ function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?:
   return (
     <div className="grid grid-cols-[minmax(0,1fr)_72px_86px] items-center gap-4">
       <div className="min-w-0">
-        <div className="truncate text-sm font-medium text-foreground">{market.yesLabel || market.name}</div>
+        <div className="truncate text-sm font-medium text-foreground">
+          <InlineMarkdownText text={market.yesLabel || market.name} />
+        </div>
         <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-bg-3">
           <div
             className={cn("h-full rounded-full", accentClasses[accent])}
@@ -226,13 +192,15 @@ function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; o
             {metadataLabel}
           </div>
           {market.subtitle && (
-            <div className="truncate text-xs text-muted-foreground/70">{market.subtitle}</div>
+            <div className="truncate text-xs text-muted-foreground/70">
+              <InlineMarkdownText text={market.subtitle} />
+            </div>
           )}
         </div>
       </div>
 
       <h3 className="mb-7 text-base font-semibold leading-snug text-foreground sm:text-lg">
-        {market.name}
+        <InlineMarkdownText text={market.name} />
       </h3>
 
       <div className="space-y-5">
@@ -309,6 +277,7 @@ const MarketsPage = () => {
   const marketsQuery = useDflowMarkets({
     status: "active",
     limit: 50,
+    activeMarketsSinglePage: true,
     refetchInterval: 30_000,
   });
   const scopedMarketsQuery = useDflowScopedMarkets({

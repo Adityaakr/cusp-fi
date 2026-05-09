@@ -24,14 +24,6 @@ export interface DFlowEvent {
   competitionScope?: string;
   /** Present when `withNestedMarkets=true` on GET /api/v1/events */
   markets?: DFlowMarket[];
-}
-
-export interface DFlowSettlementSource {
-  name: string;
-  url: string;
-}
-
-export interface DFlowEventDetail extends DFlowEvent {
   settlementSources?: DFlowSettlementSource[] | null;
   strikeDate?: number | null;
   strikePeriod?: string | null;
@@ -39,6 +31,14 @@ export interface DFlowEventDetail extends DFlowEvent {
   volume24hFp?: string | null;
   openInterestFp?: string | null;
 }
+
+export interface DFlowSettlementSource {
+  name: string;
+  url: string;
+}
+
+/** Single-event fetch shape matches list events payload. */
+export interface DFlowEventDetail extends DFlowEvent {}
 
 export interface DFlowMarketAccount {
   marketLedger: string;
@@ -81,6 +81,7 @@ export interface DFlowMarket {
   canCloseEarly: boolean;
   rulesPrimary?: string;
   rulesSecondary?: string;
+  earlyCloseCondition?: string;
   product_metadata_derived?: DFlowMarketDerivedMetadata;
   accounts: Record<string, DFlowMarketAccount>;
 }
@@ -356,6 +357,43 @@ export async function searchMarkets(query: string, limit = 50): Promise<CuspMark
   return result;
 }
 
+function flattenActiveMarketsFromEvents(
+  events: DFlowEvent[],
+  options?: {
+    categoryLabel?: string;
+    sourceTag?: string;
+    limit?: number;
+    seen?: Set<string>;
+  }
+): CuspMarket[] {
+  const seen = options?.seen ?? new Set<string>();
+  const markets: CuspMarket[] = [];
+
+  for (const event of events) {
+    for (const market of event.markets ?? []) {
+      if (market.status !== "active") continue;
+      if (seen.has(market.ticker)) continue;
+      seen.add(market.ticker);
+      const cuspMarket = dflowMarketToCusp(market);
+      const eventCompetition = event.competition?.trim() || undefined;
+      markets.push({
+        ...cuspMarket,
+        category: options?.categoryLabel ?? cuspMarket.category,
+        subCategory: options?.sourceTag,
+        sourceTag: options?.sourceTag,
+        imageUrl: event.imageUrl,
+        competition: cuspMarket.competition ?? eventCompetition,
+      });
+
+      if (options?.limit && markets.length >= options.limit) {
+        return markets;
+      }
+    }
+  }
+
+  return markets;
+}
+
 export function chunkArray<T>(items: T[], chunkSize: number): T[][] {
   if (chunkSize <= 0) return [items];
   const out: T[][] = [];
@@ -471,6 +509,53 @@ async function fetchActiveMarketsForSeriesTickers(params: {
     }
   }
   return markets;
+}
+
+function sortMarketsByVolumeSignal(markets: CuspMarket[]): CuspMarket[] {
+  const score = (m: CuspMarket) => (m.volume24h ?? 0) || m.volume || 0;
+  return [...markets].sort((a, b) => score(b) - score(a));
+}
+
+/** Paginated active events via GET /api/v1/events, flattened into active nested markets. */
+export async function fetchAllActiveMarketsViaEvents(options?: {
+  pageLimit?: number;
+  /** Max `/events` pages to fetch; default 500. Use `1` for a single request (e.g. `/markets` browse). */
+  maxPages?: number;
+  /** When set, results are sorted by 24h then total volume and truncated to this many markets. */
+  maxMarkets?: number;
+}): Promise<CuspMarket[]> {
+  const limit = normalizePageLimit(
+    options?.pageLimit ?? DEFAULT_EVENTS_PAGE_LIMIT,
+    DEFAULT_EVENTS_PAGE_LIMIT
+  );
+  const maxPages = options?.maxPages ?? 500;
+  const maxMarkets = options?.maxMarkets;
+
+  const allMarkets: CuspMarket[] = [];
+  const seen = new Set<string>();
+  let cursor: number | undefined = undefined;
+
+  for (let i = 0; i < maxPages; i++) {
+    const res = await fetchEvents({
+      status: "active",
+      withNestedMarkets: true,
+      limit,
+      cursor,
+    });
+    const pageMarkets = flattenActiveMarketsFromEvents(res.events ?? [], { seen });
+    allMarkets.push(...pageMarkets);
+
+    if ((res.events ?? []).length === 0) break;
+    if (maxPages <= 1) break;
+    if (res.cursor === undefined || res.cursor === null) break;
+    cursor = res.cursor;
+  }
+
+  if (maxMarkets !== undefined && maxMarkets > 0) {
+    return sortMarketsByVolumeSignal(allMarkets).slice(0, maxMarkets);
+  }
+
+  return allMarkets;
 }
 
 export async function fetchScopedMarkets(params: {
