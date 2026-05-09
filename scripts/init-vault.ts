@@ -14,33 +14,41 @@ import {
   PublicKey,
   SystemProgram,
   SYSVAR_RENT_PUBKEY,
+  Transaction,
+  TransactionInstruction,
+  sendAndConfirmTransaction,
 } from "@solana/web3.js";
 import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
-import * as anchor from "@coral-xyz/anchor";
+import * as crypto from "crypto";
 import * as fs from "fs";
 import * as path from "path";
 import { fileURLToPath } from "url";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const DEVNET_RPC = "https://api.devnet.solana.com";
-const VAULT_PROGRAM_ID = new PublicKey("EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ");
-const TEST_USDC_MINT = new PublicKey("wt1s1m9T9U4au8XW1J9EqtouHCTaeFKBMRFHYP7axGN");
+const DEVNET_RPC = process.env.SOLANA_RPC_URL || "https://api.devnet.solana.com";
+const VAULT_PROGRAM_ID = new PublicKey(
+  process.env.VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
+);
+const TEST_USDC_MINT = new PublicKey(
+  process.env.TEST_USDC_MINT || "wt1s1m9T9U4au8XW1J9EqtouHCTaeFKBMRFHYP7axGN"
+);
+
+function discriminator(name: string): Buffer {
+  return crypto.createHash("sha256").update(`global:${name}`).digest().subarray(0, 8);
+}
 
 async function main() {
   console.log("=== Initializing Cusp Vault on Devnet ===\n");
 
   // Load wallet
-  const keypairPath = path.resolve(process.env.HOME || "~", ".config/solana/id.json");
+  const keypairPath = process.env.WALLET_KEYPAIR
+    ? path.resolve(process.env.WALLET_KEYPAIR)
+    : path.resolve(process.env.HOME || "~", ".config/solana/id.json");
   const keypairData = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
   const wallet = Keypair.fromSecretKey(Uint8Array.from(keypairData));
 
   const connection = new Connection(DEVNET_RPC, "confirmed");
-
-  const idlPath = path.resolve(__dirname, "../programs/target/deploy/cusp_vault.json");
-  if (!fs.existsSync(idlPath)) {
-    console.log("No IDL file found, using raw transactions...\n");
-  }
 
   // Derive PDAs
   const [vaultState, vaultBump] = PublicKey.findProgramAddressSync(
@@ -56,34 +64,30 @@ async function main() {
     VAULT_PROGRAM_ID
   );
 
+  console.log("Config:");
+  console.log(`  RPC:                ${DEVNET_RPC}`);
+  console.log(`  Vault Program:      ${VAULT_PROGRAM_ID.toBase58()}`);
+  console.log(`  Deposit Mint:       ${TEST_USDC_MINT.toBase58()}`);
+  console.log(`  Wallet Keypair:     ${keypairPath}`);
+  console.log(`  Admin:              ${wallet.publicKey.toBase58()}\n`);
+
   console.log("PDAs:");
   console.log(`  Vault State:        ${vaultState.toBase58()}`);
   console.log(`  cUSDC Mint:         ${cusdcMint.toBase58()}`);
   console.log(`  Vault USDC Account: ${vaultUsdcAccount.toBase58()}`);
-  console.log(`  Test USDC Mint:     ${TEST_USDC_MINT.toBase58()}`);
-  console.log(`  Admin:              ${wallet.publicKey.toBase58()}\n`);
+  console.log(`  Deposit Mint:       ${TEST_USDC_MINT.toBase58()}\n`);
 
   // Check if already initialized
   const vaultInfo = await connection.getAccountInfo(vaultState);
   if (vaultInfo) {
     console.log("Vault already initialized! Skipping...\n");
   } else {
-    // Use Anchor provider
-    const provider = new anchor.AnchorProvider(
-      connection,
-      new anchor.Wallet(wallet),
-      { commitment: "confirmed" }
-    );
-
-    // Build initialize instruction manually using Anchor's instruction builder
-    const discriminator_init = Buffer.from([175, 175, 109, 31, 13, 152, 155, 237]); // anchor discriminator for "initialize"
-
     const initData = Buffer.concat([
-      discriminator_init,
+      discriminator("initialize"),
       TEST_USDC_MINT.toBuffer(), // usdc_mint: Pubkey arg
     ]);
 
-    const initIx = new anchor.web3.TransactionInstruction({
+    const initIx = new TransactionInstruction({
       programId: VAULT_PROGRAM_ID,
       keys: [
         { pubkey: wallet.publicKey, isSigner: true, isWritable: true },  // admin
@@ -97,14 +101,14 @@ async function main() {
     });
 
     console.log("Step 1: Initializing vault state + cUSDC mint...");
-    const tx1 = new anchor.web3.Transaction().add(initIx);
-    const sig1 = await provider.sendAndConfirm(tx1, [wallet]);
+    const tx1 = new Transaction().add(initIx);
+    const sig1 = await sendAndConfirmTransaction(connection, tx1, [wallet], {
+      commitment: "confirmed",
+    });
     console.log(`  TX: ${sig1}\n`);
 
     // Step 2: init_vault_account
-    const discriminator_init_account = Buffer.from([53, 46, 103, 190, 217, 121, 20, 246]); // "init_vault_account"
-
-    const initAccountIx = new anchor.web3.TransactionInstruction({
+    const initAccountIx = new TransactionInstruction({
       programId: VAULT_PROGRAM_ID,
       keys: [
         { pubkey: wallet.publicKey, isSigner: true, isWritable: true },     // admin
@@ -115,18 +119,21 @@ async function main() {
         { pubkey: SystemProgram.programId, isSigner: false, isWritable: false }, // system_program
         { pubkey: SYSVAR_RENT_PUBKEY, isSigner: false, isWritable: false }, // rent
       ],
-      data: discriminator_init_account,
+      data: discriminator("init_vault_account"),
     });
 
     console.log("Step 2: Creating vault USDC account...");
-    const tx2 = new anchor.web3.Transaction().add(initAccountIx);
-    const sig2 = await provider.sendAndConfirm(tx2, [wallet]);
+    const tx2 = new Transaction().add(initAccountIx);
+    const sig2 = await sendAndConfirmTransaction(connection, tx2, [wallet], {
+      commitment: "confirmed",
+    });
     console.log(`  TX: ${sig2}\n`);
   }
 
   // Output
   console.log("=== Vault Initialized! ===\n");
   console.log("Add these to your .env:\n");
+  console.log(`VITE_VAULT_PROGRAM_ID=${VAULT_PROGRAM_ID.toBase58()}`);
   console.log(`VITE_CUSDC_MINT=${cusdcMint.toBase58()}`);
   console.log(`VITE_VAULT_USDC_ACCOUNT=${vaultUsdcAccount.toBase58()}`);
   console.log(`VITE_VAULT_PUBLIC_KEY=${vaultState.toBase58()}`);
