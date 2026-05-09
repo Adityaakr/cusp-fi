@@ -1,10 +1,11 @@
 import { Link, useLocation } from "react-router-dom";
-import { useModal, usePhantom } from "@phantom/react-sdk";
+import { useModal, usePhantom } from "@/lib/wallet";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { MAINNET_RPC_URL, MAINNET_USDC_MINT } from "@/lib/network-config";
-import { Menu, X } from "lucide-react";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Menu, X, Sparkles } from "lucide-react";
+import { useQvac } from "@/components/qvac/QvacProvider";
 
-// Always use mainnet for wallet balance — user funds live on mainnet.
 const RPC_URL = MAINNET_RPC_URL;
 const USDC_MINT = MAINNET_USDC_MINT;
 
@@ -83,6 +84,7 @@ const Navbar = () => {
   const { isConnected, isLoading, addresses } = usePhantom();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
+  const { openQvac } = useQvac();
 
   const solanaAddress =
     addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ??
@@ -155,29 +157,47 @@ const Navbar = () => {
 
         <div className="flex items-center gap-3">
 
-          {isConnected && usdc !== null && (
+{isConnected && usdc !== null && (
             <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-muted-foreground">
-              <span className="text-foreground/80">{usdc.toFixed(2)}</span>
-              <span>USDC</span>
+<span className="text-foreground/80">{usdc.toFixed(2)}</span>
+               <span>USDC</span>
             </div>
           )}
 
           <button
+            type="button"
+            onClick={() => openQvac()}
+            className="hidden md:inline-flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium rounded-md border border-border text-muted-foreground hover:text-foreground hover:border-cusp-teal/50 hover:bg-cusp-teal/5 transition-colors"
+            aria-label="Open QVAC"
+          >
+            <Sparkles className="size-3.5" />
+            <span className="hidden lg:inline">QVAC</span>
+            <kbd className="hidden lg:inline text-[10px] font-mono ml-0.5 px-1 py-px rounded border border-border bg-bg-2 text-muted-foreground">⌘K</kbd>
+          </button>
+
+          <button
+            type="button"
             onClick={open}
             disabled={isLoading}
-            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-50 font-mono ${
+            aria-busy={isLoading}
+            aria-label={isLoading ? "Connecting wallet" : isConnected ? "Wallet menu" : "Connect wallet"}
+            className={`px-4 py-1.5 text-sm font-medium rounded-md transition-colors disabled:opacity-90 font-mono min-w-[7.5rem] inline-flex items-center justify-center ${
               isConnected
                 ? "bg-cusp-teal text-primary-foreground hover:opacity-90"
                 : "border border-cusp-teal/40 text-cusp-teal hover:bg-cusp-teal/5"
             }`}
           >
-            {isLoading
-              ? "Connecting..."
-              : isConnected
-                ? solanaAddress
-                  ? truncateAddress(solanaAddress)
-                  : "Connected"
-                : "Connect Wallet"}
+            {isLoading ? (
+              <Skeleton className="h-4 w-20 bg-primary-foreground/25" shimmer />
+            ) : isConnected ? (
+              solanaAddress ? (
+                truncateAddress(solanaAddress)
+              ) : (
+                "Connected"
+              )
+            ) : (
+              "Connect Wallet"
+            )}
           </button>
 
           <button
@@ -193,6 +213,13 @@ const Navbar = () => {
       {mobileOpen && (
         <div className="md:hidden border-t border-border bg-bg-0/95 backdrop-blur-md">
           <div className="px-4 py-3 flex flex-col gap-1">
+            <button
+              onClick={() => { openQvac(); setMobileOpen(false); }}
+              className="flex items-center gap-2 px-3 py-2.5 text-sm rounded-lg text-cusp-teal hover:bg-cusp-teal/10 transition-colors"
+            >
+              <Sparkles className="size-4" />
+              QVAC
+            </button>
             {navLinks.map((link) => {
               const isActive = !link.external && !link.path.includes("#") && location.pathname === link.path;
               const soonBadge = link.soon ? (
@@ -219,13 +246,13 @@ const Navbar = () => {
               );
             })}
           </div>
-          {isConnected && usdc !== null && (
+{isConnected && usdc !== null && (
             <div className="px-4 py-3 border-t border-border/50">
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-bg-2">
                 <span className="text-[11px] text-muted-foreground">Balance</span>
                 <div className="flex items-center gap-2 text-xs font-mono">
-                  <span className="text-foreground/80">{usdc.toFixed(2)}</span>
-                  <span className="text-muted-foreground">USDC</span>
+<span className="text-foreground/80">{usdc.toFixed(2)}</span>
+                    <span className="text-muted-foreground">USDC</span>
                 </div>
               </div>
             </div>
