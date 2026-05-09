@@ -111,7 +111,7 @@ export function useMainnetDeposit() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signature = await solana.signAndSendTransaction(tx);
+      const signature = await solana.signAndSendTransaction(tx, connection);
 
       setTxSignature(signature);
       setStatus("confirming");
@@ -128,7 +128,7 @@ export function useMainnetDeposit() {
           if (userId) {
             await supabase.from("deposits").insert({
               user_id: userId,
-              amount_usdc: amountUsdc,
+              amount_usdc: amount,
               cusdc_minted: 0,
               exchange_rate: 1,
               tx_signature: signature,
@@ -144,8 +144,8 @@ export function useMainnetDeposit() {
               .single();
 
             if (currentState) {
-              const newReserve = Number(currentState.reserve_usdc || 0) + amountUsdc;
-              const newTvl = Number(currentState.total_tvl || 0) + amountUsdc;
+              const newReserve = Number(currentState.reserve_usdc || 0) + amount;
+              const newTvl = Number(currentState.total_tvl || 0) + amount;
               await supabase
                 .from("protocol_state")
                 .update({
@@ -156,7 +156,7 @@ export function useMainnetDeposit() {
                 .eq("id", 1);
             }
 
-            console.log("[mainnetDeposit] Recorded in Supabase:", { userId, amountUsdc, signature });
+            console.log("[mainnetDeposit] Recorded in Supabase:", { userId, amount, signature });
           }
         } catch (dbErr) {
           console.warn("[mainnetDeposit] Supabase recording failed (non-fatal):", dbErr);
