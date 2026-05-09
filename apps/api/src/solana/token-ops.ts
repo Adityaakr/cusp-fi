@@ -6,6 +6,7 @@ import {
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
+  TOKEN_2022_PROGRAM_ID,
 } from "@solana/spl-token";
 import {
   Transaction,
@@ -16,7 +17,15 @@ import {
   TransactionMessage,
   TransactionInstruction,
 } from "@solana/web3.js";
-import { getConnection, getVaultKeypair, getCusdcMint, USDC_MINT, USDT_MINT } from "./connection.js";
+import {
+  getConnection,
+  getVaultKeypair,
+  getCusdcMint,
+  getMainnetPoolKeypair,
+  USDC_MINT,
+  USDT_MINT,
+  getTokenProgramForMint,
+} from "./connection.js";
 
 export async function mintCusdcToUser(
   walletAddress: string,
@@ -83,10 +92,24 @@ export async function transferUsdcFromVault(
   walletAddress: string,
   usdcAmount: number
 ): Promise<string> {
+  return transferUsdcFromAuthority(getVaultKeypair(), walletAddress, usdcAmount);
+}
+
+export async function transferUsdcFromMainnetPool(
+  walletAddress: string,
+  usdcAmount: number
+): Promise<string> {
+  return transferUsdcFromAuthority(getMainnetPoolKeypair(), walletAddress, usdcAmount);
+}
+
+async function transferUsdcFromAuthority(
+  authorityKeypair: Keypair,
+  walletAddress: string,
+  usdcAmount: number
+): Promise<string> {
   const connection = getConnection();
-  const vaultKeypair = getVaultKeypair();
   const userPubkey = new PublicKey(walletAddress);
-  const vaultUsdcAta = await getAssociatedTokenAddress(USDC_MINT, vaultKeypair.publicKey);
+  const authorityUsdcAta = await getAssociatedTokenAddress(USDC_MINT, authorityKeypair.publicKey);
   const userUsdcAta = await getAssociatedTokenAddress(USDC_MINT, userPubkey);
 
   const atomicAmount = Math.round(usdcAmount * 1e6);
@@ -96,7 +119,7 @@ export async function transferUsdcFromVault(
   if (!userAtaInfo) {
     tx.add(
       createAssociatedTokenAccountInstruction(
-        vaultKeypair.publicKey,
+        authorityKeypair.publicKey,
         userUsdcAta,
         userPubkey,
         USDC_MINT
@@ -106,34 +129,61 @@ export async function transferUsdcFromVault(
 
   tx.add(
     createTransferInstruction(
-      vaultUsdcAta,
+      authorityUsdcAta,
       userUsdcAta,
-      vaultKeypair.publicKey,
+      authorityKeypair.publicKey,
       atomicAmount
     )
   );
 
-  return sendAndConfirmTransaction(connection, tx, [vaultKeypair]);
+  return sendAndConfirmTransaction(connection, tx, [authorityKeypair]);
 }
 
 export async function lendUsdcToUser(
   walletAddress: string,
   usdcAmount: number
 ): Promise<{ signature: string; warning: string }> {
+  return lendUsdcFromAuthority(getVaultKeypair(), walletAddress, usdcAmount);
+}
+
+export async function lendUsdcFromMainnetPool(
+  walletAddress: string,
+  usdcAmount: number
+): Promise<{ signature: string; warning: string }> {
+  return lendUsdcFromAuthority(getMainnetPoolKeypair(), walletAddress, usdcAmount);
+}
+
+export async function transferSplTokenFromMainnetPool(params: {
+  walletAddress: string;
+  mint: PublicKey;
+  amountUi: number;
+}): Promise<{ signature: string; warning: string }> {
+  return transferSplTokenFromAuthority({
+    authorityKeypair: getMainnetPoolKeypair(),
+    walletAddress: params.walletAddress,
+    mint: params.mint,
+    amountUi: params.amountUi,
+  });
+}
+
+async function lendUsdcFromAuthority(
+  authorityKeypair: Keypair,
+  walletAddress: string,
+  usdcAmount: number
+): Promise<{ signature: string; warning: string }> {
   const connection = getConnection();
-  const vaultKeypair = getVaultKeypair();
   const userPubkey = new PublicKey(walletAddress);
   const borrowedAtomic = Math.round(usdcAmount * 1e6);
 
-  const vaultSol = await connection.getBalance(vaultKeypair.publicKey);
-  if (vaultSol < 10_000) {
+  const authoritySol = await connection.getBalance(authorityKeypair.publicKey);
+  if (authoritySol < 10_000) {
     return {
       signature: "",
-      warning: `Vault has insufficient SOL for fees. Lending skipped.`,
+      warning: `Authority wallet has insufficient SOL for fees. Lending skipped.`,
     };
   }
 
-  const vaultAta = await getAssociatedTokenAddress(USDC_MINT, vaultKeypair.publicKey);
+  const authorityAta = await getAssociatedTokenAddress(USDC_MINT, authorityKeypair.publicKey);
   const userAta = await getAssociatedTokenAddress(USDC_MINT, userPubkey);
 
   const instructions: TransactionInstruction[] = [];
@@ -141,7 +191,7 @@ export async function lendUsdcToUser(
   if (!userAtaInfo) {
     instructions.push(
       createAssociatedTokenAccountInstruction(
-        vaultKeypair.publicKey,
+        authorityKeypair.publicKey,
         userAta,
         userPubkey,
         USDC_MINT
@@ -150,19 +200,92 @@ export async function lendUsdcToUser(
   }
 
   instructions.push(
-    createTransferInstruction(vaultAta, userAta, vaultKeypair.publicKey, borrowedAtomic)
+    createTransferInstruction(authorityAta, userAta, authorityKeypair.publicKey, borrowedAtomic)
   );
 
   const { blockhash } = await connection.getLatestBlockhash();
   const messageV0 = new TransactionMessage({
-    payerKey: vaultKeypair.publicKey,
+    payerKey: authorityKeypair.publicKey,
     recentBlockhash: blockhash,
     instructions,
   }).compileToV0Message();
 
   const tx = new VersionedTransaction(messageV0);
-  tx.sign([vaultKeypair]);
+  tx.sign([authorityKeypair]);
 
   const signature = await connection.sendTransaction(tx);
+  return { signature, warning: "" };
+}
+
+async function transferSplTokenFromAuthority(params: {
+  authorityKeypair: Keypair;
+  walletAddress: string;
+  mint: PublicKey;
+  amountUi: number;
+}): Promise<{ signature: string; warning: string }> {
+  const connection = getConnection();
+  const userPubkey = new PublicKey(params.walletAddress);
+  const authoritySol = await connection.getBalance(params.authorityKeypair.publicKey);
+  if (authoritySol < 10_000) {
+    return {
+      signature: "",
+      warning: "Authority wallet has insufficient SOL for fees. Transfer skipped.",
+    };
+  }
+
+  const tokenProgramId = await getTokenProgramForMint(params.mint);
+  const atomicAmount = Math.round(params.amountUi * 1e6);
+  const authorityAta = await getAssociatedTokenAddress(
+    params.mint,
+    params.authorityKeypair.publicKey,
+    true,
+    tokenProgramId,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+  const userAta = await getAssociatedTokenAddress(
+    params.mint,
+    userPubkey,
+    false,
+    tokenProgramId,
+    ASSOCIATED_TOKEN_PROGRAM_ID
+  );
+
+  const instructions: TransactionInstruction[] = [];
+  const userAtaInfo = await connection.getAccountInfo(userAta);
+  if (!userAtaInfo) {
+    instructions.push(
+      createAssociatedTokenAccountInstruction(
+        params.authorityKeypair.publicKey,
+        userAta,
+        userPubkey,
+        params.mint,
+        tokenProgramId,
+        ASSOCIATED_TOKEN_PROGRAM_ID
+      )
+    );
+  }
+
+  instructions.push(
+    createTransferInstruction(
+      authorityAta,
+      userAta,
+      params.authorityKeypair.publicKey,
+      atomicAmount,
+      [],
+      tokenProgramId.equals(TOKEN_2022_PROGRAM_ID) ? TOKEN_2022_PROGRAM_ID : TOKEN_PROGRAM_ID
+    )
+  );
+
+  const { blockhash } = await connection.getLatestBlockhash();
+  const messageV0 = new TransactionMessage({
+    payerKey: params.authorityKeypair.publicKey,
+    recentBlockhash: blockhash,
+    instructions,
+  }).compileToV0Message();
+
+  const tx = new VersionedTransaction(messageV0);
+  tx.sign([params.authorityKeypair]);
+  const signature = await connection.sendTransaction(tx);
+
   return { signature, warning: "" };
 }

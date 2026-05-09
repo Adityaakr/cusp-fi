@@ -11,6 +11,7 @@ import riskRouter from "./risk.js";
 import inviteRouter from "./invite.js";
 import healthRouter from "./health.js";
 import crankRouter from "./crank.js";
+import outcomeLendingRouter from "./outcome-lending.js";
 
 const router = Router();
 
@@ -26,5 +27,6 @@ router.use(riskRouter);
 router.use(inviteRouter);
 router.use(healthRouter);
 router.use(crankRouter);
+router.use(outcomeLendingRouter);
 
 export default router;

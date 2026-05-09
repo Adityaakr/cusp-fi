@@ -29,14 +29,20 @@ export const KALSHI_SHARED_BASE =
   env.KALSHI_SHARED_BASE || "https://api.elections.kalshi.com";
 
 export const SOLANA_RPC_URL =
-  env.SOLANA_RPC_URL || "https://api.mainnet-beta.solana.com";
+  env.SOLANA_RPC_URL ||
+  "https://old-cosmopolitan-putty.solana-mainnet.quiknode.pro/a141c2bcb4f6526c43793070f8feb71183896885";
 
 export const SUPABASE_URL = env.SUPABASE_URL || "";
 export const SUPABASE_SERVICE_ROLE_KEY = env.SUPABASE_SERVICE_ROLE_KEY || "";
 export const SUPABASE_ANON_KEY = env.SUPABASE_ANON_KEY || "";
+export const DATABASE_URL = env.DATABASE_URL || "";
 
 export const VAULT_KEYPAIR_RAW = env.VAULT_KEYPAIR || "";
 export const CUSDC_MINT = env.CUSDC_MINT || "";
 export const CUSDT_MINT = env.CUSDT_MINT || "";
+export const MAINNET_POOL_KEYPAIR_RAW = env.MAINNET_POOL_KEYPAIR || "";
+export const MAINNET_POOL_PUBLIC_KEY = env.MAINNET_POOL_PUBLIC_KEY || "";
+export const OUTCOME_ESCROW_PROGRAM_ID = env.OUTCOME_ESCROW_PROGRAM_ID || "";
+export const OUTCOME_ESCROW_AUTHORITY = env.OUTCOME_ESCROW_AUTHORITY || "";
 
 export const INVITE_SECRET = env.INVITE_SECRET || "";
