@@ -16,7 +16,11 @@ export function useExchangeRateHistory(days = 90) {
         p_days: days,
       });
       if (error) throw error;
-      return (data as RateSnapshot[]) ?? [];
+      return ((data as Array<Record<string, unknown>>) ?? []).map((row) => ({
+        exchange_rate: Number(row.exchange_rate ?? 0),
+        total_tvl: Number(row.total_tvl ?? 0),
+        snapped_at: String(row.snapped_at ?? ""),
+      }));
     },
     refetchInterval: 60_000,
     staleTime: 30_000,
