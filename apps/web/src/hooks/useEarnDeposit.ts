@@ -1,9 +1,9 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useWallet, useConnection } from "@solana/wallet-adapter-react";
-import { VersionedTransaction } from "@solana/web3.js";
-import { buildKaminoDepositTx } from "@/lib/kamino";
+import { useWallet } from "@solana/wallet-adapter-react";
+import { buildEarnVaultDepositTx } from "@/lib/earn-vault";
 import { usdtToUsdcQuote, getJupiterSwapTx } from "@/lib/jupiter";
+import { getEarnVaultConnection, getMainnetConnection } from "@/lib/solana";
 import { usePhantom } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 
@@ -24,7 +24,6 @@ export function useEarnDeposit() {
   const [swapQuote, setSwapQuote] = useState<{ inAmount: number; outAmount: number; priceImpact: number } | null>(null);
   const { addresses } = usePhantom();
   const wallet = useWallet();
-  const { connection } = useConnection();
   const queryClient = useQueryClient();
 
   const solanaAddress = addresses?.find((a) =>
@@ -55,6 +54,9 @@ export function useEarnDeposit() {
     }
 
     try {
+      const mainnetConnection = getMainnetConnection();
+      const earnVaultConnection = getEarnVaultConnection();
+
       // Step 1: Get Jupiter swap quote (USDT → USDC)
       setStatus("quoting");
       const quote = await usdtToUsdcQuote(amountUsdt);
@@ -76,27 +78,30 @@ export function useEarnDeposit() {
       const swapTx = await getJupiterSwapTx(quote, solanaAddress);
       const signedSwapTx = await wallet.signTransaction(swapTx);
       const rawSwapTx = signedSwapTx.serialize();
-      const swapSignature = await connection.sendRawTransaction(rawSwapTx, {
+      const swapSignature = await mainnetConnection.sendRawTransaction(rawSwapTx, {
         skipPreflight: false,
         preflightCommitment: "confirmed",
       });
 
-      await connection.confirmTransaction(swapSignature, "confirmed");
+      await mainnetConnection.confirmTransaction(swapSignature, "confirmed");
 
-      // Step 3: Deposit USDC into Kamino Steakhouse vault
+      // Step 3: Deposit swapped USDC into the Cusp earn vault and mint cUSDT.
       setStatus("depositing");
-      const depositTx = await buildKaminoDepositTx(solanaAddress, outAmountUsdc);
+      const { tx: depositTx, estimatedCusdtUi, state } = await buildEarnVaultDepositTx(
+        solanaAddress,
+        outAmountUsdc,
+      );
 
       setStatus("signing");
       const signedDepositTx = await wallet.signTransaction(depositTx);
       const rawDepositTx = signedDepositTx.serialize();
-      const depositSignature = await connection.sendRawTransaction(rawDepositTx, {
+      const depositSignature = await earnVaultConnection.sendRawTransaction(rawDepositTx, {
         skipPreflight: false,
         preflightCommitment: "confirmed",
       });
 
       setStatus("confirming");
-      await connection.confirmTransaction(depositSignature, "confirmed");
+      await earnVaultConnection.confirmTransaction(depositSignature, "confirmed");
 
       setTxSignature(depositSignature);
 
@@ -110,11 +115,11 @@ export function useEarnDeposit() {
             await supabase.from("deposits").insert({
               user_id: userId,
               amount_usdc: outAmountUsdc,
-              cusdc_minted: 0,
-              exchange_rate: 1,
+              cusdc_minted: estimatedCusdtUi,
+              exchange_rate: state.exchangeRate,
               tx_signature: depositSignature,
               status: "confirmed",
-              deposit_type: "kamino_earn",
+              deposit_type: "earn_vault",
             });
           }
         } catch (dbErr) {
@@ -125,7 +130,8 @@ export function useEarnDeposit() {
       setStatus("success");
 
       await Promise.allSettled([
-        queryClient.invalidateQueries({ queryKey: ["kaminoPosition"] }),
+        queryClient.invalidateQueries({ queryKey: ["earnVaultState"] }),
+        queryClient.invalidateQueries({ queryKey: ["earnVaultPosition"] }),
         queryClient.invalidateQueries({ queryKey: ["kaminoVault"] }),
         queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
         queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
