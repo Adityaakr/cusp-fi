@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
+import { usePhantom, useSolana } from "@/lib/wallet";
 import { checkKycStatus, buildProofDeepLink, buildKycSignMessage } from "@/lib/dflow-proof";
 import { supabase } from "@/lib/supabase";
 import bs58 from "bs58";
@@ -60,10 +60,7 @@ export function useKYC() {
     try {
       const { message, timestamp } = buildKycSignMessage();
       const encodedMessage = new TextEncoder().encode(message);
-      const signResult = await solana.signMessage(encodedMessage);
-
-      const signatureBytes =
-        signResult instanceof Uint8Array ? signResult : signResult.signature;
+      const signatureBytes = await solana.signMessage(encodedMessage);
       const signatureBase58 = bs58.encode(signatureBytes);
 
       const redirectUri = `${window.location.origin}/auth/callback`;
