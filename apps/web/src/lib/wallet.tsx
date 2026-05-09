@@ -5,9 +5,11 @@ import {
   useWallet,
   useConnection,
 } from "@solana/wallet-adapter-react";
+import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
+import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
-import { VersionedTransaction } from "@solana/web3.js";
-import { MAINNET_RPC_URL } from "@/lib/network-config";
+import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
+import { SOLANA_NETWORK, SOLANA_RPC_URL } from "@/lib/network-config";
 import { X, LogOut, Copy, Check } from "lucide-react";
 
 
@@ -16,10 +18,20 @@ const WalletModalContext = createContext<{ open: () => void }>({
 });
 
 export function SolflareProviderWrapper({ children }: { children: React.ReactNode }) {
-  const wallets = useMemo(() => [new SolflareWalletAdapter()], []);
+  const walletNetwork =
+    SOLANA_NETWORK === "devnet"
+      ? WalletAdapterNetwork.Devnet
+      : WalletAdapterNetwork.Mainnet;
+  const wallets = useMemo(
+    () => [
+      new PhantomWalletAdapter(),
+      new SolflareWalletAdapter({ network: walletNetwork }),
+    ],
+    [walletNetwork]
+  );
 
   return (
-    <ConnectionProvider endpoint={MAINNET_RPC_URL}>
+    <ConnectionProvider endpoint={SOLANA_RPC_URL}>
       <WalletProvider wallets={wallets} autoConnect>
         <WalletModalProvider>
           {children}
@@ -43,15 +55,19 @@ function WalletModalProvider({ children }: { children: React.ReactNode }) {
 }
 
 function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
-  const { publicKey, connected, connecting, select, wallets, connect, disconnect } = useWallet();
+  const { publicKey, connected, connecting, select, wallets, wallet, connect, disconnect } = useWallet();
   const [copied, setCopied] = useState(false);
 
   if (!isOpen) return null;
 
-  const handleConnect = async () => {
-    const solflare = wallets.find((w) => w.adapter.name === "Solflare");
-    if (!solflare) return;
-    select(solflare.adapter.name);
+  const supportedWallets = wallets.filter(
+    (entry) => entry.adapter.name === "Phantom" || entry.adapter.name === "Solflare"
+  );
+
+  const handleConnect = async (walletName: string) => {
+    const target = supportedWallets.find((w) => w.adapter.name === walletName);
+    if (!target) return;
+    select(target.adapter.name);
     try {
       await connect();
       onClose();
@@ -75,6 +91,17 @@ function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
   const truncatedAddr = publicKey
     ? `${publicKey.toBase58().slice(0, 4)}...${publicKey.toBase58().slice(-4)}`
     : "";
+  const connectedWalletName = wallet?.adapter.name ?? "Wallet";
+
+  const walletAccent = (name: string) => {
+    if (name === "Phantom") return "bg-[#AB9FF2] text-[#2b214f]";
+    return "bg-cusp-teal/20 text-cusp-teal";
+  };
+
+  const walletBadge = (name: string) => {
+    if (name === "Phantom") return "P";
+    return "S";
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center">
@@ -96,9 +123,15 @@ function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           <div className="space-y-4">
             <div className="bg-bg-1 border border-border rounded-lg p-3 flex items-center justify-between">
               <div className="flex items-center gap-3">
-                <img src="/solflare-logo.webp" alt="Solflare" className="w-5 h-5 rounded-sm object-contain" />
+                {connectedWalletName === "Solflare" ? (
+                  <img src="/solflare-logo.webp" alt="Solflare" className="w-5 h-5 rounded-sm object-contain" />
+                ) : (
+                  <div className={`flex size-5 items-center justify-center rounded-full text-[10px] font-semibold ${walletAccent(connectedWalletName)}`}>
+                    {walletBadge(connectedWalletName)}
+                  </div>
+                )}
                 <div>
-                  <span className="text-sm font-medium text-foreground block">Solflare</span>
+                  <span className="text-sm font-medium text-foreground block">{connectedWalletName}</span>
                   <span className="font-mono text-xs text-muted-foreground">{truncatedAddr}</span>
                 </div>
               </div>
@@ -120,17 +153,26 @@ function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
           </div>
         ) : (
           <div className="space-y-2">
-            <button
-              onClick={handleConnect}
-              disabled={connecting}
-              className="w-full flex items-center gap-3 p-3 bg-bg-1 border border-border rounded-md hover:border-active hover:bg-bg-3 transition-all text-left disabled:opacity-50"
-            >
-              <img src="/solflare-logo.webp" alt="Solflare" className="w-5 h-5 rounded-sm object-contain" />
-              <span className="text-sm font-medium text-foreground">Solflare</span>
-              {connecting && (
-                <span className="ml-auto font-mono text-xs text-cusp-teal">Connecting...</span>
-              )}
-            </button>
+            {supportedWallets.map(({ adapter }) => (
+              <button
+                key={adapter.name}
+                onClick={() => handleConnect(adapter.name)}
+                disabled={connecting}
+                className="w-full flex items-center gap-3 p-3 bg-bg-1 border border-border rounded-md hover:border-active hover:bg-bg-3 transition-all text-left disabled:opacity-50"
+              >
+                {adapter.name === "Solflare" ? (
+                  <img src="/solflare-logo.webp" alt="Solflare" className="w-5 h-5 rounded-sm object-contain" />
+                ) : (
+                  <div className={`flex size-5 items-center justify-center rounded-full text-[10px] font-semibold ${walletAccent(adapter.name)}`}>
+                    {walletBadge(adapter.name)}
+                  </div>
+                )}
+                <span className="text-sm font-medium text-foreground">{adapter.name}</span>
+                {connecting && (
+                  <span className="ml-auto font-mono text-xs text-cusp-teal">Connecting...</span>
+                )}
+              </button>
+            ))}
             <p className="text-[10px] text-muted-foreground mt-4 text-center">
               By connecting, you agree to the Cusp Terms of Service
             </p>
@@ -160,8 +202,11 @@ export function useSolana() {
   const solana =
     publicKey && connected
       ? {
-          signAndSendTransaction: async (tx: VersionedTransaction) => {
-            const signature = await sendTransaction(tx, connection);
+          signAndSendTransaction: async (
+            tx: Transaction | VersionedTransaction,
+            targetConnection?: Connection
+          ) => {
+            const signature = await sendTransaction(tx, targetConnection ?? connection);
             return signature;
           },
           signMessage: async (message: Uint8Array) => {
