@@ -4,11 +4,14 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { nodePolyfills } from "vite-plugin-node-polyfills";
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => {
-  // Load ALL env vars (including non-VITE_ ones) for the dev proxy
-  const env = loadEnv(mode, process.cwd(), "");
-  // Proxy DFlow requests through Vite dev server to inject API key (required for all phases)
+  const repoRoot = path.resolve(__dirname, "../..");
+  const env = {
+    ...loadEnv(mode, repoRoot, ""),
+    ...loadEnv(mode, process.cwd(), ""),
+    ...process.env,
+  };
+  console.log(`DFlow Vite proxy: ${env.DFLOW_API_KEY ? "configured" : "NOT configured"}`);
   const dflowProxy = {
     "/api/dflow-trade": {
       target: "https://quote-api.dflow.net",
@@ -43,14 +46,38 @@ export default defineConfig(({ mode }) => {
     },
   };
 
+  const kaminoProxy = {
+    "/api/kamino": {
+      target: "https://api.kamino.finance",
+      changeOrigin: true,
+      rewrite: (p: string) => p.replace(/^\/api\/kamino/, ""),
+    },
+  };
+
+  const jupiterProxy = {
+    "/api/jupiter": {
+      target: "https://quote-api.jup.ag",
+      changeOrigin: true,
+      rewrite: (p: string) => p.replace(/^\/api\/jupiter/, ""),
+    },
+  };
+
+  const kalshiProxy = {
+    "/api/kalshi": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+  };
+
   return {
+    envDir: repoRoot,
     server: {
       host: "::",
       port: 8080,
       hmr: {
         overlay: false,
       },
-      proxy: dflowProxy,
+      proxy: { ...dflowProxy, ...kaminoProxy, ...jupiterProxy, ...kalshiProxy },
     },
     plugins: [
       react(),
