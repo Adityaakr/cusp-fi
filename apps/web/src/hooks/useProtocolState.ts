@@ -1,13 +1,13 @@
 import { useQuery } from "@tanstack/react-query";
 import { PublicKey } from "@solana/web3.js";
-import { getConnection, getMainnetVaultUsdcBalance } from "@/lib/solana";
+import { getConnection, getMainnetVaultUsdcBalance, getVaultPublicKey } from "@/lib/solana";
 import { fetchVaultMetrics } from "@/lib/kamino";
 
 const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
 );
 
-const [VAULT_STATE] = PublicKey.findProgramAddressSync([Buffer.from("vault")], VAULT_PROGRAM_ID);
+const [DERIVED_VAULT_STATE] = PublicKey.findProgramAddressSync([Buffer.from("vault")], VAULT_PROGRAM_ID);
 
 export interface ProtocolState {
   total_tvl: number;
@@ -29,7 +29,7 @@ export interface ProtocolState {
 /**
  * Deserialize VaultState from on-chain account data.
  *
- * Layout (after 8-byte Anchor discriminator):
+ * Layout (after the 8-byte legacy account discriminator):
  *   admin:              Pubkey  (32 bytes)
  *   usdc_mint:          Pubkey  (32 bytes)
  *   cusdc_mint:         Pubkey  (32 bytes)
@@ -41,15 +41,30 @@ export interface ProtocolState {
  *   cusdc_mint_bump:    u8     (1 byte)
  *   is_paused:          bool   (1 byte)
  */
-function parseVaultState(data: Buffer): Omit<ProtocolState, "mainnet_reserve" | "unified_tvl"> {
-  const offset = 8; // skip Anchor discriminator
+function parseVaultState(
+  data: Buffer,
+): Omit<ProtocolState, "mainnet_reserve" | "unified_tvl" | "kamino_reserve" | "kamino_apy"> {
+  const offset = 8; // skip legacy account discriminator
+  
+  if (data.length < offset + 128 + 16) {
+    console.warn(`[protocolState] Vault state data too small: ${data.length} bytes`);
+    return {
+      total_tvl: 0,
+      cusdc_exchange_rate: 1,
+      reserve_usdc: 0,
+      deployed_usdc: 0,
+      total_cusdc_supply: 0,
+      is_paused: false,
+    };
+  }
+
   // Skip 4 pubkeys (4 * 32 = 128 bytes)
   const totalUsdcManaged = Number(data.readBigUInt64LE(offset + 128));
   const totalCusdcSupply = Number(data.readBigUInt64LE(offset + 136));
 
   // The on-chain struct may or may not include total_deployed depending on
   // which version was deployed.  155 bytes = no total_deployed field.
-  const hasDeployed = data.length >= 8 + 128 + 24 + 3; // 163 bytes
+  const hasDeployed = data.length >= offset + 128 + 24 + 3; // 163 bytes
   let totalDeployed = 0;
   let isPaused = false;
 
@@ -82,8 +97,10 @@ function parseVaultState(data: Buffer): Omit<ProtocolState, "mainnet_reserve" | 
 }
 
 async function fetchProtocolState(): Promise<ProtocolState | null> {
+  const explicitVaultState = getVaultPublicKey();
+  const vaultState = explicitVaultState ?? DERIVED_VAULT_STATE;
   const [accountInfoResult, mainnetResult, kaminoResult] = await Promise.allSettled([
-    getConnection().getAccountInfo(VAULT_STATE),
+    getConnection().getAccountInfo(vaultState),
     getMainnetVaultUsdcBalance(),
     fetchVaultMetrics(),
   ]);
@@ -94,7 +111,16 @@ async function fetchProtocolState(): Promise<ProtocolState | null> {
   const kaminoReserve = kaminoVault?.tvl ?? 0;
   const kaminoApy = kaminoVault?.apy ?? 0;
 
-  console.log("[protocolState] devnet vault found:", !!accountInfo?.data, "| mainnet reserve:", mainnetReserve, "| kamino TVL:", kaminoReserve);
+  console.log(
+    "[protocolState] vault account:",
+    vaultState.toBase58(),
+    "| devnet vault found:",
+    !!accountInfo?.data,
+    "| mainnet reserve:",
+    mainnetReserve,
+    "| kamino TVL:",
+    kaminoReserve
+  );
 
   if (accountInfoResult.status === "rejected") {
     console.warn("[protocolState] Failed to fetch devnet vault:", accountInfoResult.reason);
@@ -119,6 +145,9 @@ async function fetchProtocolState(): Promise<ProtocolState | null> {
   }
 
   try {
+    if (accountInfo.data.length === 0) {
+      console.warn("[protocolState] vault account exists but contains zero bytes:", vaultState.toBase58());
+    }
     const state = parseVaultState(Buffer.from(accountInfo.data));
     return {
       ...state,

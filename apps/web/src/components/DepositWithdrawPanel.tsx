@@ -1,23 +1,50 @@
 import { useState } from "react";
 import { usePhantom } from "@/lib/wallet";
-import { useWithdraw } from "@/hooks/useWithdraw";
 import { useMainnetDeposit } from "@/hooks/useMainnetDeposit";
-import { useEarnDeposit } from "@/hooks/useEarnDeposit";
-import { useKaminoVault, useKaminoPosition } from "@/hooks/useKaminoVault";
+import { useDeposit } from "@/hooks/useDeposit";
+import { useWithdraw } from "@/hooks/useWithdraw";
+import { useKaminoVault } from "@/hooks/useKaminoVault";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { useUserPortfolio } from "@/hooks/useUserPortfolio";
-import { SOLANA_NETWORK } from "@/lib/network-config";
-import { Loader2, CheckCircle, AlertCircle, ExternalLink, ArrowRight } from "lucide-react";
+import { SOLANA_NETWORK, isTestnet } from "@/lib/network-config";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from "@/components/ui/dialog";
+import {
+  Loader2,
+  CheckCircle,
+  AlertCircle,
+  ExternalLink,
+  ArrowRight,
+  Info,
+} from "lucide-react";
 
 type Tab = "trading" | "earn" | "withdraw";
 
 const DepositWithdrawPanel = () => {
-  const [tab, setTab] = useState<Tab>("trading");
+  const [tab, setTab] = useState<Tab>(isTestnet ? "earn" : "trading");
   const [amount, setAmount] = useState("");
   const { isConnected } = usePhantom();
   const { state } = useProtocolState();
-  const { vault: kaminoVault, apy: kaminoApy, sharePrice: kaminoSharePrice } = useKaminoVault();
-  const { position: kaminoPosition } = useKaminoPosition();
+  const { vault: kaminoVault, apy: kaminoApy } = useKaminoVault();
+  const {
+    deposit: vaultDeposit,
+    status: vaultDepositStatus,
+    error: vaultDepositError,
+    txSignature: vaultDepositTx,
+    reset: resetVaultDeposit,
+  } = useDeposit();
+  const {
+    withdraw: vaultWithdraw,
+    status: vaultWithdrawStatus,
+    error: vaultWithdrawError,
+    txSignature: vaultWithdrawTx,
+    reset: resetVaultWithdraw,
+  } = useWithdraw();
   const {
     deposit: mainnetDeposit,
     status: mainnetDepositStatus,
@@ -25,86 +52,75 @@ const DepositWithdrawPanel = () => {
     txSignature: mainnetDepositTx,
     reset: resetMainnetDeposit,
   } = useMainnetDeposit();
-  const {
-    deposit: earnDeposit,
-    status: earnDepositStatus,
-    error: earnDepositError,
-    txSignature: earnDepositTx,
-    swapQuote: earnSwapQuote,
-    reset: resetEarnDeposit,
-  } = useEarnDeposit();
-  const {
-    withdraw,
-    status: withdrawStatus,
-    error: withdrawError,
-    txSignature: withdrawTx,
-    reset: resetWithdraw,
-  } = useWithdraw();
   const { data: portfolio } = useUserPortfolio();
 
   const numAmount = parseFloat(amount) || 0;
   const exchangeRate = state?.cusdc_exchange_rate ?? 1.0;
 
   const isProcessing =
-    (mainnetDepositStatus !== "idle" && mainnetDepositStatus !== "success" && mainnetDepositStatus !== "error") ||
-    (earnDepositStatus !== "idle" && earnDepositStatus !== "success" && earnDepositStatus !== "error") ||
-    (withdrawStatus !== "idle" && withdrawStatus !== "success" && withdrawStatus !== "error");
+    (vaultDepositStatus !== "idle" && vaultDepositStatus !== "success" && vaultDepositStatus !== "error") ||
+    (vaultWithdrawStatus !== "idle" && vaultWithdrawStatus !== "success" && vaultWithdrawStatus !== "error") ||
+    (mainnetDepositStatus !== "idle" && mainnetDepositStatus !== "success" && mainnetDepositStatus !== "error");
 
   const resetAll = () => {
     resetMainnetDeposit();
-    resetEarnDeposit();
-    resetWithdraw();
+    resetVaultDeposit();
+    resetVaultWithdraw();
   };
 
   const handleAction = async () => {
     if (numAmount <= 0) return;
     resetAll();
-    if (tab === "trading") {
+    if (isTestnet) {
+      if (tab === "earn") {
+        await vaultDeposit(numAmount);
+      } else {
+        await vaultWithdraw(numAmount);
+      }
+    } else if (tab === "trading") {
       await mainnetDeposit(numAmount);
-    } else if (tab === "earn") {
-      await earnDeposit(numAmount);
     } else {
-      await withdraw(numAmount);
+      if (tab === "earn") {
+        await vaultDeposit(numAmount);
+      } else {
+        await vaultWithdraw(numAmount);
+      }
     }
     setAmount("");
   };
 
   const activeStatus =
-    tab === "withdraw"
-      ? withdrawStatus
-      : tab === "earn"
-        ? earnDepositStatus
-        : mainnetDepositStatus;
+    tab === "trading"
+      ? mainnetDepositStatus
+      : tab === "withdraw"
+        ? vaultWithdrawStatus
+        : vaultDepositStatus;
   const activeError =
-    tab === "withdraw"
-      ? withdrawError
-      : tab === "earn"
-        ? earnDepositError
-        : mainnetDepositError;
+    tab === "trading"
+      ? mainnetDepositError
+      : tab === "withdraw"
+        ? vaultWithdrawError
+        : vaultDepositError;
   const activeTx =
-    tab === "withdraw"
-      ? withdrawTx
-      : tab === "earn"
-        ? earnDepositTx
-        : mainnetDepositTx;
+    tab === "trading"
+      ? mainnetDepositTx
+      : tab === "withdraw"
+        ? vaultWithdrawTx
+        : vaultDepositTx;
   const explorerCluster = SOLANA_NETWORK === "devnet" ? "?cluster=devnet" : "";
 
-  const earnStatusLabel =
-    earnDepositStatus === "quoting"
-      ? "Getting swap quote..."
-      : earnDepositStatus === "swapping"
-        ? "Swapping USDT → USDC..."
-        : earnDepositStatus === "depositing"
-          ? "Building vault deposit..."
-          : earnDepositStatus === "signing"
-            ? "Sign in wallet..."
-            : earnDepositStatus === "confirming"
-              ? "Confirming on-chain..."
-              : null;
+  const demoStatusLabel =
+    activeStatus === "building"
+      ? "Building transaction..."
+      : activeStatus === "signing"
+        ? "Sign in wallet..."
+        : activeStatus === "confirming"
+          ? "Confirming on-chain..."
+          : null;
 
   const statusLabel =
-    tab === "earn" && earnStatusLabel
-      ? earnStatusLabel
+    demoStatusLabel
+      ? demoStatusLabel
       : activeStatus === "building"
         ? "Building transaction..."
         : activeStatus === "signing"
@@ -115,24 +131,29 @@ const DepositWithdrawPanel = () => {
 
   const displayBalance =
     tab === "withdraw"
-      ? portfolio?.total_cusdc ?? 0
+      ? (portfolio?.total_cusdc ?? 0)
       : tab === "earn"
-        ? (portfolio?.mainnet_usdt_balance ?? 0)
+        ? (isTestnet ? (portfolio?.usdc_balance ?? 0) : (portfolio?.mainnet_usdc_balance ?? 0))
         : (portfolio?.mainnet_usdt_balance ?? 0);
 
   const balanceLabel =
-    tab === "withdraw" ? "cUSDT Balance" : tab === "earn" ? "USDT Balance" : "USDT Balance";
+    tab === "withdraw" ? "cUSDC Balance" : tab === "earn" ? (isTestnet ? "Devnet USDC Balance" : "USDC Balance") : "USDT Balance";
 
-  const balanceUnit = tab === "withdraw" ? "cUSDT" : "USDT";
+  const balanceUnit = tab === "withdraw" ? "cUSDC" : tab === "earn" ? "USDC" : "USDT";
 
   return (
     <div className="bg-bg-1 border border-border rounded-lg overflow-hidden">
       <div className="flex border-b border-border">
-        {([
-          { key: "trading" as Tab, label: "Trading" },
-          { key: "earn" as Tab, label: `Earn${kaminoApy > 0 ? ` ${kaminoApy.toFixed(1)}%` : ""}` },
-          { key: "withdraw" as Tab, label: "Withdraw" },
-        ]).map(({ key, label }) => (
+        {(isTestnet
+          ? ([
+              { key: "earn" as Tab, label: "Vault Demo" },
+              { key: "withdraw" as Tab, label: "Withdraw" },
+            ] as Array<{ key: Tab; label: string }>)
+          : ([
+              { key: "trading" as Tab, label: "Trading" },
+              { key: "earn" as Tab, label: `Vault${kaminoApy > 0 ? ` ${kaminoApy.toFixed(1)}%` : ""}` },
+              { key: "withdraw" as Tab, label: "Withdraw" },
+            ] as Array<{ key: Tab; label: string }>)).map(({ key, label }) => (
           <button
             key={key}
             onClick={() => { setTab(key); resetAll(); setAmount(""); }}
@@ -148,13 +169,42 @@ const DepositWithdrawPanel = () => {
       </div>
 
       <div className="px-4 pt-3 pb-0">
-        <p className="text-[10px] text-muted-foreground leading-relaxed">
-          {tab === "trading"
-            ? "Deposit USDT to the trading pool. Used as margin for leveraged prediction market trades."
-            : tab === "earn"
-              ? `Swap USDT → USDC and deposit into Kamino Steakhouse vault. Earns ~${kaminoApy.toFixed(1)}% APY. kUSDC shares appreciate as yield accrues.`
-              : "Burn cUSDT to withdraw stablecoins from the vault at the current exchange rate."}
-        </p>
+        <div className="flex items-start justify-between gap-3">
+          <p className="text-[10px] text-muted-foreground leading-relaxed">
+            {isTestnet
+              ? tab === "earn"
+                ? "Live devnet demo: deposit devnet USDC into the deployed Cusp vault contract and mint cUSDC. Production routing to Kamino is shown as strategy preview only."
+                : "Live devnet demo: burn cUSDC and redeem devnet USDC from the deployed Cusp vault contract."
+              : tab === "trading"
+                ? "Deposit USDT to the trading pool. Used as margin for leveraged prediction market trades."
+              : tab === "earn"
+                  ? `Deposit USDC into the Cusp vault and receive cUSDC. Vault yield is managed through Kamino at ~${kaminoApy.toFixed(1)}% APY.`
+                  : "Burn cUSDC and withdraw USDC from the Cusp vault."}
+          </p>
+          {isTestnet && (
+            <Dialog>
+              <DialogTrigger asChild>
+                <button
+                  type="button"
+                  className="shrink-0 inline-flex items-center gap-1 rounded-md border border-border px-2 py-1 text-[10px] text-cusp-teal hover:bg-bg-2 transition-colors"
+                >
+                  <Info className="size-3" />
+                  Prod Flow
+                </button>
+              </DialogTrigger>
+              <DialogContent className="bg-bg-1 border-border max-w-sm">
+                <DialogHeader>
+                  <DialogTitle className="text-foreground">Production Flow Preview</DialogTitle>
+                </DialogHeader>
+                <div className="space-y-3 text-xs text-muted-foreground">
+                  <p>Production UX will be one managed flow:</p>
+                  <p className="font-mono text-foreground">Deposit USDC → Cusp vault → cUSDC receipts → Strategy capital managed via Kamino</p>
+                  <p>For devnet, the live piece we can honestly demo today is the deployed Cusp vault contract using devnet USDC and cUSDC receipts.</p>
+                </div>
+              </DialogContent>
+            </Dialog>
+          )}
+        </div>
       </div>
 
       <div className="p-4 space-y-4">
@@ -177,7 +227,7 @@ const DepositWithdrawPanel = () => {
 
         <div>
           <label className="text-[10px] text-muted-foreground uppercase tracking-wider mb-1.5 block">
-            {tab === "withdraw" ? "Withdraw cUSDT" : tab === "earn" ? "Deposit USDT" : "Deposit USDT"}
+            {tab === "withdraw" ? "Withdraw cUSDC" : tab === "earn" ? "Deposit USDC" : "Deposit USDT"}
           </label>
           <div className="relative">
             <input
@@ -215,12 +265,20 @@ const DepositWithdrawPanel = () => {
               <>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Network</span>
-                  <span className="font-mono text-foreground">Solana Mainnet</span>
+                  <span className="font-mono text-foreground">{isTestnet ? "Solana Devnet" : "Solana Mainnet"}</span>
                 </div>
                 <div className="flex items-center justify-between text-xs">
                   <span className="text-muted-foreground">Flow</span>
                   <span className="font-mono text-foreground flex items-center gap-1">
-                    USDT <ArrowRight className="size-2.5" /> USDC <ArrowRight className="size-2.5" /> Kamino Vault
+                    {isTestnet ? (
+                      <>
+                        USDC <ArrowRight className="size-2.5" /> Cusp Vault <ArrowRight className="size-2.5" /> cUSDC
+                      </>
+                    ) : (
+                      <>
+                        USDC <ArrowRight className="size-2.5" /> Cusp Vault <ArrowRight className="size-2.5" /> cUSDC
+                      </>
+                    )}
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
@@ -228,17 +286,13 @@ const DepositWithdrawPanel = () => {
                   <span className="font-mono text-cusp-teal">{kaminoApy.toFixed(2)}%</span>
                 </div>
                 <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Perf. Fee</span>
-                  <span className="font-mono text-foreground">{kaminoVault ? `${(kaminoVault.performanceFeeBps / 100).toFixed(1)}%` : "5.0%"}</span>
+                  <span className="text-muted-foreground">{isTestnet ? "Demo Mode" : "Perf. Fee"}</span>
+                  <span className="font-mono text-foreground">{isTestnet ? "Live contract" : kaminoVault ? `${(kaminoVault.performanceFeeBps / 100).toFixed(1)}%` : "5.0%"}</span>
                 </div>
-                <div className="flex justify-between text-xs">
-                  <span className="text-muted-foreground">Swap fee</span>
-                  <span className="font-mono text-foreground">~0.1% (Jupiter)</span>
-                </div>
-                {kaminoPosition && kaminoPosition.tokenValue > 0 && (
+                {(portfolio?.total_cusdc ?? 0) > 0 && (
                   <div className="flex justify-between text-xs pt-1 border-t border-border">
                     <span className="text-muted-foreground">Current position</span>
-                    <span className="font-mono text-cusp-teal">${kaminoPosition.tokenValue.toFixed(2)}</span>
+                    <span className="font-mono text-cusp-teal">${((portfolio?.total_cusdc ?? 0) * exchangeRate).toFixed(2)}</span>
                   </div>
                 )}
               </>
@@ -247,12 +301,12 @@ const DepositWithdrawPanel = () => {
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">You'll receive</span>
                   <span className="font-mono text-foreground">
-                    {(numAmount * exchangeRate).toFixed(4)} USDT
+                    {(numAmount * exchangeRate).toFixed(4)} USDC
                   </span>
                 </div>
                 <div className="flex justify-between text-xs">
                   <span className="text-muted-foreground">Type</span>
-                  <span className="font-mono text-foreground">Instant (on-chain)</span>
+                  <span className="font-mono text-foreground">Live vault redemption</span>
                 </div>
               </>
             )}
@@ -269,7 +323,15 @@ const DepositWithdrawPanel = () => {
         {activeStatus === "success" && (
           <div className="flex items-center gap-2 text-xs text-cusp-green">
             <CheckCircle className="size-3" />
-            {tab === "withdraw" ? "Withdrawal processed!" : tab === "earn" ? "Earn deposit successful!" : "Deposit successful!"}
+            {isTestnet
+              ? tab === "withdraw"
+                ? "Devnet withdrawal processed!"
+                : "Devnet vault deposit successful!"
+              : tab === "withdraw"
+                ? "Vault withdrawal processed!"
+                : tab === "earn"
+                  ? "Vault deposit successful!"
+                  : "Deposit successful!"}
             {activeTx && (
               <a
                 href={`https://solscan.io/tx/${activeTx}${explorerCluster}`}
@@ -300,9 +362,9 @@ const DepositWithdrawPanel = () => {
             : isProcessing
               ? "Processing..."
               : tab === "withdraw"
-                ? "Withdraw"
+                ? "Withdraw USDC"
                 : tab === "earn"
-                  ? "Deposit to Earn"
+                  ? isTestnet ? "Deposit to Devnet Vault" : "Deposit to Vault"
                   : "Deposit to Trading Pool"}
         </button>
       </div>
