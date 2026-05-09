@@ -8,6 +8,11 @@ export type Asset =
 
 export type RiskTier = "conservative" | "moderate" | "growth";
 export type MarketEligibility = RiskTier | "ineligible";
+export type OutcomeRiskTier = "low" | "medium" | "high";
+export type OutcomeMarketEligibility = OutcomeRiskTier | "ineligible";
+export type OutcomeCollateralStatus = "pending" | "confirmed" | "locked" | "released" | "liquidated";
+export type OutcomeLoanStatus = "pending" | "active" | "repaid" | "liquidating" | "liquidated" | "defaulted";
+export type LendingPoolType = "demo_vault" | "mainnet_trading";
 export type TradeSide = "yes" | "no";
 export type ExecutionAsset = "USDT" | "USDC" | "CASH" | "AUTO";
 
