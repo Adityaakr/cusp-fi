@@ -15,6 +15,7 @@ import {
   fetchTotalActiveMarketsCount,
   fetchCategoryNestedMarketCounts,
   fetchMarketCategoryIndex,
+  fetchLiveDataByEvent,
   type CuspMarket,
   type DFlowTagsResponse,
 } from "@/lib/dflow-api";
@@ -25,6 +26,7 @@ const QUERY_KEYS = {
   market: ["dflow", "market"] as const,
   event: ["dflow", "event"] as const,
   events: ["dflow", "events"] as const,
+  liveDataByEvent: ["dflow", "liveDataByEvent"] as const,
   tags: ["dflow", "tags"] as const,
   scopedMarkets: ["dflow", "scopedMarkets"] as const,
   candlesticks: ["dflow", "candlesticks"] as const,
@@ -300,6 +302,24 @@ export function useDflowEvent(
     enabled: !!eventTicker,
     staleTime: 15_000,
     refetchInterval: options?.refetchInterval,
+  });
+}
+
+export function useDflowLiveDataByEvent(
+  eventTicker: string | undefined,
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+) {
+  return useQuery({
+    queryKey: [...QUERY_KEYS.liveDataByEvent, eventTicker ?? ""] as const,
+    queryFn: async () => {
+      if (!eventTicker) throw new Error("No event ticker");
+      return fetchLiveDataByEvent(eventTicker);
+    },
+    enabled: options?.enabled !== false && !!eventTicker,
+    staleTime: 15_000,
+    refetchInterval: options?.refetchInterval,
+    refetchOnWindowFocus: false,
+    retry: false,
   });
 }
 

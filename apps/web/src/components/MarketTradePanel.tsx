@@ -19,6 +19,8 @@ export interface MarketTradePanelProps {
   market: CuspMarket;
   /** Outcome row title (e.g. primary label from event context); shown as panel headline. */
   headline: string;
+  /** Team/outcome image from live data (home/away URLs) when available; overrides `market.imageUrl` for the avatar. */
+  tradeOutcomeImageUrl?: string;
   isLive: boolean;
   tradeSide: "YES" | "NO";
   setTradeSide: (s: "YES" | "NO") => void;
@@ -56,6 +58,7 @@ export interface MarketTradePanelProps {
 export function MarketTradePanel({
   market,
   headline,
+  tradeOutcomeImageUrl,
   isLive,
   tradeSide,
   setTradeSide,
@@ -94,7 +97,13 @@ export function MarketTradePanel({
   return (
     <div className={`bg-bg-1 border border-border rounded-xl p-5 sm:p-6 shadow-sm ${className}`}>
       <div className="flex items-start gap-4 mb-4">
-        <MarketAvatar market={market} className="h-14 w-14 shrink-0 rounded-2xl" />
+        <MarketAvatar
+          market={{
+            ...market,
+            imageUrl: tradeOutcomeImageUrl?.trim() || market.imageUrl,
+          }}
+          className="h-14 w-14 shrink-0 rounded-2xl"
+        />
         <div className="min-w-0 flex-1">
           <div className="flex flex-wrap items-center gap-2 mb-3">
             <div className="min-w-0 flex-1">

@@ -14,6 +14,7 @@ import { Area, AreaChart, XAxis, YAxis, CartesianGrid } from "recharts";
 import {
   useDflowMarket,
   useDflowEvent,
+  useDflowLiveDataByEvent,
   useDflowCandlesticks,
   useDflowMarketPrefetchQueries,
   type CandlestickTimeframe,
@@ -21,7 +22,7 @@ import {
 import { useDflowWebSocket } from "@/hooks/useDflowWebSocket";
 import { usePhantom, useSolana } from "@/lib/wallet";
 import { VersionedTransaction } from "@solana/web3.js";
-import { dflowMarketToCusp, dflowMarketImageUrl, fetchOrderQuote, getMarketOutcomeRowLabels } from "@/lib/dflow-api";
+import { dflowMarketToCusp, dflowMarketImageUrl, fetchOrderQuote, getMarketOutcomeRowLabels, resolveTradeOutcomeImageFromLiveData } from "@/lib/dflow-api";
 import { MAINNET_USDC_MINT } from "@/lib/network-config";
 import { getMainnetConnection } from "@/lib/solana";
 import { MIN_TRADE_USDC } from "@/lib/protocol-constants";
@@ -145,6 +146,11 @@ const MarketDetail = () => {
     recentTrades,
   } = useDflowWebSocket(activeTicker);
   const eventTickerForQuery = queriedMarket?.eventTicker ?? lastEventTickerRef.current;
+
+  const liveDataQuery = useDflowLiveDataByEvent(eventTickerForQuery, {
+    enabled: Boolean(eventTickerForQuery),
+    refetchInterval: isLive ? 30_000 : false,
+  });
 
   const eventQuery = useDflowEvent(eventTickerForQuery, {
     refetchInterval: 30_000,
@@ -273,6 +279,12 @@ const MarketDetail = () => {
   useEffect(() => {
     setTradeSide(parseTradeSide(searchParams));
   }, [searchParams]);
+
+  const tradeOutcomeImageUrl = useMemo(
+    () =>
+      market ? resolveTradeOutcomeImageFromLiveData(liveDataQuery.data, market, tradeSide) : undefined,
+    [liveDataQuery.data, market, tradeSide]
+  );
 
   useEffect(() => {
     if (searchParams.get("openTrade") !== "1") return;
@@ -604,6 +616,7 @@ const MarketDetail = () => {
     return {
       market,
       headline: detailCardTitle,
+      tradeOutcomeImageUrl,
       isLive,
       tradeSide,
       setTradeSide,
@@ -639,6 +652,7 @@ const MarketDetail = () => {
   }, [
     market,
     detailCardTitle,
+    tradeOutcomeImageUrl,
     isLive,
     tradeSide,
     contracts,

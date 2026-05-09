@@ -301,6 +301,138 @@ export async function fetchEvent(
   return fetchJson(`${METADATA_API}/api/v1/event/${eventTicker}${qs ? `?${qs}` : ""}`);
 }
 
+/** Kalshi-style scoreboard `details` object (see live-data-details docs; fields optional at runtime). */
+export interface DFlowLiveDataDetails {
+  type?: string;
+  home_name?: string;
+  home_short_name?: string;
+  home_abbreviation?: string;
+  away_name?: string;
+  away_short_name?: string;
+  away_abbreviation?: string;
+  home_image_url?: string;
+  home_image_url_light?: string;
+  home_image_url_dark?: string;
+  away_image_url?: string;
+  away_image_url_light?: string;
+  away_image_url_dark?: string;
+  home_is_first?: boolean;
+}
+
+function isPlainObject(u: unknown): u is Record<string, unknown> {
+  return typeof u === "object" && u !== null && !Array.isArray(u);
+}
+
+/** Depth-first collect of `details` objects that look like team scoreboards (have image URLs). */
+export function collectLiveDataDetailsObjects(payload: unknown): DFlowLiveDataDetails[] {
+  const out: DFlowLiveDataDetails[] = [];
+  const seen = new Set<unknown>();
+
+  function walk(node: unknown): void {
+    if (node === null || node === undefined) return;
+    if (typeof node !== "object") return;
+    if (seen.has(node)) return;
+    seen.add(node);
+
+    if (Array.isArray(node)) {
+      for (const x of node) walk(x);
+      return;
+    }
+
+    const rec = node as Record<string, unknown>;
+    const details = rec.details;
+    if (isPlainObject(details)) {
+      const hi = details.home_image_url;
+      const ai = details.away_image_url;
+      if (typeof hi === "string" || typeof ai === "string") {
+        out.push(details as DFlowLiveDataDetails);
+      }
+    }
+
+    for (const v of Object.values(rec)) walk(v);
+  }
+
+  walk(payload);
+  return out;
+}
+
+function normalizeLabel(s: string | undefined): string {
+  return (s ?? "").trim().toLowerCase().replace(/[^a-z0-9]+/g, "");
+}
+
+function labelMatchesTeam(
+  outcomeLabel: string,
+  primary?: string,
+  shortName?: string,
+  abbr?: string
+): boolean {
+  const lo = normalizeLabel(outcomeLabel);
+  if (!lo) return false;
+  for (const raw of [primary, shortName, abbr]) {
+    const t = normalizeLabel(raw);
+    if (!t || t.length < 2) continue;
+    if (lo === t) return true;
+    if (lo.includes(t) || t.includes(lo)) return true;
+  }
+  return false;
+}
+
+/** Map YES/NO outcome text to home vs away using live names; returns null if ambiguous or no data. */
+export function outcomeTeamSideFromLiveDetails(
+  outcomeLabel: string,
+  d: DFlowLiveDataDetails
+): "home" | "away" | null {
+  const home =
+    labelMatchesTeam(outcomeLabel, d.home_name, d.home_short_name, d.home_abbreviation) ? true : false;
+  const away =
+    labelMatchesTeam(outcomeLabel, d.away_name, d.away_short_name, d.away_abbreviation) ? true : false;
+  if (home && !away) return "home";
+  if (away && !home) return "away";
+  return null;
+}
+
+function pickTeamImage(d: DFlowLiveDataDetails, side: "home" | "away"): string | undefined {
+  if (side === "home") {
+    const u = d.home_image_url?.trim() || d.home_image_url_light?.trim() || d.home_image_url_dark?.trim();
+    return u || undefined;
+  }
+  const u = d.away_image_url?.trim() || d.away_image_url_light?.trim() || d.away_image_url_dark?.trim();
+  return u || undefined;
+}
+
+/**
+ * Resolve a team logo URL for the outcome being traded, using GET /live_data/by-event payload.
+ * Matches `yesLabel` / `noLabel` to home/away names from `details` (see DFlow live-data-details).
+ */
+export function resolveTradeOutcomeImageFromLiveData(
+  livePayload: unknown,
+  market: Pick<CuspMarket, "yesLabel" | "noLabel" | "name">,
+  tradeSide: "YES" | "NO"
+): string | undefined {
+  const blobs = collectLiveDataDetailsObjects(livePayload);
+  if (blobs.length === 0) return undefined;
+
+  const outcomeLabel = (tradeSide === "YES" ? market.yesLabel : market.noLabel)?.trim() || "";
+  const fallbacks = [outcomeLabel, market.name?.trim() ?? ""].filter(Boolean);
+
+  for (const label of fallbacks) {
+    for (const d of blobs) {
+      const side = outcomeTeamSideFromLiveDetails(label, d);
+      if (side) {
+        const url = pickTeamImage(d, side);
+        if (url) return url;
+      }
+    }
+  }
+
+  return undefined;
+}
+
+export async function fetchLiveDataByEvent(eventTicker: string): Promise<unknown> {
+  const enc = encodeURIComponent(eventTicker);
+  return fetchJson(`${METADATA_API}/api/v1/live_data/by-event/${enc}`);
+}
+
 export async function fetchEvents(params?: {
   limit?: number;
   cursor?: number;
