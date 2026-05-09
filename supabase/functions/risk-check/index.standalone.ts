@@ -12,7 +12,7 @@ const corsHeaders = {
 };
 
 const MIN_MARGIN_USDC = 1;
-const MAX_LEVERAGE = 3;
+const MAX_LEVERAGE = 5;
 const _MAX_POS_RATIO = 0.08;
 const MIN_TVL_DENOMINATOR_USDC = 500;
 const MIN_RESERVE_RATIO = 0.2;

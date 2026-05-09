@@ -25,7 +25,7 @@ const TOKEN_PROGRAM_ID = new PublicKey("TokenkegQfeZyiNwAJbNbGKPFXCWuBvf9Ss623VQ
 const ASSOCIATED_TOKEN_PROGRAM_ID = new PublicKey("ATokenGPvbdGVxr1b2hvZbsiqW5xWH25efTNsLJA8knL");
 
 const MIN_MARGIN_USDC = 1;
-const MAX_LEVERAGE = 3;
+const MAX_LEVERAGE = 5;
 const MAX_POS_RATIO = 0.08;
 const MIN_TVL_DENOMINATOR_USDC = 500;
 

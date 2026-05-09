@@ -52,10 +52,12 @@ async function main() {
   const config = JSON.parse(fs.readFileSync(configPath, "utf-8"));
 
   // Load mint authority keypair
-  const keypairPath = path.resolve(
-    process.env.HOME || "~",
-    ".config/solana/id.json"
-  );
+  const repoKeypairPath = path.resolve(__dirname, "../.keys/devnet-admin.json");
+  const keypairPath = process.env.WALLET_KEYPAIR
+    ? path.resolve(process.env.WALLET_KEYPAIR)
+    : fs.existsSync(repoKeypairPath)
+      ? repoKeypairPath
+      : path.resolve(process.env.HOME || "~", ".config/solana/id.json");
   const keypairData = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
   const mintAuthority = Keypair.fromSecretKey(Uint8Array.from(keypairData));
 
@@ -64,6 +66,7 @@ async function main() {
   const usdcMint = new PublicKey(config.testUsdcMint);
 
   console.log(`Minting ${amount} Test USDC to ${targetAddress}...`);
+  console.log(`Using mint authority: ${mintAuthority.publicKey.toBase58()}`);
 
   // Transfer SOL from admin wallet for gas fees
   try {

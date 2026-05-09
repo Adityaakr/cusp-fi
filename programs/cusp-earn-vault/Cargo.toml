@@ -1,12 +1,12 @@
 [package]
-name = "cusp-leverage"
+name = "cusp-earn-vault"
 version = "0.1.0"
-description = "Cusp Leverage: on-chain leveraged prediction market positions"
+description = "Cusp Earn Vault: deposit USDC (swapped from USDT), mint cUSDT shares, earn yield from Kamino"
 edition = "2021"
 
 [lib]
 crate-type = ["cdylib", "lib"]
-name = "cusp_leverage"
+name = "cusp_earn_vault"
 
 [dependencies]
 borsh = { version = "1.5.3", features = ["derive"] }
