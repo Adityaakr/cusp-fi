@@ -31,13 +31,15 @@ async function main() {
   console.log("=== Cusp Devnet Setup ===\n");
 
   // Load wallet keypair
-  const keypairPath = path.resolve(
-    process.env.HOME || "~",
-    ".config/solana/id.json"
-  );
+  const repoKeypairPath = path.resolve(__dirname, "../.keys/devnet-admin.json");
+  const keypairPath = process.env.WALLET_KEYPAIR
+    ? path.resolve(process.env.WALLET_KEYPAIR)
+    : fs.existsSync(repoKeypairPath)
+      ? repoKeypairPath
+      : path.resolve(process.env.HOME || "~", ".config/solana/id.json");
   if (!fs.existsSync(keypairPath)) {
     console.error(
-      "No Solana keypair found. Run: solana-keygen new"
+      `No Solana keypair found at ${keypairPath}. Run: solana-keygen new --outfile ${repoKeypairPath}`
     );
     process.exit(1);
   }

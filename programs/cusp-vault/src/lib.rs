@@ -1,378 +1,32 @@
-use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Burn, Mint, MintTo, Token, TokenAccount, Transfer};
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    hash::hash,
+    msg,
+    program::{invoke, invoke_signed},
+    program_error::ProgramError,
+    program_pack::Pack,
+    pubkey::Pubkey,
+    system_instruction,
+    rent::Rent,
+    sysvar::Sysvar,
+};
+use spl_token::instruction as token_instruction;
+use spl_token::state::{Account as TokenAccount, Mint};
 
-declare_id!("EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ");
+solana_program::declare_id!("9Jucf5RimpEJnCun98q258zXx9A6n9fP4JHzNzsJ9DBF");
 
-/// Cusp Vault Program
-///
-/// Users deposit USDC and receive cUSDC (vault shares) at the current exchange rate.
-/// When yield accrues (from leveraged trading profits), the exchange rate increases,
-/// meaning each cUSDC is worth more USDC over time.
-///
-/// Exchange rate = total_usdc_managed / total_cusdc_supply
-/// Starting rate: 1 cUSDC = 1 USDC
-///
-/// The vault also acts as a lending pool for leveraged trades:
-/// - `deploy_funds`: admin withdraws USDC to fund a leveraged DFlow trade
-/// - `return_funds`: admin returns borrowed principal after trade closes
-/// - `add_yield`: admin deposits trading profit (increases cUSDC exchange rate)
-#[program]
-pub mod cusp_vault {
-    use super::*;
+const VAULT_SEED: &[u8] = b"vault";
+const CUSDC_MINT_SEED: &[u8] = b"cusdc-mint";
+const VAULT_USDC_SEED: &[u8] = b"vault-usdc";
+const VAULT_STATE_DISCRIMINATOR_LEN: usize = 8;
+const VAULT_STATE_SPACE: usize = VAULT_STATE_DISCRIMINATOR_LEN + 32 * 4 + 8 * 3 + 3;
 
-    /// Step 1: Create vault state and cUSDC mint. Called once by admin.
-    pub fn initialize(ctx: Context<Initialize>, usdc_mint: Pubkey) -> Result<()> {
-        let vault = &mut ctx.accounts.vault_state;
-        vault.admin = ctx.accounts.admin.key();
-        vault.usdc_mint = usdc_mint;
-        vault.cusdc_mint = ctx.accounts.cusdc_mint.key();
-        vault.vault_usdc_account = Pubkey::default(); // set in init_vault_account
-        vault.total_usdc_managed = 0;
-        vault.total_cusdc_supply = 0;
-        vault.total_deployed = 0;
-        vault.bump = ctx.bumps.vault_state;
-        vault.cusdc_mint_bump = ctx.bumps.cusdc_mint;
-        vault.is_paused = false;
+entrypoint!(process_instruction);
 
-        msg!("Vault state + cUSDC mint created");
-        Ok(())
-    }
-
-    /// Step 2: Create the vault's USDC token account. Called once after initialize.
-    pub fn init_vault_account(ctx: Context<InitVaultAccount>) -> Result<()> {
-        let vault = &mut ctx.accounts.vault_state;
-        vault.vault_usdc_account = ctx.accounts.vault_usdc_account.key();
-        msg!("Vault USDC account created");
-        Ok(())
-    }
-
-    /// Deposit USDC into the vault, receive cUSDC shares.
-    pub fn deposit(ctx: Context<Deposit>, usdc_amount: u64) -> Result<()> {
-        require!(usdc_amount > 0, VaultError::ZeroAmount);
-        require!(!ctx.accounts.vault_state.is_paused, VaultError::VaultPaused);
-
-        let vault = &ctx.accounts.vault_state;
-
-        // Calculate cUSDC to mint based on exchange rate
-        let cusdc_to_mint = if vault.total_cusdc_supply == 0 || vault.total_usdc_managed == 0 {
-            // First deposit: 1:1 ratio
-            usdc_amount
-        } else {
-            // cusdc_to_mint = usdc_amount * total_cusdc_supply / total_usdc_managed
-            (usdc_amount as u128)
-                .checked_mul(vault.total_cusdc_supply as u128)
-                .unwrap()
-                .checked_div(vault.total_usdc_managed as u128)
-                .unwrap() as u64
-        };
-
-        require!(cusdc_to_mint > 0, VaultError::DepositTooSmall);
-
-        // Transfer USDC from user to vault
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.user_usdc_account.to_account_info(),
-                    to: ctx.accounts.vault_usdc_account.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            ),
-            usdc_amount,
-        )?;
-
-        // Mint cUSDC to user
-        let vault_seeds = &[b"vault" as &[u8], &[ctx.accounts.vault_state.bump]];
-        let signer_seeds = &[&vault_seeds[..]];
-
-        token::mint_to(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                MintTo {
-                    mint: ctx.accounts.cusdc_mint.to_account_info(),
-                    to: ctx.accounts.user_cusdc_account.to_account_info(),
-                    authority: ctx.accounts.vault_state.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            cusdc_to_mint,
-        )?;
-
-        // Update vault state
-        let vault = &mut ctx.accounts.vault_state;
-        vault.total_usdc_managed = vault
-            .total_usdc_managed
-            .checked_add(usdc_amount)
-            .ok_or(VaultError::Overflow)?;
-        vault.total_cusdc_supply = vault
-            .total_cusdc_supply
-            .checked_add(cusdc_to_mint)
-            .ok_or(VaultError::Overflow)?;
-
-        msg!(
-            "Deposited {} USDC, minted {} cUSDC. Rate: {}/{}",
-            usdc_amount,
-            cusdc_to_mint,
-            vault.total_usdc_managed,
-            vault.total_cusdc_supply
-        );
-
-        emit!(DepositEvent {
-            user: ctx.accounts.user.key(),
-            usdc_amount,
-            cusdc_minted: cusdc_to_mint,
-            total_usdc: vault.total_usdc_managed,
-            total_cusdc: vault.total_cusdc_supply,
-        });
-
-        Ok(())
-    }
-
-    /// Withdraw USDC from the vault by burning cUSDC shares.
-    /// Only available (non-deployed) USDC can be withdrawn.
-    pub fn withdraw(ctx: Context<Withdraw>, cusdc_amount: u64) -> Result<()> {
-        require!(cusdc_amount > 0, VaultError::ZeroAmount);
-        require!(!ctx.accounts.vault_state.is_paused, VaultError::VaultPaused);
-
-        let vault = &ctx.accounts.vault_state;
-
-        // Calculate USDC to return based on exchange rate
-        let usdc_to_return = (cusdc_amount as u128)
-            .checked_mul(vault.total_usdc_managed as u128)
-            .unwrap()
-            .checked_div(vault.total_cusdc_supply as u128)
-            .unwrap() as u64;
-
-        require!(usdc_to_return > 0, VaultError::WithdrawTooSmall);
-
-        // Check available (non-deployed) balance
-        let available = vault
-            .total_usdc_managed
-            .saturating_sub(vault.total_deployed);
-        require!(
-            usdc_to_return <= available,
-            VaultError::InsufficientVaultFunds
-        );
-
-        // Burn cUSDC from user
-        token::burn(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Burn {
-                    mint: ctx.accounts.cusdc_mint.to_account_info(),
-                    from: ctx.accounts.user_cusdc_account.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            ),
-            cusdc_amount,
-        )?;
-
-        // Transfer USDC from vault to user
-        let vault_seeds = &[b"vault" as &[u8], &[ctx.accounts.vault_state.bump]];
-        let signer_seeds = &[&vault_seeds[..]];
-
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.vault_usdc_account.to_account_info(),
-                    to: ctx.accounts.user_usdc_account.to_account_info(),
-                    authority: ctx.accounts.vault_state.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            usdc_to_return,
-        )?;
-
-        // Update vault state
-        let vault = &mut ctx.accounts.vault_state;
-        vault.total_usdc_managed = vault
-            .total_usdc_managed
-            .checked_sub(usdc_to_return)
-            .ok_or(VaultError::Overflow)?;
-        vault.total_cusdc_supply = vault
-            .total_cusdc_supply
-            .checked_sub(cusdc_amount)
-            .ok_or(VaultError::Overflow)?;
-
-        msg!(
-            "Withdrew {} USDC, burned {} cUSDC. Rate: {}/{}",
-            usdc_to_return,
-            cusdc_amount,
-            vault.total_usdc_managed,
-            vault.total_cusdc_supply
-        );
-
-        emit!(WithdrawEvent {
-            user: ctx.accounts.user.key(),
-            usdc_returned: usdc_to_return,
-            cusdc_burned: cusdc_amount,
-            total_usdc: vault.total_usdc_managed,
-            total_cusdc: vault.total_cusdc_supply,
-        });
-
-        Ok(())
-    }
-
-    /// Deploy USDC from vault to fund a leveraged trade. Admin only.
-    /// The borrowed USDC is sent to a destination account (e.g., position escrow
-    /// or admin's trade account) and tracked as deployed capital.
-    pub fn deploy_funds(ctx: Context<DeployFunds>, amount: u64) -> Result<()> {
-        require!(amount > 0, VaultError::ZeroAmount);
-
-        let vault = &ctx.accounts.vault_state;
-        let available = vault
-            .total_usdc_managed
-            .saturating_sub(vault.total_deployed);
-        require!(amount <= available, VaultError::InsufficientVaultFunds);
-
-        // Enforce minimum 20% reserve after deployment
-        let remaining = available.checked_sub(amount).unwrap();
-        let min_reserve = vault.total_usdc_managed / 5; // 20%
-        require!(
-            remaining >= min_reserve || vault.total_usdc_managed <= 1_000_000, // skip reserve check for tiny vaults (<$1)
-            VaultError::ReserveTooLow
-        );
-
-        // Transfer USDC from vault to destination
-        let vault_seeds = &[b"vault" as &[u8], &[vault.bump]];
-        let signer_seeds = &[&vault_seeds[..]];
-
-        token::transfer(
-            CpiContext::new_with_signer(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.vault_usdc_account.to_account_info(),
-                    to: ctx.accounts.destination.to_account_info(),
-                    authority: ctx.accounts.vault_state.to_account_info(),
-                },
-                signer_seeds,
-            ),
-            amount,
-        )?;
-
-        // Track deployed capital (total_usdc_managed stays the same — value is still managed)
-        let vault = &mut ctx.accounts.vault_state;
-        vault.total_deployed = vault
-            .total_deployed
-            .checked_add(amount)
-            .ok_or(VaultError::Overflow)?;
-
-        msg!(
-            "Deployed {} USDC. Total deployed: {}, Available: {}",
-            amount,
-            vault.total_deployed,
-            vault.total_usdc_managed.saturating_sub(vault.total_deployed)
-        );
-
-        emit!(DeployEvent {
-            amount,
-            total_deployed: vault.total_deployed,
-            total_managed: vault.total_usdc_managed,
-        });
-
-        Ok(())
-    }
-
-    /// Return borrowed USDC principal back to vault after a leveraged trade closes.
-    /// Admin only. Profit should be added separately via add_yield.
-    pub fn return_funds(ctx: Context<ReturnFunds>, amount: u64) -> Result<()> {
-        require!(amount > 0, VaultError::ZeroAmount);
-        require!(
-            amount <= ctx.accounts.vault_state.total_deployed,
-            VaultError::ReturnExceedsDeployed
-        );
-
-        // Transfer USDC back to vault
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.source.to_account_info(),
-                    to: ctx.accounts.vault_usdc_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                },
-            ),
-            amount,
-        )?;
-
-        // Decrease deployed tracking
-        let vault = &mut ctx.accounts.vault_state;
-        vault.total_deployed = vault
-            .total_deployed
-            .checked_sub(amount)
-            .ok_or(VaultError::Overflow)?;
-
-        msg!(
-            "Returned {} USDC. Total deployed: {}, Available: {}",
-            amount,
-            vault.total_deployed,
-            vault.total_usdc_managed.saturating_sub(vault.total_deployed)
-        );
-
-        emit!(ReturnEvent {
-            amount,
-            total_deployed: vault.total_deployed,
-            total_managed: vault.total_usdc_managed,
-        });
-
-        Ok(())
-    }
-
-    /// Add yield to the vault (increases exchange rate). Admin only.
-    /// Called when leveraged trading profits are realized.
-    pub fn add_yield(ctx: Context<AddYield>, usdc_amount: u64) -> Result<()> {
-        require!(usdc_amount > 0, VaultError::ZeroAmount);
-
-        // Transfer yield USDC into vault
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.admin_usdc_account.to_account_info(),
-                    to: ctx.accounts.vault_usdc_account.to_account_info(),
-                    authority: ctx.accounts.admin.to_account_info(),
-                },
-            ),
-            usdc_amount,
-        )?;
-
-        // Increase total_usdc_managed WITHOUT minting new cUSDC
-        // This raises the exchange rate for all cUSDC holders
-        let vault = &mut ctx.accounts.vault_state;
-        vault.total_usdc_managed = vault
-            .total_usdc_managed
-            .checked_add(usdc_amount)
-            .ok_or(VaultError::Overflow)?;
-
-        msg!(
-            "Added {} USDC yield. New rate: {}/{}",
-            usdc_amount,
-            vault.total_usdc_managed,
-            vault.total_cusdc_supply
-        );
-
-        emit!(YieldEvent {
-            usdc_added: usdc_amount,
-            total_usdc: vault.total_usdc_managed,
-            total_cusdc: vault.total_cusdc_supply,
-        });
-
-        Ok(())
-    }
-
-    /// Pause/unpause the vault. Admin only.
-    pub fn set_paused(ctx: Context<AdminAction>, paused: bool) -> Result<()> {
-        ctx.accounts.vault_state.is_paused = paused;
-        msg!("Vault paused: {}", paused);
-        Ok(())
-    }
-}
-
-// ── Accounts ─────────────────────────────────────────────────────────────────
-
-#[account]
-#[derive(InitSpace)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct VaultState {
     pub admin: Pubkey,
     pub usdc_mint: Pubkey,
@@ -380,290 +34,690 @@ pub struct VaultState {
     pub vault_usdc_account: Pubkey,
     pub total_usdc_managed: u64,
     pub total_cusdc_supply: u64,
-    /// USDC currently deployed to leveraged trades (not available for withdrawal)
     pub total_deployed: u64,
     pub bump: u8,
     pub cusdc_mint_bump: u8,
     pub is_paused: bool,
 }
 
-#[derive(Accounts)]
-pub struct Initialize<'info> {
-    #[account(mut)]
-    pub admin: Signer<'info>,
-
-    #[account(
-        init,
-        payer = admin,
-        space = 8 + VaultState::INIT_SPACE,
-        seeds = [b"vault"],
-        bump,
-    )]
-    pub vault_state: Box<Account<'info, VaultState>>,
-
-    /// cUSDC mint — PDA owned by the vault
-    #[account(
-        init,
-        payer = admin,
-        mint::decimals = 6,
-        mint::authority = vault_state,
-        seeds = [b"cusdc-mint"],
-        bump,
-    )]
-    pub cusdc_mint: Box<Account<'info, Mint>>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
+#[derive(BorshSerialize, BorshDeserialize)]
+struct InitializeArgs {
+    usdc_mint: Pubkey,
 }
 
-#[derive(Accounts)]
-pub struct InitVaultAccount<'info> {
-    #[account(mut, address = vault_state.admin @ VaultError::Unauthorized)]
-    pub admin: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Box<Account<'info, VaultState>>,
-
-    /// The USDC mint
-    pub usdc_mint: Box<Account<'info, Mint>>,
-
-    /// Vault's USDC token account
-    #[account(
-        init,
-        payer = admin,
-        token::mint = usdc_mint,
-        token::authority = vault_state,
-        seeds = [b"vault-usdc"],
-        bump,
-    )]
-    pub vault_usdc_account: Box<Account<'info, TokenAccount>>,
-
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
+#[derive(BorshSerialize, BorshDeserialize)]
+struct AmountArgs {
+    amount: u64,
 }
 
-#[derive(Accounts)]
-pub struct Deposit<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
-
-    #[account(
-        mut,
-        address = vault_state.cusdc_mint,
-    )]
-    pub cusdc_mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        address = vault_state.vault_usdc_account,
-    )]
-    pub vault_usdc_account: Account<'info, TokenAccount>,
-
-    /// User's USDC token account
-    #[account(mut, token::mint = vault_state.usdc_mint, token::authority = user)]
-    pub user_usdc_account: Account<'info, TokenAccount>,
-
-    /// User's cUSDC token account
-    #[account(mut, token::mint = vault_state.cusdc_mint)]
-    pub user_cusdc_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
+#[derive(BorshSerialize, BorshDeserialize)]
+struct SetPausedArgs {
+    paused: bool,
 }
 
-#[derive(Accounts)]
-pub struct Withdraw<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
-
-    #[account(
-        mut,
-        address = vault_state.cusdc_mint,
-    )]
-    pub cusdc_mint: Account<'info, Mint>,
-
-    #[account(
-        mut,
-        address = vault_state.vault_usdc_account,
-    )]
-    pub vault_usdc_account: Account<'info, TokenAccount>,
-
-    #[account(mut, token::mint = vault_state.usdc_mint, token::authority = user)]
-    pub user_usdc_account: Account<'info, TokenAccount>,
-
-    #[account(mut, token::mint = vault_state.cusdc_mint, token::authority = user)]
-    pub user_cusdc_account: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
+#[repr(u32)]
+enum VaultError {
+    ZeroAmount = 1,
+    DepositTooSmall = 2,
+    WithdrawTooSmall = 3,
+    InsufficientVaultFunds = 4,
+    Overflow = 5,
+    VaultPaused = 6,
+    Unauthorized = 7,
+    ReserveTooLow = 8,
+    ReturnExceedsDeployed = 9,
+    InvalidInstruction = 10,
+    InvalidAccount = 11,
 }
 
-#[derive(Accounts)]
-pub struct DeployFunds<'info> {
-    #[account(mut, address = vault_state.admin @ VaultError::Unauthorized)]
-    pub admin: Signer<'info>,
-
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
-
-    #[account(
-        mut,
-        address = vault_state.vault_usdc_account,
-    )]
-    pub vault_usdc_account: Account<'info, TokenAccount>,
-
-    /// Destination for deployed USDC (e.g., admin's trade account or position escrow)
-    #[account(mut, token::mint = vault_state.usdc_mint)]
-    pub destination: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
+impl From<VaultError> for ProgramError {
+    fn from(value: VaultError) -> Self {
+        ProgramError::Custom(value as u32)
+    }
 }
 
-#[derive(Accounts)]
-pub struct ReturnFunds<'info> {
-    #[account(mut, address = vault_state.admin @ VaultError::Unauthorized)]
-    pub admin: Signer<'info>,
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    let (discriminator, payload) = instruction_data
+        .split_first_chunk::<8>()
+        .ok_or(VaultError::InvalidInstruction)?;
 
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
+    if *discriminator == legacy_instruction_discriminator("initialize") {
+        let args = InitializeArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return initialize(program_id, accounts, args);
+    }
+    if *discriminator == legacy_instruction_discriminator("init_vault_account") {
+        return init_vault_account(program_id, accounts);
+    }
+    if *discriminator == legacy_instruction_discriminator("deposit") {
+        let args = AmountArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return deposit(program_id, accounts, args.amount);
+    }
+    if *discriminator == legacy_instruction_discriminator("withdraw") {
+        let args = AmountArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return withdraw(program_id, accounts, args.amount);
+    }
+    if *discriminator == legacy_instruction_discriminator("deploy_funds") {
+        let args = AmountArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return deploy_funds(program_id, accounts, args.amount);
+    }
+    if *discriminator == legacy_instruction_discriminator("return_funds") {
+        let args = AmountArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return return_funds(program_id, accounts, args.amount);
+    }
+    if *discriminator == legacy_instruction_discriminator("add_yield") {
+        let args = AmountArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return add_yield(program_id, accounts, args.amount);
+    }
+    if *discriminator == legacy_instruction_discriminator("set_paused") {
+        let args = SetPausedArgs::try_from_slice(payload).map_err(|_| VaultError::InvalidInstruction)?;
+        return set_paused(program_id, accounts, args.paused);
+    }
 
-    #[account(
-        mut,
-        address = vault_state.vault_usdc_account,
-    )]
-    pub vault_usdc_account: Account<'info, TokenAccount>,
-
-    /// Source of returned USDC (admin's account holding the principal)
-    #[account(mut, token::mint = vault_state.usdc_mint, token::authority = admin)]
-    pub source: Account<'info, TokenAccount>,
-
-    pub token_program: Program<'info, Token>,
+    Err(VaultError::InvalidInstruction.into())
 }
 
-#[derive(Accounts)]
-pub struct AddYield<'info> {
-    #[account(mut, address = vault_state.admin @ VaultError::Unauthorized)]
-    pub admin: Signer<'info>,
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], args: InitializeArgs) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let cusdc_mint = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_sysvar = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
+    require_program(system_program, &solana_program::system_program::id())?;
+    let rent = Rent::from_account_info(rent_sysvar)?;
 
-    #[account(
-        mut,
-        address = vault_state.vault_usdc_account,
-    )]
-    pub vault_usdc_account: Account<'info, TokenAccount>,
+    let (expected_vault, vault_bump) = Pubkey::find_program_address(&[VAULT_SEED], program_id);
+    let (expected_mint, cusdc_mint_bump) = Pubkey::find_program_address(&[CUSDC_MINT_SEED], program_id);
+    require_key(vault_state, &expected_vault)?;
+    require_key(cusdc_mint, &expected_mint)?;
 
-    #[account(mut, token::mint = vault_state.usdc_mint, token::authority = admin)]
-    pub admin_usdc_account: Account<'info, TokenAccount>,
+    create_pda_account(
+        admin,
+        vault_state,
+        system_program,
+        program_id,
+        VAULT_STATE_SPACE,
+        rent.minimum_balance(VAULT_STATE_SPACE),
+        &[VAULT_SEED, &[vault_bump]],
+    )?;
 
-    pub token_program: Program<'info, Token>,
+    create_pda_account(
+        admin,
+        cusdc_mint,
+        system_program,
+        token_program.key,
+        Mint::LEN,
+        rent.minimum_balance(Mint::LEN),
+        &[CUSDC_MINT_SEED, &[cusdc_mint_bump]],
+    )?;
+
+    invoke(
+        &token_instruction::initialize_mint(
+            token_program.key,
+            cusdc_mint.key,
+            vault_state.key,
+            None,
+            6,
+        )?,
+        &[cusdc_mint.clone(), rent_sysvar.clone(), token_program.clone()],
+    )?;
+
+    let state = VaultState {
+        admin: *admin.key,
+        usdc_mint: args.usdc_mint,
+        cusdc_mint: *cusdc_mint.key,
+        vault_usdc_account: Pubkey::default(),
+        total_usdc_managed: 0,
+        total_cusdc_supply: 0,
+        total_deployed: 0,
+        bump: vault_bump,
+        cusdc_mint_bump,
+        is_paused: false,
+    };
+    store_vault_state(vault_state, &state)?;
+    msg!("Vault state + cUSDC mint created");
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct AdminAction<'info> {
-    #[account(address = vault_state.admin @ VaultError::Unauthorized)]
-    pub admin: Signer<'info>,
+fn init_vault_account(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let usdc_mint = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_sysvar = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"vault"],
-        bump = vault_state.bump,
-    )]
-    pub vault_state: Account<'info, VaultState>,
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
+    require_program(system_program, &solana_program::system_program::id())?;
+    let rent = Rent::from_account_info(rent_sysvar)?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    if state.admin != *admin.key {
+        return Err(VaultError::Unauthorized.into());
+    }
+    if state.usdc_mint != *usdc_mint.key {
+        return Err(VaultError::InvalidAccount.into());
+    }
+
+    let (expected_vault_usdc, _) = Pubkey::find_program_address(&[VAULT_USDC_SEED], program_id);
+    require_key(vault_usdc_account, &expected_vault_usdc)?;
+
+    create_pda_account(
+        admin,
+        vault_usdc_account,
+        system_program,
+        token_program.key,
+        TokenAccount::LEN,
+        rent.minimum_balance(TokenAccount::LEN),
+        &[VAULT_USDC_SEED, &[Pubkey::find_program_address(&[VAULT_USDC_SEED], program_id).1]],
+    )?;
+
+    invoke(
+        &token_instruction::initialize_account(
+            token_program.key,
+            vault_usdc_account.key,
+            usdc_mint.key,
+            vault_state.key,
+        )?,
+        &[
+            vault_usdc_account.clone(),
+            usdc_mint.clone(),
+            vault_state.clone(),
+            rent_sysvar.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    state.vault_usdc_account = *vault_usdc_account.key;
+    store_vault_state(vault_state, &state)?;
+    msg!("Vault USDC account created");
+    Ok(())
 }
 
-// ── Events ───────────────────────────────────────────────────────────────────
+fn deposit(program_id: &Pubkey, accounts: &[AccountInfo], usdc_amount: u64) -> ProgramResult {
+    if usdc_amount == 0 {
+        return Err(VaultError::ZeroAmount.into());
+    }
 
-#[event]
-pub struct DepositEvent {
-    pub user: Pubkey,
-    pub usdc_amount: u64,
-    pub cusdc_minted: u64,
-    pub total_usdc: u64,
-    pub total_cusdc: u64,
+    let account_info_iter = &mut accounts.iter();
+    let user = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let cusdc_mint = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let user_usdc_account = next_account_info(account_info_iter)?;
+    let user_cusdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    require_signer(user)?;
+    require_program(token_program, &spl_token::id())?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    if state.is_paused {
+        return Err(VaultError::VaultPaused.into());
+    }
+    require_key(cusdc_mint, &state.cusdc_mint)?;
+    require_key(vault_usdc_account, &state.vault_usdc_account)?;
+
+    let user_usdc = unpack_token_account(user_usdc_account)?;
+    let user_cusdc = unpack_token_account(user_cusdc_account)?;
+    let vault_usdc = unpack_token_account(vault_usdc_account)?;
+    let mint = Mint::unpack(&cusdc_mint.data.borrow())?;
+
+    if user_usdc.mint != state.usdc_mint || user_usdc.owner != *user.key {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    if user_cusdc.mint != state.cusdc_mint || mint.mint_authority.is_none() {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    if vault_usdc.mint != state.usdc_mint {
+        return Err(VaultError::InvalidAccount.into());
+    }
+
+    let cusdc_to_mint = if state.total_cusdc_supply == 0 || state.total_usdc_managed == 0 {
+        usdc_amount
+    } else {
+        ((usdc_amount as u128)
+            .checked_mul(state.total_cusdc_supply as u128)
+            .ok_or(VaultError::Overflow)?
+            .checked_div(state.total_usdc_managed as u128)
+            .ok_or(VaultError::Overflow)?) as u64
+    };
+    if cusdc_to_mint == 0 {
+        return Err(VaultError::DepositTooSmall.into());
+    }
+
+    invoke(
+        &token_instruction::transfer(
+            token_program.key,
+            user_usdc_account.key,
+            vault_usdc_account.key,
+            user.key,
+            &[],
+            usdc_amount,
+        )?,
+        &[
+            user_usdc_account.clone(),
+            vault_usdc_account.clone(),
+            user.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    invoke_signed(
+        &token_instruction::mint_to(
+            token_program.key,
+            cusdc_mint.key,
+            user_cusdc_account.key,
+            vault_state.key,
+            &[],
+            cusdc_to_mint,
+        )?,
+        &[
+            cusdc_mint.clone(),
+            user_cusdc_account.clone(),
+            vault_state.clone(),
+            token_program.clone(),
+        ],
+        &[&[VAULT_SEED, &[state.bump]]],
+    )?;
+
+    state.total_usdc_managed = state
+        .total_usdc_managed
+        .checked_add(usdc_amount)
+        .ok_or(VaultError::Overflow)?;
+    state.total_cusdc_supply = state
+        .total_cusdc_supply
+        .checked_add(cusdc_to_mint)
+        .ok_or(VaultError::Overflow)?;
+    store_vault_state(vault_state, &state)?;
+
+    msg!("Deposited {} USDC, minted {} cUSDC", usdc_amount, cusdc_to_mint);
+    Ok(())
 }
 
-#[event]
-pub struct WithdrawEvent {
-    pub user: Pubkey,
-    pub usdc_returned: u64,
-    pub cusdc_burned: u64,
-    pub total_usdc: u64,
-    pub total_cusdc: u64,
+fn withdraw(program_id: &Pubkey, accounts: &[AccountInfo], cusdc_amount: u64) -> ProgramResult {
+    if cusdc_amount == 0 {
+        return Err(VaultError::ZeroAmount.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let user = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let cusdc_mint = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let user_usdc_account = next_account_info(account_info_iter)?;
+    let user_cusdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    require_signer(user)?;
+    require_program(token_program, &spl_token::id())?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    if state.is_paused {
+        return Err(VaultError::VaultPaused.into());
+    }
+    require_key(cusdc_mint, &state.cusdc_mint)?;
+    require_key(vault_usdc_account, &state.vault_usdc_account)?;
+
+    let user_usdc = unpack_token_account(user_usdc_account)?;
+    let user_cusdc = unpack_token_account(user_cusdc_account)?;
+    let vault_usdc = unpack_token_account(vault_usdc_account)?;
+
+    if user_usdc.mint != state.usdc_mint || user_usdc.owner != *user.key {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    if user_cusdc.mint != state.cusdc_mint || user_cusdc.owner != *user.key {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    if vault_usdc.mint != state.usdc_mint {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    if state.total_cusdc_supply == 0 {
+        return Err(VaultError::WithdrawTooSmall.into());
+    }
+
+    let usdc_to_return = ((cusdc_amount as u128)
+        .checked_mul(state.total_usdc_managed as u128)
+        .ok_or(VaultError::Overflow)?
+        .checked_div(state.total_cusdc_supply as u128)
+        .ok_or(VaultError::Overflow)?) as u64;
+    if usdc_to_return == 0 {
+        return Err(VaultError::WithdrawTooSmall.into());
+    }
+
+    let available = state.total_usdc_managed.saturating_sub(state.total_deployed);
+    if usdc_to_return > available {
+        return Err(VaultError::InsufficientVaultFunds.into());
+    }
+
+    invoke(
+        &token_instruction::burn(
+            token_program.key,
+            user_cusdc_account.key,
+            cusdc_mint.key,
+            user.key,
+            &[],
+            cusdc_amount,
+        )?,
+        &[
+            user_cusdc_account.clone(),
+            cusdc_mint.clone(),
+            user.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    invoke_signed(
+        &token_instruction::transfer(
+            token_program.key,
+            vault_usdc_account.key,
+            user_usdc_account.key,
+            vault_state.key,
+            &[],
+            usdc_to_return,
+        )?,
+        &[
+            vault_usdc_account.clone(),
+            user_usdc_account.clone(),
+            vault_state.clone(),
+            token_program.clone(),
+        ],
+        &[&[VAULT_SEED, &[state.bump]]],
+    )?;
+
+    state.total_usdc_managed = state
+        .total_usdc_managed
+        .checked_sub(usdc_to_return)
+        .ok_or(VaultError::Overflow)?;
+    state.total_cusdc_supply = state
+        .total_cusdc_supply
+        .checked_sub(cusdc_amount)
+        .ok_or(VaultError::Overflow)?;
+    store_vault_state(vault_state, &state)?;
+
+    msg!("Withdrew {} USDC, burned {} cUSDC", usdc_to_return, cusdc_amount);
+    Ok(())
 }
 
-#[event]
-pub struct YieldEvent {
-    pub usdc_added: u64,
-    pub total_usdc: u64,
-    pub total_cusdc: u64,
+fn deploy_funds(program_id: &Pubkey, accounts: &[AccountInfo], amount: u64) -> ProgramResult {
+    if amount == 0 {
+        return Err(VaultError::ZeroAmount.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let destination = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    require_key(vault_usdc_account, &state.vault_usdc_account)?;
+    if state.admin != *admin.key {
+        return Err(VaultError::Unauthorized.into());
+    }
+
+    let vault_usdc = unpack_token_account(vault_usdc_account)?;
+    let destination_account = unpack_token_account(destination)?;
+    if vault_usdc.mint != state.usdc_mint || destination_account.mint != state.usdc_mint {
+        return Err(VaultError::InvalidAccount.into());
+    }
+
+    let available = state.total_usdc_managed.saturating_sub(state.total_deployed);
+    if amount > available {
+        return Err(VaultError::InsufficientVaultFunds.into());
+    }
+    let remaining = available.saturating_sub(amount);
+    let min_reserve = state.total_usdc_managed / 5;
+    if !(remaining >= min_reserve || state.total_usdc_managed <= 1_000_000) {
+        return Err(VaultError::ReserveTooLow.into());
+    }
+
+    invoke_signed(
+        &token_instruction::transfer(
+            token_program.key,
+            vault_usdc_account.key,
+            destination.key,
+            vault_state.key,
+            &[],
+            amount,
+        )?,
+        &[
+            vault_usdc_account.clone(),
+            destination.clone(),
+            vault_state.clone(),
+            token_program.clone(),
+        ],
+        &[&[VAULT_SEED, &[state.bump]]],
+    )?;
+
+    state.total_deployed = state
+        .total_deployed
+        .checked_add(amount)
+        .ok_or(VaultError::Overflow)?;
+    store_vault_state(vault_state, &state)?;
+    msg!("Deployed {} USDC", amount);
+    Ok(())
 }
 
-#[event]
-pub struct DeployEvent {
-    pub amount: u64,
-    pub total_deployed: u64,
-    pub total_managed: u64,
+fn return_funds(program_id: &Pubkey, accounts: &[AccountInfo], amount: u64) -> ProgramResult {
+    if amount == 0 {
+        return Err(VaultError::ZeroAmount.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let source = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    require_key(vault_usdc_account, &state.vault_usdc_account)?;
+    if state.admin != *admin.key {
+        return Err(VaultError::Unauthorized.into());
+    }
+    if amount > state.total_deployed {
+        return Err(VaultError::ReturnExceedsDeployed.into());
+    }
+
+    let source_account = unpack_token_account(source)?;
+    let vault_usdc = unpack_token_account(vault_usdc_account)?;
+    if source_account.mint != state.usdc_mint || source_account.owner != *admin.key || vault_usdc.mint != state.usdc_mint {
+        return Err(VaultError::InvalidAccount.into());
+    }
+
+    invoke(
+        &token_instruction::transfer(
+            token_program.key,
+            source.key,
+            vault_usdc_account.key,
+            admin.key,
+            &[],
+            amount,
+        )?,
+        &[
+            source.clone(),
+            vault_usdc_account.clone(),
+            admin.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    state.total_deployed = state
+        .total_deployed
+        .checked_sub(amount)
+        .ok_or(VaultError::Overflow)?;
+    store_vault_state(vault_state, &state)?;
+    msg!("Returned {} USDC", amount);
+    Ok(())
 }
 
-#[event]
-pub struct ReturnEvent {
-    pub amount: u64,
-    pub total_deployed: u64,
-    pub total_managed: u64,
+fn add_yield(program_id: &Pubkey, accounts: &[AccountInfo], usdc_amount: u64) -> ProgramResult {
+    if usdc_amount == 0 {
+        return Err(VaultError::ZeroAmount.into());
+    }
+
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
+    let vault_usdc_account = next_account_info(account_info_iter)?;
+    let admin_usdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
+
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    require_key(vault_usdc_account, &state.vault_usdc_account)?;
+    if state.admin != *admin.key {
+        return Err(VaultError::Unauthorized.into());
+    }
+
+    let admin_usdc = unpack_token_account(admin_usdc_account)?;
+    let vault_usdc = unpack_token_account(vault_usdc_account)?;
+    if admin_usdc.mint != state.usdc_mint || admin_usdc.owner != *admin.key || vault_usdc.mint != state.usdc_mint {
+        return Err(VaultError::InvalidAccount.into());
+    }
+
+    invoke(
+        &token_instruction::transfer(
+            token_program.key,
+            admin_usdc_account.key,
+            vault_usdc_account.key,
+            admin.key,
+            &[],
+            usdc_amount,
+        )?,
+        &[
+            admin_usdc_account.clone(),
+            vault_usdc_account.clone(),
+            admin.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    state.total_usdc_managed = state
+        .total_usdc_managed
+        .checked_add(usdc_amount)
+        .ok_or(VaultError::Overflow)?;
+    store_vault_state(vault_state, &state)?;
+    msg!("Added {} USDC yield", usdc_amount);
+    Ok(())
 }
 
-// ── Errors ───────────────────────────────────────────────────────────────────
+fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let vault_state = next_account_info(account_info_iter)?;
 
-#[error_code]
-pub enum VaultError {
-    #[msg("Amount must be greater than zero")]
-    ZeroAmount,
-    #[msg("Deposit too small to mint any cUSDC")]
-    DepositTooSmall,
-    #[msg("Withdraw too small to return any USDC")]
-    WithdrawTooSmall,
-    #[msg("Insufficient USDC in vault")]
-    InsufficientVaultFunds,
-    #[msg("Arithmetic overflow")]
-    Overflow,
-    #[msg("Vault is paused")]
-    VaultPaused,
-    #[msg("Unauthorized")]
-    Unauthorized,
-    #[msg("Deployment would leave reserve below 20%")]
-    ReserveTooLow,
-    #[msg("Return amount exceeds total deployed")]
-    ReturnExceedsDeployed,
+    require_signer(admin)?;
+    let mut state = load_vault_state(vault_state)?;
+    require_key(vault_state, &Pubkey::find_program_address(&[VAULT_SEED], program_id).0)?;
+    if state.admin != *admin.key {
+        return Err(VaultError::Unauthorized.into());
+    }
+    state.is_paused = paused;
+    store_vault_state(vault_state, &state)?;
+    Ok(())
+}
+
+fn create_pda_account<'a>(
+    payer: &AccountInfo<'a>,
+    target: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    owner: &Pubkey,
+    space: usize,
+    lamports: u64,
+    signer_seeds: &[&[u8]],
+) -> ProgramResult {
+    if target.owner != &solana_program::system_program::id() || !target.data_is_empty() {
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+
+    invoke_signed(
+        &system_instruction::create_account(
+            payer.key,
+            target.key,
+            lamports,
+            space as u64,
+            owner,
+        ),
+        &[payer.clone(), target.clone(), system_program.clone()],
+        &[signer_seeds],
+    )
+}
+
+fn load_vault_state(account: &AccountInfo) -> Result<VaultState, ProgramError> {
+    let data = account.data.borrow();
+    if data.len() < VAULT_STATE_DISCRIMINATOR_LEN {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    VaultState::try_from_slice(&data[VAULT_STATE_DISCRIMINATOR_LEN..]).map_err(|_| VaultError::InvalidAccount.into())
+}
+
+fn store_vault_state(account: &AccountInfo, state: &VaultState) -> ProgramResult {
+    let mut data = account.data.borrow_mut();
+    data[..8].copy_from_slice(&legacy_account_discriminator("VaultState"));
+    state.serialize(&mut &mut data[8..]).map_err(|_| VaultError::InvalidAccount.into())
+}
+
+fn unpack_token_account(account: &AccountInfo) -> Result<TokenAccount, ProgramError> {
+    TokenAccount::unpack(&account.data.borrow()).map_err(ProgramError::from)
+}
+
+fn require_signer(account: &AccountInfo) -> ProgramResult {
+    if !account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    Ok(())
+}
+
+fn require_key(account: &AccountInfo, expected: &Pubkey) -> ProgramResult {
+    if account.key != expected {
+        return Err(VaultError::InvalidAccount.into());
+    }
+    Ok(())
+}
+
+fn require_program(account: &AccountInfo, expected: &Pubkey) -> ProgramResult {
+    if account.key != expected {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    Ok(())
+}
+
+fn legacy_instruction_discriminator(name: &str) -> [u8; 8] {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&hash(format!("global:{name}").as_bytes()).to_bytes()[..8]);
+    bytes
+}
+
+fn legacy_account_discriminator(name: &str) -> [u8; 8] {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&hash(format!("account:{name}").as_bytes()).to_bytes()[..8]);
+    bytes
 }

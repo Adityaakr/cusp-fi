@@ -2,13 +2,18 @@
 members = [
     "cusp-vault",
     "cusp-leverage",
+    "cusp-earn-vault",
+    "cusp-outcome-escrow",
 ]
 resolver = "2"
 
 [profile.release]
 overflow-checks = true
+opt-level = "z"
 lto = "fat"
 codegen-units = 1
+panic = "abort"
+strip = true
 
 [profile.release.build-override]
 opt-level = 3

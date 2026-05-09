@@ -1,300 +1,52 @@
-use anchor_lang::prelude::*;
-use anchor_spl::token::{self, Mint, Token, TokenAccount, Transfer};
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{
+    account_info::{next_account_info, AccountInfo},
+    entrypoint,
+    entrypoint::ProgramResult,
+    hash::hash,
+    msg,
+    program::{invoke, invoke_signed},
+    program_error::ProgramError,
+    program_pack::Pack,
+    pubkey::Pubkey,
+    rent::Rent,
+    system_instruction,
+    sysvar::Sysvar,
+};
+use spl_token::instruction as token_instruction;
+use spl_token::state::{Account as TokenAccount, Mint};
 
-declare_id!("Duyqj2n1CxiVhCN4fgNFf8dbtSeyrZVE3XCBtG6VUgx9");
+solana_program::declare_id!("HTPcC7PNEGG3w6Tj5VSR9HQTQhELqqQRxKTiWkDUm6uF");
 
-/// Cusp Leverage Program
-///
-/// Manages leveraged positions on prediction markets.
-/// Users post collateral (USDC), borrow from the vault, and the total amount
-/// is used to buy outcome tokens via DFlow.
-///
-/// Position lifecycle:
-/// 1. open_position  — user posts margin, protocol records leverage params on-chain
-/// 2. fill_position  — cranker/admin records the outcome tokens received (after DFlow trade)
-/// 3. close_position — sells outcome tokens, repays borrowed amount, returns profit/loss
-/// 4. liquidate      — if collateral ratio drops below threshold, anyone can liquidate
-#[program]
-pub mod cusp_leverage {
-    use super::*;
+const PROTOCOL_SEED: &[u8] = b"protocol";
+const POSITION_SEED: &[u8] = b"position";
+const ESCROW_SEED: &[u8] = b"escrow";
+const DISC_LEN: usize = 8;
+const PROTOCOL_STATE_SPACE: usize = DISC_LEN + 32 + 32 + 2 + 1 + 8 + 8 + 8 + 1 + 1;
+const POSITION_SPACE: usize = DISC_LEN + 32 + 32 + 1 + 8 + 8 + 8 + 2 + 8 + 2 + 1 + 8 + 8 + 1 + 1 + 8;
 
-    /// Initialize the leverage protocol. Called once by admin.
-    pub fn initialize(ctx: Context<InitializeProtocol>, max_leverage: u16) -> Result<()> {
-        let protocol = &mut ctx.accounts.protocol_state;
-        protocol.admin = ctx.accounts.admin.key();
-        protocol.usdc_mint = ctx.accounts.usdc_mint.key();
-        protocol.max_leverage = max_leverage; // e.g. 300 = 3x
-        protocol.liquidation_threshold = 80; // liquidate when collateral drops to 80% of borrowed
-        protocol.total_positions = 0;
-        protocol.total_open_positions = 0;
-        protocol.total_volume = 0;
-        protocol.bump = ctx.bumps.protocol_state;
-        protocol.is_paused = false;
+entrypoint!(process_instruction);
 
-        msg!("Leverage protocol initialized, max leverage: {}x", max_leverage as f64 / 100.0);
-        Ok(())
-    }
-
-    /// Open a leveraged position. User posts collateral USDC.
-    /// The cranker/backend will execute the DFlow trade and call fill_position.
-    pub fn open_position(
-        ctx: Context<OpenPosition>,
-        margin_usdc: u64,
-        leverage_bps: u16, // 100 = 1x, 200 = 2x, 300 = 3x
-        market_ticker: [u8; 32], // padded market ticker
-        side: Side,
-    ) -> Result<()> {
-        let protocol = &ctx.accounts.protocol_state;
-        require!(!protocol.is_paused, LeverageError::ProtocolPaused);
-        require!(margin_usdc >= 1_000_000, LeverageError::MarginTooLow); // min 1 USDC
-        require!(leverage_bps >= 100 && leverage_bps <= protocol.max_leverage, LeverageError::InvalidLeverage);
-
-        let total_usdc = (margin_usdc as u128)
-            .checked_mul(leverage_bps as u128)
-            .unwrap()
-            .checked_div(100)
-            .unwrap() as u64;
-        let borrowed_usdc = total_usdc.checked_sub(margin_usdc).unwrap();
-
-        // Transfer margin USDC from user to escrow
-        token::transfer(
-            CpiContext::new(
-                ctx.accounts.token_program.to_account_info(),
-                Transfer {
-                    from: ctx.accounts.user_usdc_account.to_account_info(),
-                    to: ctx.accounts.position_escrow.to_account_info(),
-                    authority: ctx.accounts.user.to_account_info(),
-                },
-            ),
-            margin_usdc,
-        )?;
-
-        // Record position on-chain
-        let position = &mut ctx.accounts.position;
-        position.owner = ctx.accounts.user.key();
-        position.market_ticker = market_ticker;
-        position.side = side;
-        position.margin_usdc = margin_usdc;
-        position.borrowed_usdc = borrowed_usdc;
-        position.total_usdc = total_usdc;
-        position.leverage_bps = leverage_bps;
-        position.outcome_tokens = 0; // filled by cranker
-        position.entry_price_bps = 0; // filled by cranker
-        position.status = PositionStatus::Pending;
-        position.opened_at = Clock::get()?.unix_timestamp;
-        position.closed_at = 0;
-        position.bump = ctx.bumps.position;
-        position.escrow_bump = ctx.bumps.position_escrow;
-        position.position_id = ctx.accounts.protocol_state.total_positions;
-
-        // Update protocol stats
-        let protocol = &mut ctx.accounts.protocol_state;
-        protocol.total_positions = protocol.total_positions.checked_add(1).unwrap();
-        protocol.total_open_positions = protocol.total_open_positions.checked_add(1).unwrap();
-        protocol.total_volume = protocol.total_volume.checked_add(total_usdc).unwrap();
-
-        msg!(
-            "Position #{} opened: {} USDC margin, {}x leverage, {} total",
-            position.position_id,
-            margin_usdc,
-            leverage_bps as f64 / 100.0,
-            total_usdc
-        );
-
-        emit!(PositionOpenedEvent {
-            position_id: position.position_id,
-            owner: position.owner,
-            margin_usdc,
-            borrowed_usdc,
-            total_usdc,
-            leverage_bps,
-            side,
-        });
-
-        Ok(())
-    }
-
-    /// Fill a pending position with outcome token details after DFlow trade.
-    /// Called by admin/cranker after executing the off-chain trade.
-    pub fn fill_position(
-        ctx: Context<FillPosition>,
-        outcome_tokens: u64,
-        entry_price_bps: u16, // price in basis points, e.g. 7500 = $0.75
-    ) -> Result<()> {
-        let position = &mut ctx.accounts.position;
-        require!(position.status == PositionStatus::Pending, LeverageError::InvalidPositionStatus);
-
-        position.outcome_tokens = outcome_tokens;
-        position.entry_price_bps = entry_price_bps;
-        position.status = PositionStatus::Open;
-
-        msg!(
-            "Position #{} filled: {} tokens at {} bps",
-            position.position_id,
-            outcome_tokens,
-            entry_price_bps
-        );
-
-        emit!(PositionFilledEvent {
-            position_id: position.position_id,
-            outcome_tokens,
-            entry_price_bps,
-        });
-
-        Ok(())
-    }
-
-    /// Close a position. Returns margin + profit (or margin - loss) to user.
-    /// Called by admin/cranker after selling outcome tokens via DFlow.
-    pub fn close_position(
-        ctx: Context<ClosePosition>,
-        usdc_received: u64, // USDC received from selling outcome tokens
-    ) -> Result<()> {
-        let position = &ctx.accounts.position;
-        require!(
-            position.status == PositionStatus::Open,
-            LeverageError::InvalidPositionStatus
-        );
-
-        // Calculate P&L
-        let repay_amount = position.borrowed_usdc;
-        let user_return = if usdc_received > repay_amount {
-            usdc_received.checked_sub(repay_amount).unwrap()
-        } else {
-            // Loss exceeds borrowed — user gets back whatever is left from margin
-            let loss = repay_amount.checked_sub(usdc_received).unwrap();
-            position.margin_usdc.saturating_sub(loss)
-        };
-
-        // Transfer remaining USDC to user from escrow
-        if user_return > 0 {
-            let position_id_bytes = position.position_id.to_le_bytes();
-            let escrow_seeds = &[
-                b"escrow" as &[u8],
-                ctx.accounts.position.owner.as_ref(),
-                &position_id_bytes,
-                &[position.escrow_bump],
-            ];
-            let signer_seeds = &[&escrow_seeds[..]];
-
-            token::transfer(
-                CpiContext::new_with_signer(
-                    ctx.accounts.token_program.to_account_info(),
-                    Transfer {
-                        from: ctx.accounts.position_escrow.to_account_info(),
-                        to: ctx.accounts.user_usdc_account.to_account_info(),
-                        authority: ctx.accounts.position_escrow.to_account_info(),
-                    },
-                    signer_seeds,
-                ),
-                user_return,
-            )?;
-        }
-
-        // Update position
-        let position = &mut ctx.accounts.position;
-        position.status = PositionStatus::Closed;
-        position.closed_at = Clock::get()?.unix_timestamp;
-
-        // Update protocol stats
-        let protocol = &mut ctx.accounts.protocol_state;
-        protocol.total_open_positions = protocol.total_open_positions.saturating_sub(1);
-
-        let pnl = usdc_received as i64 - position.total_usdc as i64;
-        msg!(
-            "Position #{} closed. Received: {}, Return to user: {}, PnL: {}",
-            position.position_id,
-            usdc_received,
-            user_return,
-            pnl
-        );
-
-        emit!(PositionClosedEvent {
-            position_id: position.position_id,
-            owner: position.owner,
-            usdc_received,
-            user_return,
-            pnl,
-        });
-
-        Ok(())
-    }
-
-    /// Liquidate an undercollateralized position. Can be called by anyone.
-    pub fn liquidate(
-        ctx: Context<Liquidate>,
-        current_price_bps: u16, // current market price in basis points
-    ) -> Result<()> {
-        let position = &ctx.accounts.position;
-        require!(position.status == PositionStatus::Open, LeverageError::InvalidPositionStatus);
-
-        // Calculate current position value
-        let current_value = (position.outcome_tokens as u128)
-            .checked_mul(current_price_bps as u128)
-            .unwrap()
-            .checked_div(10_000)
-            .unwrap() as u64;
-
-        // Position is liquidatable if current value < borrowed * liquidation_threshold / 100
-        let liquidation_value = (position.borrowed_usdc as u128)
-            .checked_mul(ctx.accounts.protocol_state.liquidation_threshold as u128)
-            .unwrap()
-            .checked_div(100)
-            .unwrap() as u64;
-
-        require!(current_value <= liquidation_value, LeverageError::NotLiquidatable);
-
-        // Mark as liquidated
-        let position = &mut ctx.accounts.position;
-        position.status = PositionStatus::Liquidated;
-        position.closed_at = Clock::get()?.unix_timestamp;
-
-        let protocol = &mut ctx.accounts.protocol_state;
-        protocol.total_open_positions = protocol.total_open_positions.saturating_sub(1);
-
-        msg!("Position #{} liquidated at price {} bps", position.position_id, current_price_bps);
-
-        emit!(LiquidationEvent {
-            position_id: position.position_id,
-            owner: position.owner,
-            current_price_bps,
-            liquidator: ctx.accounts.liquidator.key(),
-        });
-
-        Ok(())
-    }
-
-    /// Pause/unpause the protocol. Admin only.
-    pub fn set_paused(ctx: Context<AdminOnly>, paused: bool) -> Result<()> {
-        ctx.accounts.protocol_state.is_paused = paused;
-        msg!("Protocol paused: {}", paused);
-        Ok(())
-    }
-}
-
-// ── State ────────────────────────────────────────────────────────────────────
-
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Side {
     Yes,
     No,
 }
 
-#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub enum PositionStatus {
-    Pending,    // margin posted, awaiting DFlow trade fill
-    Open,       // trade filled, position is live
-    Closed,     // user closed the position
-    Liquidated, // position was liquidated
+    Pending,
+    Open,
+    Closed,
+    Liquidated,
 }
 
-#[account]
-#[derive(InitSpace)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct ProtocolState {
     pub admin: Pubkey,
     pub usdc_mint: Pubkey,
-    pub max_leverage: u16,        // in basis points: 300 = 3x
-    pub liquidation_threshold: u8, // percent: 80 = liquidate at 80%
+    pub max_leverage: u16,
+    pub liquidation_threshold: u8,
     pub total_positions: u64,
     pub total_open_positions: u64,
     pub total_volume: u64,
@@ -302,8 +54,7 @@ pub struct ProtocolState {
     pub is_paused: bool,
 }
 
-#[account]
-#[derive(InitSpace)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Clone)]
 pub struct Position {
     pub owner: Pubkey,
     pub market_ticker: [u8; 32],
@@ -322,204 +73,527 @@ pub struct Position {
     pub position_id: u64,
 }
 
-// ── Account Contexts ─────────────────────────────────────────────────────────
+#[derive(BorshSerialize, BorshDeserialize)]
+struct InitializeArgs {
+    max_leverage: u16,
+}
 
-#[derive(Accounts)]
-pub struct InitializeProtocol<'info> {
-    #[account(mut)]
-    pub admin: Signer<'info>,
+#[derive(BorshSerialize, BorshDeserialize)]
+struct OpenPositionArgs {
+    margin_usdc: u64,
+    leverage_bps: u16,
+    market_ticker: [u8; 32],
+    side: Side,
+}
 
-    #[account(
-        init,
-        payer = admin,
-        space = 8 + ProtocolState::INIT_SPACE,
-        seeds = [b"protocol"],
+#[derive(BorshSerialize, BorshDeserialize)]
+struct FillPositionArgs {
+    outcome_tokens: u64,
+    entry_price_bps: u16,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct ClosePositionArgs {
+    usdc_received: u64,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct LiquidateArgs {
+    current_price_bps: u16,
+}
+
+#[derive(BorshSerialize, BorshDeserialize)]
+struct SetPausedArgs {
+    paused: bool,
+}
+
+#[repr(u32)]
+enum LeverageError {
+    MarginTooLow = 1,
+    InvalidLeverage = 2,
+    InvalidPositionStatus = 3,
+    NotLiquidatable = 4,
+    ProtocolPaused = 5,
+    Unauthorized = 6,
+    InvalidInstruction = 7,
+    InvalidAccount = 8,
+    Overflow = 9,
+}
+
+impl From<LeverageError> for ProgramError {
+    fn from(value: LeverageError) -> Self {
+        ProgramError::Custom(value as u32)
+    }
+}
+
+pub fn process_instruction(
+    program_id: &Pubkey,
+    accounts: &[AccountInfo],
+    instruction_data: &[u8],
+) -> ProgramResult {
+    if instruction_data.len() < 8 {
+        return Err(LeverageError::InvalidInstruction.into());
+    }
+    let discriminator: [u8; 8] = instruction_data[..8]
+        .try_into()
+        .map_err(|_| LeverageError::InvalidInstruction)?;
+    let payload = &instruction_data[8..];
+
+    if discriminator == legacy_instruction_discriminator("initialize") {
+        let args = InitializeArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return initialize(program_id, accounts, args.max_leverage);
+    }
+    if discriminator == legacy_instruction_discriminator("open_position") {
+        let args = OpenPositionArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return open_position(program_id, accounts, args);
+    }
+    if discriminator == legacy_instruction_discriminator("fill_position") {
+        let args = FillPositionArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return fill_position(program_id, accounts, args);
+    }
+    if discriminator == legacy_instruction_discriminator("close_position") {
+        let args = ClosePositionArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return close_position(program_id, accounts, args.usdc_received);
+    }
+    if discriminator == legacy_instruction_discriminator("liquidate") {
+        let args = LiquidateArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return liquidate(program_id, accounts, args.current_price_bps);
+    }
+    if discriminator == legacy_instruction_discriminator("set_paused") {
+        let args = SetPausedArgs::try_from_slice(payload).map_err(|_| LeverageError::InvalidInstruction)?;
+        return set_paused(program_id, accounts, args.paused);
+    }
+
+    Err(LeverageError::InvalidInstruction.into())
+}
+
+fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], max_leverage: u16) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
+    let usdc_mint = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+
+    require_signer(admin)?;
+    require_program(system_program, &solana_program::system_program::id())?;
+    let rent = Rent::get()?;
+
+    let (expected_protocol, bump) = Pubkey::find_program_address(&[PROTOCOL_SEED], program_id);
+    require_key(protocol_state, &expected_protocol)?;
+
+    create_pda_account(
+        admin,
+        protocol_state,
+        system_program,
+        program_id,
+        PROTOCOL_STATE_SPACE,
+        rent.minimum_balance(PROTOCOL_STATE_SPACE),
+        &[PROTOCOL_SEED, &[bump]],
+    )?;
+
+    let state = ProtocolState {
+        admin: *admin.key,
+        usdc_mint: *usdc_mint.key,
+        max_leverage,
+        liquidation_threshold: 80,
+        total_positions: 0,
+        total_open_positions: 0,
+        total_volume: 0,
         bump,
-    )]
-    pub protocol_state: Account<'info, ProtocolState>,
-
-    pub usdc_mint: Account<'info, Mint>,
-    pub system_program: Program<'info, System>,
+        is_paused: false,
+    };
+    store_protocol_state(protocol_state, &state)?;
+    msg!("Leverage protocol initialized");
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct OpenPosition<'info> {
-    #[account(mut)]
-    pub user: Signer<'info>,
+fn open_position(program_id: &Pubkey, accounts: &[AccountInfo], args: OpenPositionArgs) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let user = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
+    let position = next_account_info(account_info_iter)?;
+    let position_escrow = next_account_info(account_info_iter)?;
+    let usdc_mint = next_account_info(account_info_iter)?;
+    let user_usdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
+    let system_program = next_account_info(account_info_iter)?;
+    let rent_sysvar = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"protocol"],
-        bump = protocol_state.bump,
-    )]
-    pub protocol_state: Box<Account<'info, ProtocolState>>,
+    require_signer(user)?;
+    require_program(token_program, &spl_token::id())?;
+    require_program(system_program, &solana_program::system_program::id())?;
 
-    #[account(
-        init,
-        payer = user,
-        space = 8 + Position::INIT_SPACE,
-        seeds = [b"position", user.key().as_ref(), &protocol_state.total_positions.to_le_bytes()],
-        bump,
-    )]
-    pub position: Box<Account<'info, Position>>,
+    let mut protocol = load_protocol_state(protocol_state)?;
+    require_key(protocol_state, &Pubkey::find_program_address(&[PROTOCOL_SEED], program_id).0)?;
 
-    /// Escrow to hold margin USDC for this position
-    #[account(
-        init,
-        payer = user,
-        token::mint = usdc_mint,
-        token::authority = position_escrow, // self-authority PDA
-        seeds = [b"escrow", user.key().as_ref(), &protocol_state.total_positions.to_le_bytes()],
-        bump,
-    )]
-    pub position_escrow: Box<Account<'info, TokenAccount>>,
+    if protocol.is_paused {
+        return Err(LeverageError::ProtocolPaused.into());
+    }
+    if args.margin_usdc < 1_000_000 {
+        return Err(LeverageError::MarginTooLow.into());
+    }
+    if args.leverage_bps < 100 || args.leverage_bps > protocol.max_leverage {
+        return Err(LeverageError::InvalidLeverage.into());
+    }
+    if protocol.usdc_mint != *usdc_mint.key {
+        return Err(LeverageError::InvalidAccount.into());
+    }
 
-    pub usdc_mint: Box<Account<'info, Mint>>,
+    let position_id = protocol.total_positions;
+    let position_id_bytes = position_id.to_le_bytes();
+    let (expected_position, position_bump) =
+        Pubkey::find_program_address(&[POSITION_SEED, user.key.as_ref(), &position_id_bytes], program_id);
+    let (expected_escrow, escrow_bump) =
+        Pubkey::find_program_address(&[ESCROW_SEED, user.key.as_ref(), &position_id_bytes], program_id);
+    require_key(position, &expected_position)?;
+    require_key(position_escrow, &expected_escrow)?;
 
-    #[account(mut, token::mint = usdc_mint, token::authority = user)]
-    pub user_usdc_account: Box<Account<'info, TokenAccount>>,
+    let user_usdc = unpack_token_account(user_usdc_account)?;
+    let mint = Mint::unpack(&usdc_mint.data.borrow())?;
+    if user_usdc.mint != protocol.usdc_mint || user_usdc.owner != *user.key || mint.decimals != 6 {
+        return Err(LeverageError::InvalidAccount.into());
+    }
 
-    pub token_program: Program<'info, Token>,
-    pub system_program: Program<'info, System>,
-    pub rent: Sysvar<'info, Rent>,
+    let total_usdc = ((args.margin_usdc as u128)
+        .checked_mul(args.leverage_bps as u128)
+        .ok_or(LeverageError::Overflow)?
+        .checked_div(100)
+        .ok_or(LeverageError::Overflow)?) as u64;
+    let borrowed_usdc = total_usdc.saturating_sub(args.margin_usdc);
+
+    let rent = Rent::get()?;
+    create_pda_account(
+        user,
+        position,
+        system_program,
+        program_id,
+        POSITION_SPACE,
+        rent.minimum_balance(POSITION_SPACE),
+        &[POSITION_SEED, user.key.as_ref(), &position_id_bytes, &[position_bump]],
+    )?;
+
+    create_pda_account(
+        user,
+        position_escrow,
+        system_program,
+        token_program.key,
+        TokenAccount::LEN,
+        rent.minimum_balance(TokenAccount::LEN),
+        &[ESCROW_SEED, user.key.as_ref(), &position_id_bytes, &[escrow_bump]],
+    )?;
+
+    invoke(
+        &token_instruction::initialize_account(
+            token_program.key,
+            position_escrow.key,
+            usdc_mint.key,
+            position_escrow.key,
+        )?,
+        &[
+            position_escrow.clone(),
+            usdc_mint.clone(),
+            position_escrow.clone(),
+            rent_sysvar.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    invoke(
+        &token_instruction::transfer(
+            token_program.key,
+            user_usdc_account.key,
+            position_escrow.key,
+            user.key,
+            &[],
+            args.margin_usdc,
+        )?,
+        &[
+            user_usdc_account.clone(),
+            position_escrow.clone(),
+            user.clone(),
+            token_program.clone(),
+        ],
+    )?;
+
+    let state = Position {
+        owner: *user.key,
+        market_ticker: args.market_ticker,
+        side: args.side,
+        margin_usdc: args.margin_usdc,
+        borrowed_usdc,
+        total_usdc,
+        leverage_bps: args.leverage_bps,
+        outcome_tokens: 0,
+        entry_price_bps: 0,
+        status: PositionStatus::Pending,
+        opened_at: solana_program::clock::Clock::get()?.unix_timestamp,
+        closed_at: 0,
+        bump: position_bump,
+        escrow_bump,
+        position_id,
+    };
+    store_position(position, &state)?;
+
+    protocol.total_positions = protocol.total_positions.checked_add(1).ok_or(LeverageError::Overflow)?;
+    protocol.total_open_positions = protocol
+        .total_open_positions
+        .checked_add(1)
+        .ok_or(LeverageError::Overflow)?;
+    protocol.total_volume = protocol
+        .total_volume
+        .checked_add(total_usdc)
+        .ok_or(LeverageError::Overflow)?;
+    store_protocol_state(protocol_state, &protocol)?;
+    msg!("Position #{} opened", position_id);
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct FillPosition<'info> {
-    #[account(address = protocol_state.admin @ LeverageError::Unauthorized)]
-    pub admin: Signer<'info>,
+fn fill_position(program_id: &Pubkey, accounts: &[AccountInfo], args: FillPositionArgs) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
+    let position = next_account_info(account_info_iter)?;
 
-    #[account(seeds = [b"protocol"], bump = protocol_state.bump)]
-    pub protocol_state: Account<'info, ProtocolState>,
+    require_signer(admin)?;
+    let protocol = load_protocol_state(protocol_state)?;
+    require_key(protocol_state, &Pubkey::find_program_address(&[PROTOCOL_SEED], program_id).0)?;
+    if protocol.admin != *admin.key {
+        return Err(LeverageError::Unauthorized.into());
+    }
 
-    #[account(
-        mut,
-        seeds = [b"position", position.owner.as_ref(), &position.position_id.to_le_bytes()],
-        bump = position.bump,
-    )]
-    pub position: Account<'info, Position>,
+    let mut state = load_position(position)?;
+    require_key(
+        position,
+        &Pubkey::find_program_address(&[POSITION_SEED, state.owner.as_ref(), &state.position_id.to_le_bytes()], program_id).0,
+    )?;
+    if state.status != PositionStatus::Pending {
+        return Err(LeverageError::InvalidPositionStatus.into());
+    }
+
+    state.outcome_tokens = args.outcome_tokens;
+    state.entry_price_bps = args.entry_price_bps;
+    state.status = PositionStatus::Open;
+    store_position(position, &state)?;
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct ClosePosition<'info> {
-    #[account(address = protocol_state.admin @ LeverageError::Unauthorized)]
-    pub admin: Signer<'info>,
+fn close_position(program_id: &Pubkey, accounts: &[AccountInfo], usdc_received: u64) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
+    let position = next_account_info(account_info_iter)?;
+    let position_owner = next_account_info(account_info_iter)?;
+    let position_escrow = next_account_info(account_info_iter)?;
+    let user_usdc_account = next_account_info(account_info_iter)?;
+    let token_program = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"protocol"],
-        bump = protocol_state.bump,
-    )]
-    pub protocol_state: Account<'info, ProtocolState>,
+    require_signer(admin)?;
+    require_program(token_program, &spl_token::id())?;
 
-    #[account(
-        mut,
-        seeds = [b"position", position.owner.as_ref(), &position.position_id.to_le_bytes()],
-        bump = position.bump,
-    )]
-    pub position: Account<'info, Position>,
+    let mut protocol = load_protocol_state(protocol_state)?;
+    require_key(protocol_state, &Pubkey::find_program_address(&[PROTOCOL_SEED], program_id).0)?;
+    if protocol.admin != *admin.key {
+        return Err(LeverageError::Unauthorized.into());
+    }
 
-    /// CHECK: Validated by position.owner
-    #[account(address = position.owner)]
-    pub position_owner: UncheckedAccount<'info>,
+    let mut state = load_position(position)?;
+    require_key(
+        position,
+        &Pubkey::find_program_address(&[POSITION_SEED, state.owner.as_ref(), &state.position_id.to_le_bytes()], program_id).0,
+    )?;
+    if state.status != PositionStatus::Open {
+        return Err(LeverageError::InvalidPositionStatus.into());
+    }
+    if *position_owner.key != state.owner {
+        return Err(LeverageError::InvalidAccount.into());
+    }
 
-    #[account(
-        mut,
-        seeds = [b"escrow", position.owner.as_ref(), &position.position_id.to_le_bytes()],
-        bump = position.escrow_bump,
-    )]
-    pub position_escrow: Account<'info, TokenAccount>,
+    let escrow_account = unpack_token_account(position_escrow)?;
+    let user_account = unpack_token_account(user_usdc_account)?;
+    if escrow_account.mint != protocol.usdc_mint || user_account.mint != protocol.usdc_mint || user_account.owner != state.owner {
+        return Err(LeverageError::InvalidAccount.into());
+    }
 
-    #[account(mut, token::mint = protocol_state.usdc_mint)]
-    pub user_usdc_account: Account<'info, TokenAccount>,
+    let repay_amount = state.borrowed_usdc;
+    let user_return = if usdc_received > repay_amount {
+        usdc_received.saturating_sub(repay_amount)
+    } else {
+        let loss = repay_amount.saturating_sub(usdc_received);
+        state.margin_usdc.saturating_sub(loss)
+    };
 
-    pub token_program: Program<'info, Token>,
+    if user_return > 0 {
+        invoke_signed(
+            &token_instruction::transfer(
+                token_program.key,
+                position_escrow.key,
+                user_usdc_account.key,
+                position_escrow.key,
+                &[],
+                user_return,
+            )?,
+            &[
+                position_escrow.clone(),
+                user_usdc_account.clone(),
+                position_escrow.clone(),
+                token_program.clone(),
+            ],
+            &[&[
+                ESCROW_SEED,
+                state.owner.as_ref(),
+                &state.position_id.to_le_bytes(),
+                &[state.escrow_bump],
+            ]],
+        )?;
+    }
+
+    state.status = PositionStatus::Closed;
+    state.closed_at = solana_program::clock::Clock::get()?.unix_timestamp;
+    store_position(position, &state)?;
+
+    protocol.total_open_positions = protocol.total_open_positions.saturating_sub(1);
+    store_protocol_state(protocol_state, &protocol)?;
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct Liquidate<'info> {
-    #[account(mut)]
-    pub liquidator: Signer<'info>,
+fn liquidate(program_id: &Pubkey, accounts: &[AccountInfo], current_price_bps: u16) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let liquidator = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
+    let position = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"protocol"],
-        bump = protocol_state.bump,
-    )]
-    pub protocol_state: Account<'info, ProtocolState>,
+    require_signer(liquidator)?;
+    let mut protocol = load_protocol_state(protocol_state)?;
+    require_key(protocol_state, &Pubkey::find_program_address(&[PROTOCOL_SEED], program_id).0)?;
+    let mut state = load_position(position)?;
+    require_key(
+        position,
+        &Pubkey::find_program_address(&[POSITION_SEED, state.owner.as_ref(), &state.position_id.to_le_bytes()], program_id).0,
+    )?;
+    if state.status != PositionStatus::Open {
+        return Err(LeverageError::InvalidPositionStatus.into());
+    }
 
-    #[account(
-        mut,
-        seeds = [b"position", position.owner.as_ref(), &position.position_id.to_le_bytes()],
-        bump = position.bump,
-    )]
-    pub position: Account<'info, Position>,
+    let current_value = ((state.outcome_tokens as u128)
+        .checked_mul(current_price_bps as u128)
+        .ok_or(LeverageError::Overflow)?
+        .checked_div(10_000)
+        .ok_or(LeverageError::Overflow)?) as u64;
+    let liquidation_value = ((state.borrowed_usdc as u128)
+        .checked_mul(protocol.liquidation_threshold as u128)
+        .ok_or(LeverageError::Overflow)?
+        .checked_div(100)
+        .ok_or(LeverageError::Overflow)?) as u64;
+
+    if current_value > liquidation_value {
+        return Err(LeverageError::NotLiquidatable.into());
+    }
+
+    state.status = PositionStatus::Liquidated;
+    state.closed_at = solana_program::clock::Clock::get()?.unix_timestamp;
+    store_position(position, &state)?;
+
+    protocol.total_open_positions = protocol.total_open_positions.saturating_sub(1);
+    store_protocol_state(protocol_state, &protocol)?;
+    Ok(())
 }
 
-#[derive(Accounts)]
-pub struct AdminOnly<'info> {
-    #[account(address = protocol_state.admin @ LeverageError::Unauthorized)]
-    pub admin: Signer<'info>,
+fn set_paused(program_id: &Pubkey, accounts: &[AccountInfo], paused: bool) -> ProgramResult {
+    let account_info_iter = &mut accounts.iter();
+    let admin = next_account_info(account_info_iter)?;
+    let protocol_state = next_account_info(account_info_iter)?;
 
-    #[account(
-        mut,
-        seeds = [b"protocol"],
-        bump = protocol_state.bump,
-    )]
-    pub protocol_state: Account<'info, ProtocolState>,
+    require_signer(admin)?;
+    let mut protocol = load_protocol_state(protocol_state)?;
+    require_key(protocol_state, &Pubkey::find_program_address(&[PROTOCOL_SEED], program_id).0)?;
+    if protocol.admin != *admin.key {
+        return Err(LeverageError::Unauthorized.into());
+    }
+    protocol.is_paused = paused;
+    store_protocol_state(protocol_state, &protocol)?;
+    Ok(())
 }
 
-// ── Events ───────────────────────────────────────────────────────────────────
-
-#[event]
-pub struct PositionOpenedEvent {
-    pub position_id: u64,
-    pub owner: Pubkey,
-    pub margin_usdc: u64,
-    pub borrowed_usdc: u64,
-    pub total_usdc: u64,
-    pub leverage_bps: u16,
-    pub side: Side,
+fn create_pda_account<'a>(
+    payer: &AccountInfo<'a>,
+    target: &AccountInfo<'a>,
+    system_program: &AccountInfo<'a>,
+    owner: &Pubkey,
+    space: usize,
+    lamports: u64,
+    signer_seeds: &[&[u8]],
+) -> ProgramResult {
+    if target.owner != &solana_program::system_program::id() || !target.data_is_empty() {
+        return Err(ProgramError::AccountAlreadyInitialized);
+    }
+    invoke_signed(
+        &system_instruction::create_account(
+            payer.key,
+            target.key,
+            lamports,
+            space as u64,
+            owner,
+        ),
+        &[payer.clone(), target.clone(), system_program.clone()],
+        &[signer_seeds],
+    )
 }
 
-#[event]
-pub struct PositionFilledEvent {
-    pub position_id: u64,
-    pub outcome_tokens: u64,
-    pub entry_price_bps: u16,
+fn load_protocol_state(account: &AccountInfo) -> Result<ProtocolState, ProgramError> {
+    let data = account.data.borrow();
+    ProtocolState::try_from_slice(&data[DISC_LEN..]).map_err(|_| LeverageError::InvalidAccount.into())
 }
 
-#[event]
-pub struct PositionClosedEvent {
-    pub position_id: u64,
-    pub owner: Pubkey,
-    pub usdc_received: u64,
-    pub user_return: u64,
-    pub pnl: i64,
+fn store_protocol_state(account: &AccountInfo, state: &ProtocolState) -> ProgramResult {
+    let mut data = account.data.borrow_mut();
+    data[..DISC_LEN].copy_from_slice(&legacy_account_discriminator("ProtocolState"));
+    state.serialize(&mut &mut data[DISC_LEN..]).map_err(|_| LeverageError::InvalidAccount.into())
 }
 
-#[event]
-pub struct LiquidationEvent {
-    pub position_id: u64,
-    pub owner: Pubkey,
-    pub current_price_bps: u16,
-    pub liquidator: Pubkey,
+fn load_position(account: &AccountInfo) -> Result<Position, ProgramError> {
+    let data = account.data.borrow();
+    Position::try_from_slice(&data[DISC_LEN..]).map_err(|_| LeverageError::InvalidAccount.into())
 }
 
-// ── Errors ───────────────────────────────────────────────────────────────────
+fn store_position(account: &AccountInfo, state: &Position) -> ProgramResult {
+    let mut data = account.data.borrow_mut();
+    data[..DISC_LEN].copy_from_slice(&legacy_account_discriminator("Position"));
+    state.serialize(&mut &mut data[DISC_LEN..]).map_err(|_| LeverageError::InvalidAccount.into())
+}
 
-#[error_code]
-pub enum LeverageError {
-    #[msg("Margin must be at least 1 USDC")]
-    MarginTooLow,
-    #[msg("Leverage must be between 1x and max")]
-    InvalidLeverage,
-    #[msg("Invalid position status for this operation")]
-    InvalidPositionStatus,
-    #[msg("Position is not liquidatable")]
-    NotLiquidatable,
-    #[msg("Protocol is paused")]
-    ProtocolPaused,
-    #[msg("Unauthorized")]
-    Unauthorized,
+fn unpack_token_account(account: &AccountInfo) -> Result<TokenAccount, ProgramError> {
+    TokenAccount::unpack(&account.data.borrow()).map_err(ProgramError::from)
+}
+
+fn require_signer(account: &AccountInfo) -> ProgramResult {
+    if !account.is_signer {
+        return Err(ProgramError::MissingRequiredSignature);
+    }
+    Ok(())
+}
+
+fn require_key(account: &AccountInfo, expected: &Pubkey) -> ProgramResult {
+    if account.key != expected {
+        return Err(LeverageError::InvalidAccount.into());
+    }
+    Ok(())
+}
+
+fn require_program(account: &AccountInfo, expected: &Pubkey) -> ProgramResult {
+    if account.key != expected {
+        return Err(ProgramError::IncorrectProgramId);
+    }
+    Ok(())
+}
+
+fn legacy_instruction_discriminator(name: &str) -> [u8; 8] {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&hash(format!("global:{name}").as_bytes()).to_bytes()[..8]);
+    bytes
+}
+
+fn legacy_account_discriminator(name: &str) -> [u8; 8] {
+    let mut bytes = [0u8; 8];
+    bytes.copy_from_slice(&hash(format!("account:{name}").as_bytes()).to_bytes()[..8]);
+    bytes
 }

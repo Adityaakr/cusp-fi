@@ -1,0 +1,20 @@
+{
+  "buildCommand": "cd ../.. && pnpm --filter @cusp/api run build",
+  "outputDirectory": ".",
+  "functions": {
+    "vercel/dflow/[...path].ts": {
+      "runtime": "@vercel/node@5"
+    },
+    "vercel/dflow-trade/[...path].ts": {
+      "runtime": "@vercel/node@5"
+    },
+    "vercel/kalshi/[...path].ts": {
+      "runtime": "@vercel/node@5"
+    }
+  },
+  "rewrites": [
+    { "source": "/api/dflow-trade/:path*", "destination": "/vercel/dflow-trade/:path*" },
+    { "source": "/api/dflow/:path*", "destination": "/vercel/dflow/:path*" },
+    { "source": "/api/kalshi/:path*", "destination": "/vercel/kalshi/:path*" }
+  ]
+}

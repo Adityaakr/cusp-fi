@@ -1,0 +1,18 @@
+{
+  "extends": "@cusp/tsconfig/base.json",
+  "compilerOptions": {
+    "outDir": "./dist",
+    "rootDir": "./src",
+    "strict": false,
+    "noImplicitAny": false,
+    "strictNullChecks": false,
+    "noUnusedLocals": false,
+    "noUnusedParameters": false,
+    "allowJs": true,
+    "noEmit": false,
+    "declaration": false,
+    "declarationMap": false,
+    "skipLibCheck": true
+  },
+  "include": ["src"]
+}

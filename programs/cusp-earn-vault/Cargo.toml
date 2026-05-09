@@ -1,0 +1,14 @@
+[package]
+name = "cusp-earn-vault"
+version = "0.1.0"
+description = "Cusp Earn Vault: deposit USDC (swapped from USDT), mint cUSDT shares, earn yield from Kamino"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "cusp_earn_vault"
+
+[dependencies]
+borsh = { version = "1.5.3", features = ["derive"] }
+solana-program = "1.18.26"
+spl-token = { version = "4.0.3", features = ["no-entrypoint"] }
