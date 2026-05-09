@@ -214,6 +214,38 @@ export async function fetchMarket(ticker: string): Promise<DFlowMarket> {
   return fetchJson(`${METADATA_API}/api/v1/market/${ticker}`);
 }
 
+export type OutcomeMarketByMint = {
+  market: CuspMarket;
+  side: "YES" | "NO";
+  currentPrice: number;
+  probability: number;
+};
+
+export async function fetchOutcomeMarketByMint(
+  mint: string
+): Promise<OutcomeMarketByMint> {
+  const rawMarket = await fetchJson<DFlowMarket>(
+    `${METADATA_API}/api/v1/market/by-mint/${mint}`
+  );
+  const market = dflowMarketToCusp(rawMarket);
+  const side =
+    market.yesMint === mint ? "YES" : market.noMint === mint ? "NO" : null;
+
+  if (!side) {
+    throw new Error(`Mint ${mint} does not match YES/NO legs for ${rawMarket.ticker}`);
+  }
+
+  const currentPrice = side === "YES" ? market.yesPrice : market.noPrice;
+  const probability = Math.round(Math.max(0, Math.min(1, currentPrice)) * 100);
+
+  return {
+    market,
+    side,
+    currentPrice,
+    probability,
+  };
+}
+
 export async function fetchEvent(
   eventTicker: string,
   params?: { withNestedMarkets?: boolean }
