@@ -171,7 +171,7 @@ export function MarketTradePanel({
             <div>
               <p className="text-xs font-semibold text-cusp-green">Bet Placed Successfully!</p>
               <p className="text-[10px] text-muted-foreground">
-                {successDetails.side} · ${successDetails.amount.toFixed(2)} USDT on {successDetails.ticker}
+                {successDetails.side} · ${successDetails.amount.toFixed(2)} USDC on {successDetails.ticker}
               </p>
             </div>
           </div>
@@ -237,11 +237,11 @@ export function MarketTradePanel({
 
       <div className="space-y-3 mb-4">
         <div>
-          <label className="text-xs text-muted-foreground block mb-1.5">Contracts</label>
+          <label className="text-xs text-muted-foreground block mb-1.5">Amount (USDC)</label>
           <div className="relative">
             <input
               type="number"
-              placeholder="0"
+              placeholder="0.00"
               min="0"
               step="any"
               value={contracts}
@@ -313,22 +313,19 @@ export function MarketTradePanel({
 
         {isConnected && portfolio && (
           <div className="flex items-center justify-between text-[10px]">
-            <span className="text-muted-foreground">Your mainnet USDT</span>
+            <span className="text-muted-foreground">Your mainnet USDC</span>
             <button
               type="button"
               onClick={() => {
-                if (!currentPrice) return;
-                const bal = (portfolio.mainnet_usdt_balance ?? 0) + (portfolio.mainnet_usdc_balance ?? 0);
-                const maxContracts =
-                  leverage === 1 ? bal / currentPrice : (bal * leverage) / currentPrice;
-                if (Number.isFinite(maxContracts) && maxContracts > 0) {
-                  setContracts(maxContracts >= 1 ? maxContracts.toFixed(2) : maxContracts.toFixed(4));
+                const bal = portfolio.mainnet_usdc_balance ?? 0;
+                if (Number.isFinite(bal) && bal > 0) {
+                  setContracts(bal.toFixed(2));
                 }
                 onTradeErrorClear();
               }}
               className="font-mono text-cusp-amber hover:text-cusp-teal transition-colors"
             >
-              ${((portfolio.mainnet_usdt_balance ?? 0) + (portfolio.mainnet_usdc_balance ?? 0)).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              ${(portfolio.mainnet_usdc_balance ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
               <span className="ml-1 text-cusp-teal uppercase">max</span>
             </button>
           </div>
