@@ -1,5 +1,6 @@
 import { useParams, Link, useSearchParams, useNavigate } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
+import { useQueryClient } from "@tanstack/react-query";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
@@ -20,6 +21,7 @@ import { usePhantom, useSolana } from "@/lib/wallet";
 import { VersionedTransaction } from "@solana/web3.js";
 import { dflowMarketToCusp, fetchOrderQuote } from "@/lib/dflow-api";
 import { MAINNET_USDC_MINT } from "@/lib/network-config";
+import { getMainnetConnection } from "@/lib/solana";
 import { MIN_TRADE_USDC } from "@/lib/protocol-constants";
 import { supabase } from "@/lib/supabase";
 import { useKYC } from "@/hooks/useKYC";
@@ -158,6 +160,7 @@ const MarketDetail = () => {
   });
   const { isConnected, addresses } = usePhantom();
   const { solana, isAvailable } = useSolana();
+  const queryClient = useQueryClient();
   const [tradeSide, setTradeSide] = useState<"YES" | "NO">(() => parseTradeSide(searchParams));
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [contracts, setContracts] = useState("");
@@ -316,17 +319,12 @@ const MarketDetail = () => {
     String(a.addressType || "").toLowerCase().includes("solana")
   )?.address;
 
-  const contractsNum = parseFloat(contracts);
-  const isValidContracts = !isNaN(contractsNum) && contractsNum > 0;
+  const tradeAmountUsd = parseFloat(contracts);
+  const isValidAmountInput = !isNaN(tradeAmountUsd) && tradeAmountUsd > 0;
   const currentPrice = tradeSide === "YES" ? displayYesPrice : displayNoPrice;
-  const totalPositionUsdc =
-    isValidContracts && currentPrice > 0 ? contractsNum * currentPrice : NaN;
-  /** USDT: full notional for 1x; margin for 2x–3x. */
-  const amountNum = Number.isFinite(totalPositionUsdc)
-    ? leverage === 1
-      ? totalPositionUsdc
-      : totalPositionUsdc / leverage
-    : NaN;
+  
+  /** USDT amount the user is putting down (margin) */
+  const amountNum = isValidAmountInput ? tradeAmountUsd : NaN;
   const isValidAmount = Number.isFinite(amountNum) && amountNum > 0;
 
   // Auto-reduce leverage based on mainnet vault reserve
@@ -341,9 +339,11 @@ const MarketDetail = () => {
   }, [leverage, amountNum, mainnetReserve, isValidAmount]);
   const leverageReduced = effectiveLeverage < leverage;
 
+  const totalPositionUsdc = isValidAmount ? amountNum * effectiveLeverage : 0;
+
   const estimatedShares =
     isValidAmount && currentPrice > 0
-      ? (leverage > 1 ? (amountNum * effectiveLeverage) : amountNum) / currentPrice
+      ? totalPositionUsdc / currentPrice
       : 0;
 
   // Flash effect when live price updates (only on change, not initial)
@@ -369,12 +369,12 @@ const MarketDetail = () => {
     console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDT:", amountNum);
 
     if (!isValidAmount) {
-      setTradeError("Enter a valid contract size");
+      setTradeError("Enter a valid amount");
       return;
     }
     if (amountNum < MIN_TRADE_USDC) {
       setTradeError(
-        `Minimum ${leverage > 1 ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDT`
+        `Minimum ${leverage > 1 ? "margin" : "trade"} is $${MIN_TRADE_USDC} USDC`
       );
       return;
     }
@@ -389,11 +389,11 @@ const MarketDetail = () => {
     console.log("[trade] KYC verified:", kycVerified);
 
     // DFlow markets operate on mainnet — verify the user has enough mainnet stablecoins
-    const userMainnetUsdc = (portfolio?.mainnet_usdt_balance ?? 0) + (portfolio?.mainnet_usdc_balance ?? 0);
+    const userMainnetUsdc = portfolio?.mainnet_usdc_balance ?? 0;
     const requiredUsdc = amountNum;
     if (userMainnetUsdc < requiredUsdc) {
       setTradeError(
-        `Insufficient balance. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. Deposit USDT to your Solflare wallet to trade.`
+        `Insufficient balance. You have $${userMainnetUsdc.toFixed(2)} but need $${requiredUsdc.toFixed(2)}. Deposit USDC to your Solflare wallet to trade.`
       );
       return;
     }
@@ -430,7 +430,7 @@ const MarketDetail = () => {
     setTradeStatus("loading");
     setTradeError(null);
     try {
-      const { transaction } = await fetchOrderQuote({
+      const { transaction, outputAmount } = await fetchOrderQuote({
         userPublicKey: solanaAddress,
         inputMint,
         outputMint,
@@ -447,7 +447,7 @@ const MarketDetail = () => {
 
       let result;
       try {
-        result = await solana.signAndSendTransaction(tx);
+        result = await solana.signAndSendTransaction(tx, getMainnetConnection());
       } catch (signErr) {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
         if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("simulation")) {
@@ -462,6 +462,8 @@ const MarketDetail = () => {
 
       if (supabase && sig) {
         try {
+          const outputQuantity = Number(outputAmount ?? 0) / 1e6;
+          const entryPrice = outputQuantity > 0 ? amountNum / outputQuantity : currentPrice;
           await supabase.rpc("record_direct_trade", {
             p_wallet_address: solanaAddress,
             p_market_ticker: market.ticker,
@@ -469,8 +471,8 @@ const MarketDetail = () => {
             p_usdc_amount: amountNum,
             p_output_mint: outputMint,
             p_tx_signature: sig,
-            p_entry_price: currentPrice,
-            p_quantity: amountNum / currentPrice,
+            p_entry_price: entryPrice,
+            p_quantity: outputQuantity,
           });
         } catch (_) { /* position recording is best-effort */ }
       }
@@ -479,6 +481,7 @@ const MarketDetail = () => {
       setSuccessDetails({ side: tradeSide, amount: amountNum, ticker: market.ticker });
       setContracts("");
       refetchPortfolio();
+      queryClient.invalidateQueries({ queryKey: ["outcomeTokenHoldings"] });
       setTimeout(() => setSuccessDetails(null), 5000);
     } catch (err) {
       setTradeError(err instanceof Error ? err.message : "Trade failed");
