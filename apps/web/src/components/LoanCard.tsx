@@ -6,8 +6,17 @@ interface LoanCardProps {
   loan: ActiveLoan & {
     borrowAsset?: string;
     liquidationPrice?: number;
+    positionStateLabel?: string | null;
+    helperText?: string | null;
   };
   onRepay?: (loanId: string) => void;
+}
+
+function formatUsd(value: number): string {
+  return value.toLocaleString(undefined, {
+    minimumFractionDigits: value > 0 && value < 1 ? 2 : 0,
+    maximumFractionDigits: value > 0 && value < 10 ? 3 : 2,
+  });
 }
 
 const LoanCard = ({ loan, onRepay }: LoanCardProps) => {
@@ -34,6 +43,11 @@ const LoanCard = ({ loan, onRepay }: LoanCardProps) => {
             }`}>
               {loan.tokenType}
             </span>
+            {loan.positionStateLabel ? (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-cusp-purple/10 text-cusp-purple border-cusp-purple/20">
+                {loan.positionStateLabel}
+              </span>
+            ) : null}
           </div>
           <div className="flex items-center gap-1">
             <span className="text-[10px] text-muted-foreground">Resolves in</span>
@@ -53,12 +67,12 @@ const LoanCard = ({ loan, onRepay }: LoanCardProps) => {
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-3 pt-3 border-t border-border">
         <div>
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Collateral</span>
-          <span className="font-mono text-sm text-foreground">${loan.collateralValue.toLocaleString()}</span>
+          <span className="font-mono text-sm text-foreground">${formatUsd(loan.collateralValue)}</span>
         </div>
         <div>
           <span className="text-[10px] text-muted-foreground uppercase tracking-wider block">Borrowed</span>
           <span className="font-mono text-sm text-cusp-purple">
-            ${loan.borrowedAmount.toLocaleString()} <span className="text-[9px] text-muted-foreground">{borrowAsset}</span>
+            ${formatUsd(loan.borrowedAmount)} <span className="text-[9px] text-muted-foreground">{borrowAsset}</span>
           </span>
         </div>
         <div>
@@ -72,6 +86,12 @@ const LoanCard = ({ loan, onRepay }: LoanCardProps) => {
           </span>
         </div>
       </div>
+
+      {loan.helperText ? (
+        <div className="mt-3 pt-3 border-t border-border">
+          <p className="text-[11px] text-muted-foreground">{loan.helperText}</p>
+        </div>
+      ) : null}
 
       {onRepay && (
         <div className="mt-3 pt-3 border-t border-border">

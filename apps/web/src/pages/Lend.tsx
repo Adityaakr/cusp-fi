@@ -26,6 +26,13 @@ import {
   Shield,
 } from "lucide-react";
 
+type LoanCardView = ActiveLoan & {
+  borrowAsset?: string;
+  liquidationPrice?: number;
+  positionStateLabel?: string | null;
+  helperText?: string | null;
+};
+
 /* ── helpers ── */
 
 function outcomeLoanToActive(loan: OutcomeLoanRow): ActiveLoan {
@@ -37,8 +44,8 @@ function outcomeLoanToActive(loan: OutcomeLoanRow): ActiveLoan {
     id: loan.id,
     marketName: loan.market_ticker,
     tokenType: loan.side,
-    collateralValue: Math.round(loan.collateral_value_usdc),
-    borrowedAmount: Math.round(loan.borrowed_amount_usdc),
+    collateralValue: loan.collateral_value_usdc,
+    borrowedAmount: loan.borrowed_amount_usdc,
     healthFactor: loan.health_factor ?? 1.2,
     resolutionDate:
       loan.expires_at ?? new Date(Date.now() + 7 * 864e5).toISOString(),
@@ -64,8 +71,8 @@ function collateralPositionToActive(position: OutcomeCollateralPosition): Active
     id: position.loan_id ?? position.collateral_lot_id,
     marketName: position.market_title || position.market_ticker,
     tokenType: position.side,
-    collateralValue: Math.round(collateralValue),
-    borrowedAmount: Math.round(borrowedAmount),
+    collateralValue,
+    borrowedAmount,
     healthFactor,
     resolutionDate:
       position.expires_at ?? new Date(Date.now() + 7 * 864e5).toISOString(),
@@ -112,10 +119,32 @@ const LendPage = () => {
       ),
     [collateralPositions]
   );
-  const activeLoans: ActiveLoan[] = useMemo(() => {
+  const activeLoans: LoanCardView[] = useMemo(() => {
     const custodyRows = [...activeCustodyPositions, ...lockedCollateralPositions];
     if (custodyRows.length > 0) {
-      return custodyRows.map(collateralPositionToActive);
+      return custodyRows.map((position) => {
+        const base = collateralPositionToActive(position);
+        const threshold = position.liquidation_threshold_bps / 10_000;
+        const borrowedAmount = position.borrowed_amount_usdc + position.accrued_interest_usdc;
+        const liquidationPrice =
+          borrowedAmount > 0 && position.quantity > 0 && threshold > 0
+            ? borrowedAmount / (position.quantity * threshold)
+            : undefined;
+
+        return {
+          ...base,
+          borrowAsset: "USDC",
+          liquidationPrice,
+          positionStateLabel:
+            position.loan_status === "active" || position.loan_status === "pending"
+              ? null
+              : "Locked collateral",
+          helperText:
+            position.loan_status === "active" || position.loan_status === "pending"
+              ? null
+              : "Held in Cusp pool custody. No active borrow has been recorded on this collateral.",
+        };
+      });
     }
     return outcomeLoans.map(outcomeLoanToActive);
   }, [activeCustodyPositions, lockedCollateralPositions, outcomeLoans]);
@@ -399,26 +428,7 @@ const LendPage = () => {
                     </p>
                   </div>
                 ) : (
-                  activeLoans.map((loan) => {
-                    const lockedOnly = loan.borrowedAmount <= 0;
-                    return (
-                      <div key={loan.id} className="relative">
-                        {lockedOnly && (
-                          <div className="absolute top-3 right-3 z-10">
-                            <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-cusp-purple/10 text-cusp-purple border-cusp-purple/20">
-                              locked collateral
-                            </span>
-                          </div>
-                        )}
-                        <LoanCard loan={loan} />
-                        {lockedOnly && (
-                          <p className="px-4 pb-4 -mt-2 text-[11px] text-muted-foreground">
-                            Held in Cusp pool custody. No active borrow has been recorded on this collateral.
-                          </p>
-                        )}
-                      </div>
-                    );
-                  })
+                  activeLoans.map((loan) => <LoanCard key={loan.id} loan={loan} />)
                 )}
               </div>
 
