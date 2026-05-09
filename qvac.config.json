@@ -1,24 +1,24 @@
 {
-    "serve": {
-      "models": {
-        "cusp-llm": {
-          "model": "QWEN3_600M_INST_Q4",
-          "default": true,
-          "preload": true,
-          "config": {
-            "ctx_size": 8192,
-            "tools": true
-          }
-        },
-        "whisper": {
-          "model": "WHISPER_TINY",
-          "default": true,
-          "preload": true,
-          "config": {
-            "language": "en",
-            "strategy": "greedy"
-          }
+  "serve": {
+    "models": {
+      "cusp-llm": {
+        "model": "QWEN3_600M_INST_Q4",
+        "default": true,
+        "preload": true,
+        "config": {
+          "ctx_size": 4096,
+          "tools": true
+        }
+      },
+      "whisper": {
+        "model": "WHISPER_TINY",
+        "default": true,
+        "preload": false,
+        "config": {
+          "language": "en",
+          "strategy": "greedy"
         }
       }
     }
   }
+}

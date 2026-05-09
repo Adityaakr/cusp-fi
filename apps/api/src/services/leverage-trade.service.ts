@@ -2,7 +2,11 @@ import { getAdminClient } from "../db/supabase.js";
 import { getVaultUsdcBalance } from "../solana/connection.js";
 import { lendUsdcToUser } from "../solana/token-ops.js";
 import { fetchMarket } from "./dflow-adapter.service.js";
-import { computeHealthFactor, DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS, MIN_TRADE_USDC, MAX_PROTOCOL_LEVERAGE } from "@cusp/shared/constants";
+import { computeHealthFactor, DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS, MIN_TRADE_USDC, MAX_PROTOCOL_LEVERAGE, LEVERAGE_LIQUIDATION_THRESHOLD_BPS } from "@cusp/shared/constants";
+import { railwayQuery, withRailwayTransaction } from "../db/railway.js";
+import { getMainnetPoolUsdcBalance } from "../solana/connection.js";
+import { lendUsdcFromMainnetPool } from "../solana/token-ops.js";
+
 
 export interface LeverageTradeOpenResult {
   success: boolean;
@@ -18,6 +22,47 @@ export interface LeverageTradeOpenResult {
 
 const MAX_POS_RATIO = 0.08;
 const MIN_TVL_DENOMINATOR_USDC = 500;
+const LEVERAGE_POOL_SLUG = "mainnet-outcome-usdc";
+
+async function getLeveragePoolSnapshot() {
+  const poolResult = await railwayQuery<{
+    id: string;
+    slug: string;
+    available_liquidity: string | number;
+    borrowed_liquidity: string | number;
+    total_deposited: string | number;
+  }>(
+    `
+      select id, slug, available_liquidity, borrowed_liquidity, total_deposited
+      from public.lending_pools
+      where slug = $1
+      limit 1
+    `,
+    [LEVERAGE_POOL_SLUG]
+  );
+
+  const pool = poolResult.rows[0];
+  if (!pool) {
+    throw new Error(`Mainnet leverage pool not found: ${LEVERAGE_POOL_SLUG}`);
+  }
+
+  const dbLiquidity = Number(pool.available_liquidity ?? 0);
+  const onchainLiquidity = await getMainnetPoolUsdcBalance();
+  const effectiveLiquidity =
+    dbLiquidity > 0 && onchainLiquidity > 0
+      ? Math.min(dbLiquidity, onchainLiquidity)
+      : Math.max(dbLiquidity, onchainLiquidity);
+
+  return {
+    id: pool.id,
+    slug: pool.slug,
+    totalDeposited: Number(pool.total_deposited ?? 0),
+    availableLiquidity: dbLiquidity,
+    borrowedLiquidity: Number(pool.borrowed_liquidity ?? 0),
+    onchainLiquidity,
+    effectiveLiquidity,
+  };
+}
 
 function maxAllowedPositionUsdc(tvl: number): number {
   const denom = Math.max(tvl, MIN_TVL_DENOMINATOR_USDC);
@@ -71,18 +116,9 @@ export async function processLeverageTradeOpen(params: {
   }
 
   const supabase = getAdminClient();
-
-  let vaultReserve = await getVaultUsdcBalance();
-  if (vaultReserve <= 0) {
-    const { data: state } = await supabase
-      .from("protocol_state")
-      .select("reserve_usdc, total_tvl")
-      .eq("id", 1)
-      .single();
-    vaultReserve = Number(state?.reserve_usdc) || 0;
-  }
-
-  const maxNotional = maxAllowedPositionUsdc(vaultReserve);
+  const leveragePool = await getLeveragePoolSnapshot();
+  const poolLiquidity = leveragePool.effectiveLiquidity;
+  const maxNotional = maxAllowedPositionUsdc(poolLiquidity);
   if (totalUsdc > maxNotional) {
     return {
       success: false,
@@ -90,11 +126,11 @@ export async function processLeverageTradeOpen(params: {
     };
   }
 
-  const availableForBorrow = vaultReserve * 0.8;
+  const availableForBorrow = poolLiquidity * 0.8;
   if (borrowedUsdc > availableForBorrow) {
     return {
       success: false,
-      error: `Insufficient pool liquidity (pool: $${vaultReserve.toFixed(2)}, max borrow: $${availableForBorrow.toFixed(2)}, requested: $${borrowedUsdc.toFixed(2)})`,
+      error: `Insufficient pool liquidity (pool: $${poolLiquidity.toFixed(2)}, max borrow: $${availableForBorrow.toFixed(2)}, requested: $${borrowedUsdc.toFixed(2)})`,
     };
   }
 
@@ -126,9 +162,9 @@ export async function processLeverageTradeOpen(params: {
 
   if (effectiveLev > 1 && position) {
     const healthFactor = computeHealthFactor({
-      collateralValue: margin,
+      collateralValue: totalUsdc,
       borrowedAmount: borrowedUsdc,
-      effectiveThresholdBps: DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS,
+      effectiveThresholdBps: LEVERAGE_LIQUIDATION_THRESHOLD_BPS,
     });
 
     await supabase.from("leveraged_trades").insert({
@@ -147,40 +183,34 @@ export async function processLeverageTradeOpen(params: {
 
   if (borrowedUsdc > 0) {
     try {
-      const result = await lendUsdcToUser(wallet_address, borrowedUsdc);
+      const result = await lendUsdcFromMainnetPool(wallet_address, borrowedUsdc);
       lendSignature = result.signature;
       lendWarning = result.warning;
     } catch (txErr) {
-      lendWarning = `Vault lending failed: ${txErr instanceof Error ? txErr.message : txErr}. Position recorded.`;
+      lendWarning = `Mainnet LP pool lending failed: ${txErr instanceof Error ? txErr.message : txErr}. Position recorded.`;
     }
   }
 
   const actualBorrowed = lendSignature ? borrowedUsdc : 0;
   if (actualBorrowed > 0) {
-    const { data: currentState } = await supabase
-      .from("protocol_state")
-      .select("deployed_usdc, reserve_usdc, total_tvl")
-      .eq("id", 1)
-      .single();
-
-    if (currentState) {
-      const newReserve = Math.max(0, Number(currentState.reserve_usdc) - actualBorrowed);
-      await supabase
-        .from("protocol_state")
-        .update({
-          deployed_usdc: Number(currentState.deployed_usdc) + actualBorrowed,
-          reserve_usdc: newReserve,
-          total_tvl: newReserve + Number(currentState.deployed_usdc) + actualBorrowed,
-          updated_at: new Date().toISOString(),
-        })
-        .eq("id", 1);
-    }
+    await withRailwayTransaction(async (client) => {
+      await client.query(
+        `
+          update public.lending_pools
+          set
+            available_liquidity = greatest(0, available_liquidity - $2),
+            borrowed_liquidity = borrowed_liquidity + $2
+          where id = $1
+        `,
+        [leveragePool.id, actualBorrowed]
+      );
+    });
   }
 
   const healthFactor = computeHealthFactor({
-    collateralValue: margin,
+    collateralValue: totalUsdc,
     borrowedAmount: borrowedUsdc,
-    effectiveThresholdBps: DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS,
+    effectiveThresholdBps: LEVERAGE_LIQUIDATION_THRESHOLD_BPS,
   });
 
   return {

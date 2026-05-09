@@ -1,7 +1,7 @@
 import { fetchMarket } from "./dflow-adapter.service.js";
-import { getAdminClient } from "../db/supabase.js";
-import { getVaultUsdcBalance } from "../solana/connection.js";
-import { MIN_TRADE_USDC, MAX_PROTOCOL_LEVERAGE, computeHealthFactor, DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS } from "@cusp/shared/constants";
+import { railwayQuery } from "../db/railway.js";
+import { getMainnetPoolUsdcBalance } from "../solana/connection.js";
+import { MIN_TRADE_USDC, MAX_PROTOCOL_LEVERAGE } from "@cusp/shared/constants";
 
 export interface RiskCheckResult {
   approved: boolean;
@@ -17,6 +17,7 @@ const HARD_EXPIRY_HOURS = 2;
 const KALSHI_MAINTENANCE_DAY = 4;
 const KALSHI_MAINTENANCE_START = 3;
 const KALSHI_MAINTENANCE_END = 5;
+const LEVERAGE_POOL_SLUG = "mainnet-outcome-usdc";
 
 function isKalshiMaintenance(): boolean {
   const now = new Date();
@@ -89,28 +90,35 @@ export async function performRiskCheck(params: {
     const totalUsdc = margin * effLev;
     const borrowedUsdc = margin * (effLev - 1);
 
-    let vaultBalance = await getVaultUsdcBalance();
-    if (vaultBalance <= 0) {
-      const supabase = getAdminClient();
-      const { data: state } = await supabase
-        .from("protocol_state")
-        .select("reserve_usdc")
-        .eq("id", 1)
-        .single();
-      vaultBalance = Number(state?.reserve_usdc) || 0;
-    }
+    const poolResult = await railwayQuery<{
+      available_liquidity: string | number;
+    }>(
+      `
+        select available_liquidity
+        from public.lending_pools
+        where slug = $1
+        limit 1
+      `,
+      [LEVERAGE_POOL_SLUG]
+    );
+    const dbLiquidity = Number(poolResult.rows[0]?.available_liquidity ?? 0);
+    const onchainLiquidity = await getMainnetPoolUsdcBalance();
+    const poolLiquidity =
+      dbLiquidity > 0 && onchainLiquidity > 0
+        ? Math.min(dbLiquidity, onchainLiquidity)
+        : Math.max(dbLiquidity, onchainLiquidity);
 
-    if (vaultBalance <= 0) {
-      errors.push("Vault balance unavailable — please try again shortly");
+    if (poolLiquidity <= 0) {
+      errors.push("Mainnet LP pool balance unavailable — please try again shortly");
     } else {
-      const maxNotional = Math.max(vaultBalance, MIN_TVL_DENOMINATOR_USDC) * MAX_POS_RATIO;
+      const maxNotional = Math.max(poolLiquidity, MIN_TVL_DENOMINATOR_USDC) * MAX_POS_RATIO;
       if (totalUsdc > maxNotional) {
         errors.push(`Position size ($${totalUsdc.toFixed(2)}) exceeds protocol limit ($${maxNotional.toFixed(2)})`);
       }
 
-      const ratioAfter = (vaultBalance - borrowedUsdc) / vaultBalance;
+      const ratioAfter = (poolLiquidity - borrowedUsdc) / poolLiquidity;
       if (ratioAfter < MIN_RESERVE_RATIO) {
-        errors.push(`Insufficient pool liquidity (pool: $${vaultBalance.toFixed(2)}, need to borrow: $${borrowedUsdc.toFixed(2)})`);
+        errors.push(`Insufficient pool liquidity (pool: $${poolLiquidity.toFixed(2)}, need to borrow: $${borrowedUsdc.toFixed(2)})`);
       }
     }
   }

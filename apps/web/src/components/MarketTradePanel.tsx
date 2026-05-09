@@ -2,13 +2,14 @@ import { Link } from "react-router-dom";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import { MarketAvatar } from "@/components/MarketAvatar";
 import ProbabilityBar from "@/components/ProbabilityBar";
-import type { CuspMarket } from "@/lib/dflow-api";
 import type { UserPortfolio, Position } from "@/hooks/useUserPortfolio";
-import { MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
+import { MAX_PROTOCOL_LEVERAGE, LEVERAGE_LIQUIDATION_THRESHOLD_BPS } from "@/lib/protocol-constants";
 import { ShieldCheck, AlertTriangle, CheckCircle2, Circle } from "lucide-react";
 import type { LeveragedTradeStatus } from "@/hooks/useLeveragedTrade";
+import type { CuspMarket } from "@/lib/dflow-api";
 
-const LEVERAGE_OPTIONS = [1, 2, 3] as const;
+const LEVERAGE_OPTIONS = [1, 2, 3, 5] as const;
+type LeverageOption = (typeof LEVERAGE_OPTIONS)[number];
 
 function priceToCents(price: number): number {
   if (!Number.isFinite(price) || price <= 0) return 0;
@@ -26,12 +27,12 @@ export interface MarketTradePanelProps {
   setTradeSide: (s: "YES" | "NO") => void;
   contracts: string;
   setContracts: (v: string) => void;
-  leverage: 1 | 2 | 3;
-  setLeverage: (l: 1 | 2 | 3) => void;
+  leverage: LeverageOption;
+  setLeverage: (l: LeverageOption) => void;
   displayYesPrice: number;
   displayNoPrice: number;
   currentPrice: number;
-  mainnetReserve: number;
+  poolLiquidity: number;
   effectiveLeverage: number;
   leverageReduced: boolean;
   amountNum: number;
@@ -69,7 +70,7 @@ export function MarketTradePanel({
   displayYesPrice,
   displayNoPrice,
   currentPrice,
-  mainnetReserve,
+  poolLiquidity,
   effectiveLeverage,
   leverageReduced,
   amountNum,
@@ -92,44 +93,38 @@ export function MarketTradePanel({
   onTradeStatusIdle,
   className = "",
 }: MarketTradePanelProps) {
-  const displayProbability = Math.round((displayYesPrice || (1 - displayNoPrice)) * 100);
+  const borrowedAmount = leverage > 1 && isValidAmount
+    ? amountNum * Math.max(0, effectiveLeverage - 1)
+    : 0;
+  const totalPositionUsd = isValidAmount ? amountNum * effectiveLeverage : 0;
+  const debtToValuePct = totalPositionUsd > 0 ? (borrowedAmount / totalPositionUsd) * 100 : 0;
+  const liquidationThreshold = LEVERAGE_LIQUIDATION_THRESHOLD_BPS / 10_000;
+  const healthFactor = borrowedAmount > 0
+    ? (totalPositionUsd * liquidationThreshold) / borrowedAmount
+    : Number.POSITIVE_INFINITY;
+  const liquidationPrice =
+    borrowedAmount > 0 && estimatedShares > 0
+      ? borrowedAmount / (estimatedShares * liquidationThreshold)
+      : 0;
+  const liquidationBufferPct =
+    borrowedAmount > 0 && currentPrice > 0
+      ? ((currentPrice - liquidationPrice) / currentPrice) * 100
+      : 0;
 
   return (
     <div className={`bg-bg-1 border border-border rounded-xl p-5 sm:p-6 shadow-sm ${className}`}>
-      <div className="flex items-start gap-4 mb-4">
-        <MarketAvatar
-          market={{
-            ...market,
-            imageUrl: tradeOutcomeImageUrl?.trim() || market.imageUrl,
-          }}
-          className="h-14 w-14 shrink-0 rounded-2xl"
-        />
+      <div className="flex items-start gap-3 mb-4">
+        <div
+          className="shrink-0 size-9 rounded-md flex items-center justify-center bg-cusp-teal/15 border border-cusp-teal/30"
+          aria-hidden
+        >
+          <span className="text-lg font-bold text-cusp-teal">K</span>
+        </div>
         <div className="min-w-0 flex-1">
-          <div className="flex flex-wrap items-center gap-2 mb-3">
-            <div className="min-w-0 flex-1">
-              <h3 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
-                <InlineMarkdownText text={headline} />
-              </h3>
-            </div>
-            {isLive && (
-              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cusp-green/15 text-cusp-green text-[11px] font-medium animate-live-pulse shrink-0 self-start">
-                <Circle className="size-1.5 fill-current" />
-                Live
-              </span>
-            )}
-          </div>
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="text-[11px] font-mono px-2 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-              {market.ticker}
-            </span>
-            <span className="text-xs px-2.5 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-              {market.category}
-            </span>
-            <div className="flex items-center gap-2 min-w-[140px]">
-              <ProbabilityBar probability={displayProbability} size="sm" />
-            </div>
-          </div>
-          <p className="text-[11px] text-muted-foreground mt-3">
+          <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
+            {market.name}
+          </h3>
+          <p className="text-[11px] text-muted-foreground mt-0.5">
             Buy {tradeSide === "YES" ? market.yesLabel || "Yes" : market.noLabel || "No"}
             {tradeSide === "YES" ? (
               <span className="text-cusp-green"> · {priceToCents(displayYesPrice)}¢</span>
@@ -328,20 +323,20 @@ export function MarketTradePanel({
             ))}
           </div>
           <p className="text-[10px] text-muted-foreground mt-1.5">
-            1x is a direct trade. 2x–3x uses borrowed funds from the vault (margin shown below).
+            1x is a direct trade. 2x–5x borrows USDC from the mainnet LP pool against your margin.
           </p>
         </div>
 
         {leverage > 1 && (
           <div className="space-y-1 rounded-lg border border-border/60 bg-bg-2/50 px-3 py-2">
             <div className="flex items-center justify-between text-[10px]">
-              <span className="text-muted-foreground">Vault lending pool</span>
-              <span className={`font-mono ${mainnetReserve > 0 ? "text-cusp-green" : "text-cusp-red"}`}>
-                ${mainnetReserve.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+              <span className="text-muted-foreground">Mainnet LP pool</span>
+              <span className={`font-mono ${poolLiquidity > 0 ? "text-cusp-green" : "text-cusp-red"}`}>
+                ${poolLiquidity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
               </span>
             </div>
-            {mainnetReserve <= 0 && (
-              <p className="text-[10px] text-cusp-red">Pool empty — deposit to the vault Trading pool or use 1x.</p>
+            {poolLiquidity <= 0 && (
+              <p className="text-[10px] text-cusp-red">Pool empty — supply USDC in /lend or use 1x.</p>
             )}
           </div>
         )}
@@ -383,25 +378,49 @@ export function MarketTradePanel({
                   <span className="text-foreground font-mono">${amountNum.toFixed(2)}</span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
-                  <span>Borrowed from vault</span>
+                  <span>Borrowed from LP pool</span>
                   <span
                     className={`font-mono ${
                       effectiveLeverage > 1 ? "text-cusp-amber" : "text-muted-foreground"
                     }`}
                   >
-                    ${(amountNum * (effectiveLeverage - 1)).toFixed(2)}
+                    ${borrowedAmount.toFixed(2)}
                   </span>
                 </div>
                 <div className="flex justify-between text-muted-foreground">
                   <span>Total position</span>
                   <span className="text-foreground font-mono font-semibold">
-                    ${(amountNum * effectiveLeverage).toFixed(2)}
+                    ${totalPositionUsd.toFixed(2)}
                   </span>
+                </div>
+                <div className="grid grid-cols-2 gap-x-4 gap-y-1 pt-1">
+                  <div className="flex justify-between text-muted-foreground gap-2">
+                    <span>LTV</span>
+                    <span className="text-foreground font-mono">{debtToValuePct.toFixed(1)}%</span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground gap-2">
+                    <span>Health factor</span>
+                    <span className={`font-mono ${healthFactor >= 1.5 ? "text-cusp-green" : healthFactor >= 1.15 ? "text-cusp-amber" : "text-cusp-red"}`}>
+                      {healthFactor.toFixed(2)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground gap-2">
+                    <span>Liq. price</span>
+                    <span className="font-mono text-cusp-red">
+                      ${liquidationPrice.toFixed(3)}
+                    </span>
+                  </div>
+                  <div className="flex justify-between text-muted-foreground gap-2">
+                    <span>Buffer</span>
+                    <span className={`font-mono ${liquidationBufferPct >= 15 ? "text-cusp-green" : liquidationBufferPct >= 5 ? "text-cusp-amber" : "text-cusp-red"}`}>
+                      {liquidationBufferPct.toFixed(1)}%
+                    </span>
+                  </div>
                 </div>
                 {leverageReduced && (
                   <div className="text-[10px] text-cusp-amber mt-1">
-                    Leverage reduced to {effectiveLeverage.toFixed(1)}x — vault pool only has $
-                    {mainnetReserve.toFixed(2)} available to lend
+                    Leverage reduced to {effectiveLeverage.toFixed(1)}x — the mainnet LP pool only has $
+                    {poolLiquidity.toFixed(2)} available to lend
                   </div>
                 )}
               </>

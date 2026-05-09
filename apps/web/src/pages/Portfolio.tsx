@@ -1,31 +1,30 @@
-import { useMemo, useState } from "react";
-import { Link } from "react-router-dom";
 import Layout from "@/components/Layout";
-import { useUserPortfolio, type Position, type LeveragedTrade, type TradeExecution } from "@/hooks/useUserPortfolio";
-import { useOutcomeTokenHoldings, type OutcomeTokenHolding } from "@/hooks/useOutcomeTokenHoldings";
-import { useOutcomeCollateralPositions, type OutcomeCollateralPosition } from "@/hooks/useOutcomeCollateralPositions";
-import { useLivePortfolioPositions } from "@/hooks/useLivePortfolioPositions";
-import { useProtocolState } from "@/hooks/useProtocolState";
-import { usePhantom } from "@/lib/wallet";
 import { useQvac } from "@/components/qvac/QvacProvider";
 import { Skeleton } from "@/components/ui/skeleton";
+import { useLivePortfolioPositions } from "@/hooks/useLivePortfolioPositions";
+import { useOutcomeCollateralPositions, type OutcomeCollateralPosition } from "@/hooks/useOutcomeCollateralPositions";
+import { useOutcomeTokenHoldings, type OutcomeTokenHolding } from "@/hooks/useOutcomeTokenHoldings";
+import { useProtocolState } from "@/hooks/useProtocolState";
+import { useUserPortfolio, type LeveragedTrade, type Position, type TradeExecution } from "@/hooks/useUserPortfolio";
+import { usePhantom } from "@/lib/wallet";
 import {
-  ExternalLink,
-  Wallet,
-  TrendingUp,
-  TrendingDown,
-  Coins,
-  Layers,
-  Clock,
-  CreditCard,
-  ArrowUpRight,
-  ArrowDownRight,
-  CheckCircle2,
-  XCircle,
-  Shield,
   Activity,
+  ArrowDownRight,
+  ArrowUpRight,
+  CheckCircle2,
+  Clock,
+  Coins,
+  CreditCard,
+  ExternalLink,
+  Layers,
   RefreshCw,
+  Shield,
+  TrendingUp,
+  Wallet,
+  XCircle
 } from "lucide-react";
+import { useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 
 const tabs = [
   { id: "positions" as const, label: "Positions", icon: Layers },
@@ -463,207 +462,6 @@ function CollateralPositionCard({ p }: { p: CollateralPositionView }) {
     </div>
   );
 }
-
-// function WalletOutcomePositionCard({ holding }: { holding: OutcomeTokenHolding }) {
-//   const side = holding.side ?? "UNKNOWN";
-//   const isYes = side === "YES";
-//   const isNo = side === "NO";
-
-//   return (
-//     <div
-//       className={`bg-bg-1 border rounded-xl p-4 sm:p-5 transition-all hover:shadow-md ${
-//         isYes
-//           ? "border-cusp-green/20 hover:border-cusp-green/40"
-//           : isNo
-//             ? "border-cusp-red/20 hover:border-cusp-red/40"
-//             : "border-border hover:border-active/40"
-//       }`}
-//     >
-//       <div className="flex items-start justify-between gap-3 mb-3">
-//         <div className="flex items-center gap-2 flex-wrap">
-//           <SideBadge side={side} />
-//           <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-bg-2 text-muted-foreground border-border">
-//             wallet
-//           </span>
-//         </div>
-//         <a
-//           href={`https://solscan.io/token/${holding.mint}`}
-//           target="_blank"
-//           rel="noopener noreferrer"
-//           className="text-cusp-teal/70 hover:text-cusp-teal transition-colors"
-//           title="View token on Solscan"
-//         >
-//           <ExternalLink className="size-3.5" />
-//         </a>
-//       </div>
-
-//       <Link
-//         to={holding.ticker ? `/markets/${holding.ticker}` : "/markets"}
-//         className="text-sm font-medium text-foreground hover:text-cusp-teal transition-colors line-clamp-2 leading-snug mb-1 block"
-//       >
-//         {holding.title ?? "Prediction outcome"}
-//       </Link>
-//       <span className="text-[10px] font-mono text-muted-foreground">
-//         {holding.ticker ?? shortAddr(holding.mint)}
-//       </span>
-
-//       <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Price</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {holding.currentPrice != null ? `$${holding.currentPrice.toFixed(2)}` : "--"}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Shares</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {holding.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Probability</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {holding.probability != null ? `${holding.probability}%` : "--"}
-//           </span>
-//         </div>
-//       </div>
-
-//       <div className="grid grid-cols-3 gap-3 mt-2">
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Value</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {holding.currentValue != null ? `$${holding.currentValue.toFixed(2)}` : "--"}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Entry</span>
-//           <span className="text-[10px] text-muted-foreground">Wallet only</span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">P&L</span>
-//           <span className="text-[10px] text-muted-foreground">Need cost basis</span>
-//         </div>
-//       </div>
-
-//       <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
-//         <span className="text-[10px] text-muted-foreground font-mono">{shortAddr(holding.mint)}</span>
-//         <Link
-//           to={holding.ticker ? `/markets/${holding.ticker}` : "/markets"}
-//           className="text-[10px] text-cusp-teal hover:underline"
-//         >
-//           View Market
-//         </Link>
-//       </div>
-//     </div>
-//   );
-// }
-
-// function CollateralPositionCard({ p }: { p: CollateralPositionView }) {
-//   const type = p.loan_status === "active" || p.loan_status === "pending" ? "borrowed" : "collateral";
-//   const currentPrice = p.current_price;
-//   const ltvPct =
-//     p.current_value && p.current_value > 0
-//       ? (p.borrowed_amount_usdc / p.current_value) * 100
-//       : 0;
-//   const hasBorrow = p.borrowed_amount_usdc > 0;
-//   const healthText = hasBorrow
-//     ? (p.health_factor != null ? p.health_factor.toFixed(2) : "--")
-//     : "Not borrowed";
-
-//   return (
-//     <div className="bg-bg-1 border border-cusp-purple/20 hover:border-cusp-purple/40 rounded-xl p-4 sm:p-5 transition-all hover:shadow-md">
-//       <div className="flex items-start justify-between gap-3 mb-3">
-//         <div className="flex items-center gap-2 flex-wrap">
-//           <SideBadge side={p.side} />
-//           <TypeBadge type={type} />
-//           <StatusBadge status={p.loan_status ?? p.collateral_status} />
-//         </div>
-//         <div className="flex items-center gap-2 shrink-0">
-//           <SolscanTxLink sig={p.borrow_tx_signature ?? p.deposit_tx_signature} />
-//         </div>
-//       </div>
-
-//       <Link
-//         to={`/markets/${p.market_ticker}`}
-//         className="text-sm font-medium text-foreground hover:text-cusp-teal transition-colors line-clamp-2 leading-snug mb-1 block"
-//       >
-//         {p.market_title || p.market_ticker}
-//       </Link>
-//       <span className="text-[10px] font-mono text-muted-foreground">{p.market_ticker}</span>
-
-//       <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Entry</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {p.entry_price > 0 ? `$${p.entry_price.toFixed(2)}` : "--"}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Current</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {currentPrice != null ? `$${currentPrice.toFixed(2)}` : "--"}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Locked</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {p.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}
-//           </span>
-//         </div>
-//       </div>
-
-//       <div className="grid grid-cols-3 gap-3 mt-2">
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Collateral</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {p.current_value != null ? `$${p.current_value.toFixed(2)}` : `$${p.snapshot_value_usdc.toFixed(2)}`}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Borrowed</span>
-//           <span className="font-mono text-xs text-cusp-amber">
-//             ${p.borrowed_amount_usdc.toFixed(2)}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">P&L</span>
-//           <PnlBadge value={p.unrealized_pnl} pct={p.unrealized_pnl_pct} />
-//         </div>
-//       </div>
-
-//       <div className="grid grid-cols-3 gap-3 mt-2">
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Health</span>
-//           <span className={`${hasBorrow ? "font-mono" : ""} text-xs ${p.health_factor != null && p.health_factor < 1.1 ? "text-cusp-red" : "text-foreground"}`}>
-//             {healthText}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">LTV</span>
-//           <span className="font-mono text-xs text-foreground">
-//             {`${ltvPct.toFixed(1)}%`}
-//           </span>
-//         </div>
-//         <div>
-//           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Custody</span>
-//           <span className="font-mono text-xs text-muted-foreground">{shortAddr(p.custody_wallet)}</span>
-//         </div>
-//       </div>
-
-//       <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
-//         <span className="text-[10px] text-muted-foreground">
-//           {p.loan_status === "active" || p.loan_status === "pending" ? "Held by Cusp Pool" : "Locked in Cusp Pool"}
-//         </span>
-//         <Link
-//           to={`/markets/${p.market_ticker}`}
-//           className="text-[10px] text-cusp-teal hover:underline"
-//         >
-//           View Market
-//         </Link>
-//       </div>
-//     </div>
-//   );
-// }
 
 function LeveragedCard({ lt }: { lt: LeveragedTrade }) {
   const { openQvac, setAssistantContext } = useQvac();

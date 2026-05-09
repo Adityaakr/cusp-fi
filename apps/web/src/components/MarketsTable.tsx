@@ -20,7 +20,9 @@ export type MarketsSortKey =
   | "openInterest"
   | "close"
   | "yield"
-  | "volume";
+  | "volume"
+  | "estimatedYield"
+  | "cusp";
 
 function formatUsd(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";

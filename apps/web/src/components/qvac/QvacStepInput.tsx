@@ -1,6 +1,8 @@
-import type { QvacFlowStep } from "@/components/qvac/qvacFlows";
+import { MarketAvatar } from "@/components/MarketAvatar";
+import type { QvacFlowStep, QvacMarketSearchValue } from "@/components/qvac/qvacFlows";
 import { Search } from "lucide-react";
-import { useState, useCallback } from "react";
+import { useState, useCallback, useMemo } from "react";
+import { cn } from "@/lib/utils";
 
 interface QvacStepInputProps {
   step: QvacFlowStep;
@@ -8,6 +10,10 @@ interface QvacStepInputProps {
   onChange: (value: unknown) => void;
   onSubmit: () => void;
   isValid: boolean;
+}
+
+interface SearchResultMarket extends QvacMarketSearchValue {
+  eventTitle?: string;
 }
 
 export default function QvacStepInput({ step, value, onChange, onSubmit, isValid }: QvacStepInputProps) {
@@ -18,7 +24,7 @@ export default function QvacStepInput({ step, value, onChange, onSubmit, isValid
     return <SelectInput step={step} value={value} onChange={onChange} />;
   }
   if (step.type === "market_search") {
-    return <MarketSearchInput step={step} value={value} onChange={onChange} />;
+    return <MarketSearchInput step={step} value={value} onChange={onChange} onSubmit={onSubmit} />;
   }
   return null;
 }
@@ -110,17 +116,52 @@ function SelectInput({
   );
 }
 
+function bestEffortImageUrl(source: Record<string, unknown> | undefined): string | undefined {
+  if (!source) return undefined;
+  for (const key of ["imageUrl", "image_url", "iconUrl", "icon_url", "thumbnailUrl", "thumbnail_url", "logoUrl", "logo_url"]) {
+    const value = source[key];
+    if (typeof value === "string" && value.trim()) return value.trim();
+  }
+  return undefined;
+}
+
+function formatPercent(value: number | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value)) return null;
+  return `${Math.round(value * 100)}¢`;
+}
+
+function formatCompactUsd(value: number | undefined): string | null {
+  if (typeof value !== "number" || !Number.isFinite(value) || value <= 0) return null;
+  return new Intl.NumberFormat("en-US", {
+    notation: "compact",
+    maximumFractionDigits: value >= 1000 ? 1 : 0,
+  }).format(value);
+}
+
+function formatDateLabel(value: string | undefined): string | null {
+  if (!value) return null;
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return null;
+  return new Intl.DateTimeFormat("en-US", { month: "short", day: "numeric" }).format(parsed);
+}
+
 function MarketSearchInput({
   step,
   value,
   onChange,
+  onSubmit,
 }: {
   step: QvacFlowStep;
   value: unknown;
   onChange: (value: unknown) => void;
+  onSubmit: () => void;
 }) {
-  const [query, setQuery] = useState("");
-  const [markets, setMarkets] = useState<Array<{ ticker: string; title: string }>>([]);
+  const selectedMarket = useMemo(
+    () => (value && typeof value === "object" && "ticker" in (value as Record<string, unknown>) ? (value as QvacMarketSearchValue) : null),
+    [value]
+  );
+  const [query, setQuery] = useState(selectedMarket?.title ?? "");
+  const [markets, setMarkets] = useState<SearchResultMarket[]>([]);
   const [loading, setLoading] = useState(false);
 
   const searchMarkets = useCallback(async (q: string) => {
@@ -130,15 +171,31 @@ function MarketSearchInput({
     }
     setLoading(true);
     try {
-      const { searchKalshiMarketsByQuery } = await import('@/lib/kalshi-api');
+      const { searchKalshiMarketsByQuery } = await import("@/lib/kalshi-api");
       const data = await searchKalshiMarketsByQuery(q, 25);
-      
-      const results: { ticker: string; title: string }[] = [];
+
+      const results: SearchResultMarket[] = [];
       for (const item of data.current_page || []) {
         for (const market of item.markets || []) {
+          const yesAsk = market.yes_ask_dollars ? Number(market.yes_ask_dollars) : undefined;
+          const yesBid = market.yes_bid_dollars ? Number(market.yes_bid_dollars) : undefined;
+          const lastPrice = market.last_price_dollars ? Number(market.last_price_dollars) : undefined;
+          const yesPrice = yesAsk && yesAsk > 0 ? yesAsk : lastPrice && lastPrice > 0 ? lastPrice : undefined;
+          const noPrice = yesBid && yesBid > 0 ? 1 - yesBid : lastPrice && lastPrice > 0 ? 1 - lastPrice : undefined;
+          const derivedImage = bestEffortImageUrl(item.product_metadata_derived);
           results.push({
             ticker: market.ticker,
-            title: market.title || item.event_title || item.series_title || market.ticker
+            title: market.title || item.event_title || item.series_title || market.ticker,
+            subtitle: item.event_subtitle || item.series_title || item.category,
+            eventTitle: item.event_title,
+            category: item.category,
+            yesPrice,
+            noPrice,
+            yesLabel: market.yes_subtitle || "Yes",
+            noLabel: market.no_subtitle || "No",
+            volume24h: market.volume ?? item.total_volume ?? undefined,
+            resolutionDate: market.expected_expiration_ts || market.close_ts,
+            imageUrl: derivedImage,
           });
         }
       }
@@ -152,11 +209,21 @@ function MarketSearchInput({
 
   const handleQueryChange = (q: string) => {
     setQuery(q);
-    searchMarkets(q);
+    if (!q.trim()) {
+      onChange(undefined);
+    }
+    void searchMarkets(q);
+  };
+
+  const chooseMarket = (market: SearchResultMarket) => {
+    onChange(market);
+    setQuery(market.title);
+    setMarkets([]);
+    onSubmit();
   };
 
   return (
-    <div className="flex flex-col gap-2">
+    <div className="flex flex-col gap-3">
       <div className="relative">
         <Search className="absolute left-3 top-1/2 -translate-y-1/2 size-4 text-muted-foreground" />
         <input
@@ -171,34 +238,101 @@ function MarketSearchInput({
           <div className="absolute right-3 top-1/2 -translate-y-1/2 size-4 animate-spin rounded-full border-2 border-cusp-teal border-t-transparent" />
         )}
       </div>
+
+      <p className="text-[11px] text-muted-foreground">
+        Search for a market, then pick one result to continue.
+      </p>
+
       {markets.length > 0 && (
-        <div className="flex flex-col gap-1 max-h-48 overflow-y-auto rounded-lg border border-border bg-bg-0">
-          {markets.map((m) => (
-            <button
-              key={m.ticker}
-              onClick={() => {
-                onChange(m.ticker);
-                setQuery(m.title);
-                setMarkets([]);
-              }}
-              className={`flex items-center justify-between px-3 py-2 text-sm transition-colors ${
-                value === m.ticker
-                  ? "bg-cusp-teal/10 text-cusp-teal"
-                  : "text-foreground hover:bg-bg-2"
-              }`}
-            >
-              <span className="font-medium">{m.title}</span>
-              <span className="text-xs text-muted-foreground font-mono">{m.ticker}</span>
-            </button>
-          ))}
+        <div className="flex flex-col gap-2 max-h-80 overflow-y-auto rounded-xl border border-border bg-bg-0 p-2">
+          {markets.map((market) => {
+            const selected = selectedMarket?.ticker === market.ticker;
+            const yesPrice = formatPercent(market.yesPrice);
+            const noPrice = formatPercent(market.noPrice);
+            const closeLabel = formatDateLabel(market.resolutionDate);
+            const volumeLabel = formatCompactUsd(market.volume24h);
+
+            return (
+              <button
+                key={market.ticker}
+                onClick={() => chooseMarket(market)}
+                className={cn(
+                  "rounded-xl border px-3 py-3 text-left transition-all",
+                  selected
+                    ? "border-cusp-teal bg-cusp-teal/10 shadow-[0_0_0_1px_rgba(45,212,191,0.12)]"
+                    : "border-border bg-bg-1 hover:border-cusp-teal/40 hover:bg-bg-2"
+                )}
+              >
+                <div className="flex gap-3">
+                  <MarketAvatar
+                    market={{
+                      imageUrl: market.imageUrl,
+                      competition: market.eventTitle,
+                      subCategory: market.subtitle,
+                      category: market.category || "Other",
+                      name: market.title,
+                    }}
+                    className="size-14 shrink-0"
+                  />
+                  <div className="min-w-0 flex-1">
+                    <div className="flex items-start justify-between gap-3">
+                      <div className="min-w-0">
+                        <p className="line-clamp-2 text-sm font-medium text-foreground">{market.title}</p>
+                        {(market.subtitle || market.category) && (
+                          <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">
+                            {[market.subtitle, market.category].filter(Boolean).join(" · ")}
+                          </p>
+                        )}
+                      </div>
+                      <span className="rounded-full border border-border bg-bg-2 px-2 py-1 text-[10px] font-medium uppercase tracking-[0.12em] text-muted-foreground">
+                        {selected ? "Selected" : "Select"}
+                      </span>
+                    </div>
+
+                    <div className="mt-3 flex flex-wrap gap-2 text-[11px]">
+                      {yesPrice && (
+                        <span className="rounded-full bg-emerald-500/10 px-2 py-1 text-emerald-300">
+                          {market.yesLabel || "Yes"} {yesPrice}
+                        </span>
+                      )}
+                      {noPrice && (
+                        <span className="rounded-full bg-rose-500/10 px-2 py-1 text-rose-300">
+                          {market.noLabel || "No"} {noPrice}
+                        </span>
+                      )}
+                      {closeLabel && (
+                        <span className="rounded-full bg-bg-2 px-2 py-1 text-muted-foreground">Closes {closeLabel}</span>
+                      )}
+                      {volumeLabel && (
+                        <span className="rounded-full bg-bg-2 px-2 py-1 text-muted-foreground">Vol {volumeLabel}</span>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              </button>
+            );
+          })}
         </div>
       )}
-      {value && (
-        <div className="flex items-center gap-2 text-xs text-cusp-teal">
-          <svg className="size-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-          </svg>
-          Selected: <span className="font-medium">{String(value)}</span>
+
+      {!loading && query.trim().length >= 2 && markets.length === 0 && (
+        <div className="rounded-xl border border-dashed border-border bg-bg-1/50 px-3 py-4 text-sm text-muted-foreground">
+          No matching markets found. Try a broader keyword.
+        </div>
+      )}
+
+      {selectedMarket && (
+        <div className="rounded-xl border border-cusp-teal/30 bg-cusp-teal/10 px-3 py-3">
+          <div className="flex items-center gap-2 text-xs font-medium text-cusp-teal">
+            <svg className="size-3.5 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+            </svg>
+            Market selected
+          </div>
+          <p className="mt-1 text-sm font-medium text-foreground">{selectedMarket.title}</p>
+          <p className="mt-1 text-xs text-muted-foreground">
+            Great — continue with the next step below.
+          </p>
         </div>
       )}
     </div>

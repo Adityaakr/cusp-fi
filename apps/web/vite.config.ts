@@ -69,6 +69,33 @@ export default defineConfig(({ mode }) => {
     },
   };
 
+  const cuspApiProxy = {
+    "/api/qvac": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+    "/api/vault": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+    "/api/lend": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+    "/api/borrow": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+    "/api/trade": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+    "/api/risk-check": {
+      target: env.CUSP_API_BASE || "http://localhost:4000",
+      changeOrigin: true,
+    },
+  };
+
   return {
     envDir: repoRoot,
     server: {
@@ -77,7 +104,7 @@ export default defineConfig(({ mode }) => {
       hmr: {
         overlay: false,
       },
-      proxy: { ...dflowProxy, ...kaminoProxy, ...jupiterProxy, ...kalshiProxy },
+      proxy: { ...dflowProxy, ...kaminoProxy, ...jupiterProxy, ...kalshiProxy, ...cuspApiProxy },
     },
     plugins: [
       react(),

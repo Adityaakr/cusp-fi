@@ -1,4 +1,5 @@
 import { useQvac } from "@/components/qvac/QvacProvider";
+import type { AnyQvacCommand, ExecutionPlan } from "@cusp/shared";
 import {
   Sheet,
   SheetContent,
@@ -9,6 +10,7 @@ import {
 } from "@/components/ui/sheet";
 import { Button } from "@/components/ui/button";
 import { useQvacAssistant } from "@/hooks/useQvacAssistant";
+import { executeQvacCommand, extractTxSignature } from "@/lib/qvac-api";
 
 function StepIcon({ stepName }: { stepName: string }) {
   if (stepName.includes("deposit") || stepName.includes("lock") || stepName.includes("margin"))
@@ -22,38 +24,38 @@ function StepIcon({ stepName }: { stepName: string }) {
 
 export default function ExecutionSheet() {
   const { state, setExecuting, setSuccess, setError, closeQvac } = useQvac();
-  const { executionPlan, phase, assistantPreview } = state;
   const { execute } = useQvacAssistant();
+
+  const { executionPlan, command, phase, assistantPreview } = state;
 
   if (!executionPlan || phase !== "preview") return null;
 
   const onConfirm = () => {
-    if (!assistantPreview) {
-      setError("This manual QVAC flow is preview-only right now.");
+    if (!command) return;
+    setExecuting();
+    if (assistantPreview) {
+      execute(assistantPreview)
+        .then((result) => {
+          if (result.error) {
+            setError(result.error);
+            return;
+          }
+          setSuccess(result.txSignature ?? "confirmed");
+        })
+        .catch((err) => {
+          setError(err instanceof Error ? err.message : "Execution failed");
+        });
       return;
     }
-    setExecuting();
-    execute(assistantPreview!)
-      .then((result) => {
-        if (result.error) {
-          setError(result.error);
-          return;
-        }
-        if (result.navigateTo) {
-          closeQvac();
-          return;
-        }
-        setSuccess(result.txSignature ?? "");
+
+    executeCommand(command, executionPlan)
+      .then((txSignature) => {
+        setSuccess(txSignature ?? "confirmed");
       })
       .catch((err) => {
         setError(err instanceof Error ? err.message : "Execution failed");
       });
   };
-
-  const confirmLabel =
-    assistantPreview?.intent.type === "direct_trade" || assistantPreview?.intent.type === "leverage_open"
-      ? "Open Trade Ticket"
-      : "Confirm Action";
 
   return (
     <Sheet open onOpenChange={(open) => { if (!open) closeQvac(); }}>
@@ -120,7 +122,7 @@ export default function ExecutionSheet() {
             onClick={onConfirm}
             className="w-full bg-cusp-teal text-primary-foreground hover:bg-cusp-teal/90 font-medium"
           >
-            {confirmLabel}
+            Confirm Transaction
           </Button>
           <Button variant="ghost" onClick={closeQvac} className="w-full text-muted-foreground">
             Cancel
@@ -129,4 +131,12 @@ export default function ExecutionSheet() {
       </SheetContent>
     </Sheet>
   );
+}
+
+async function executeCommand(
+  command: AnyQvacCommand,
+  _plan: ExecutionPlan
+): Promise<string | null> {
+  const result = await executeQvacCommand(command);
+  return extractTxSignature(result.data) ?? null;
 }

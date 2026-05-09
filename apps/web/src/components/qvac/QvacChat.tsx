@@ -1,12 +1,15 @@
 import { useQvac } from "@/components/qvac/QvacProvider";
+import { getMarketDisplayValue } from "@/components/qvac/qvacFlows";
 import QvacStepInput from "@/components/qvac/QvacStepInput";
 import { usePhantom } from "@/lib/wallet";
+import { previewQvacCommand } from "@/lib/qvac-api";
+import { useState } from "react";
 
 export default function QvacChat() {
   const { state, setStepValue, nextStep, prevStep, submitForPreview, setExecutionPlan, setError } = useQvac();
   const { addresses } = usePhantom();
+  const [submitting, setSubmitting] = useState(false);
   const { flow, stepIndex, stepValues } = state;
-  const wallet = addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ?? "";
 
   if (!flow) return null;
 
@@ -33,25 +36,51 @@ export default function QvacChat() {
 
   const allStepsFilled = steps.every((s) => stepValues[s.key] !== undefined && stepValues[s.key] !== "");
 
+  const wallet =
+    addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ??
+    addresses?.[0]?.address ??
+    "";
+
   const handleSubmit = async () => {
     if (!flow || !allStepsFilled) return;
+    if (!wallet) {
+      setError("Connect your wallet to prepare a QVAC action.");
+      return;
+    }
+
     const command = flow.buildCommand(stepValues, wallet);
-    submitForPreview(command);
+    setSubmitting(true);
+
     try {
-      const res = await fetch("/api/qvac", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(command),
-      });
-      const data = await res.json();
-      if (!res.ok || !data?.execution_plan) {
-        throw new Error(data?.error || "Failed to prepare preview");
+      const result = await previewQvacCommand(command);
+      if (!result.success || !result.execution_plan) {
+        setError(result.error || "Unable to prepare the execution plan.");
+        return;
       }
-      setExecutionPlan(data.execution_plan);
+
+      setExecutionPlan(result.execution_plan as typeof state.executionPlan);
+      submitForPreview(command);
     } catch (error) {
-      setError(error instanceof Error ? error.message : "Failed to prepare preview");
+      setError(
+        error instanceof Error ? error.message : "Unable to prepare the execution plan."
+      );
+    } finally {
+      setSubmitting(false);
     }
   };
+
+  if (!isWizard) {
+    return (
+      <div className="flex flex-col gap-3">
+        <div className="rounded-2xl border border-border bg-bg-2 px-4 py-4">
+          <p className="text-sm font-medium text-foreground">Preview ready</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Review the execution plan on the right, then confirm to submit the {flow.label.toLowerCase()} action.
+          </p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col gap-4">
@@ -96,7 +125,7 @@ export default function QvacChat() {
             step={currentStep}
             value={currentStepValue}
             onChange={(value) => setStepValue(currentStep.key, value)}
-            onSubmit={isLastStep && allStepsFilled ? handleSubmit : nextStep}
+            onSubmit={isLastStep && allStepsFilled ? () => void handleSubmit() : nextStep}
             isValid={isCurrentStepValid()}
           />
         )}
@@ -106,6 +135,8 @@ export default function QvacChat() {
             <p className="text-sm">
               {currentStep.type === "amount"
                 ? `${Number(currentStepValue).toLocaleString()} ${currentStep.asset || ""}`
+                : currentStep.type === "market_search"
+                  ? getMarketDisplayValue(currentStepValue)
                 : (currentStep.options?.find((o) => o.value === currentStepValue)?.label ?? String(currentStepValue))}
             </p>
           </div>
@@ -115,9 +146,10 @@ export default function QvacChat() {
       {isWizard && isLastStep && allStepsFilled && (
         <button
           onClick={handleSubmit}
+          disabled={submitting}
           className="w-full bg-cusp-teal text-primary-foreground font-medium py-2.5 rounded-lg hover:bg-cusp-teal/90 transition-colors text-sm"
         >
-          Review &amp; Confirm
+          {submitting ? "Preparing preview…" : "Review & Confirm"}
         </button>
       )}
     </div>

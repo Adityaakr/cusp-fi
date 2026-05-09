@@ -86,7 +86,7 @@ export default function QvacPanel() {
             <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Sparkles className="size-4 text-cusp-teal" />
-                {state.flow?.label ?? "QVAC"}
+                {state.flow?.label ?? (state.assistantPreview ? "QVAC · Assistant" : "QVAC")}
               </div>
               <button
                 onClick={closeQvac}
@@ -96,7 +96,21 @@ export default function QvacPanel() {
               </button>
             </div>
             <div className="flex-1 overflow-y-auto p-4">
-              <QvacChat />
+              {state.flow ? (
+                <QvacChat />
+              ) : state.assistantPreview ? (
+                <div className="flex flex-col gap-3">
+                  <div className="bg-bg-2 rounded-2xl px-4 py-3 border border-border">
+                    <p className="text-xs font-medium text-muted-foreground mb-1">Assistant</p>
+                    <p className="text-sm text-foreground whitespace-pre-wrap">{state.assistantPreview.intent.assistant_message}</p>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Review the execution plan in the side panel, then confirm to submit the transaction.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">Preparing preview…</p>
+              )}
             </div>
           </div>
         </div>

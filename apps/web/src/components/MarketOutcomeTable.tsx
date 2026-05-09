@@ -1,6 +1,7 @@
 import { getMarketOutcomeRowLabels, type CuspMarket } from "@/lib/dflow-api";
 import { useState } from "react";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
+import { Link } from "react-router-dom";
 import { Skeleton } from "@/components/ui/skeleton";
 import { cn } from "@/lib/utils";
 
@@ -174,6 +175,14 @@ export function MarketOutcomeTable({
             )}
           </tbody>
         </table>
+      </div>
+      <div className="mt-4 pt-3 border-t border-border">
+        <Link
+          to="/markets"
+          className="text-xs font-medium text-cusp-teal hover:underline"
+        >
+          More markets
+        </Link>
       </div>
     </div>
   );

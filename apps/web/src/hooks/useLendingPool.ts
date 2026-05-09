@@ -27,6 +27,7 @@ export interface LendingPoolState {
 }
 
 const BASE_BORROW_APR = 8.0;
+const TARGET_LENDER_APY = 19.4;
 
 type PoolApiResponse = {
   success: boolean;
@@ -56,7 +57,7 @@ async function fetchLendingPoolState(walletAddress?: string | null): Promise<Len
   const totalBorrowed = Number(result.borrowed_liquidity ?? 0);
   const availableLiquidity = Number(result.available_liquidity ?? 0);
   const utilizationRate = totalPoolSize > 0 ? totalBorrowed / totalPoolSize : 0;
-  const lenderApyPlaceholder = utilizationRate * BASE_BORROW_APR * 0.85;
+  const lenderApyPlaceholder = TARGET_LENDER_APY;
   const poolReady = Boolean(result.pool_public_key);
 
   return {

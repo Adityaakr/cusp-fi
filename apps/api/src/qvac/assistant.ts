@@ -169,6 +169,22 @@ function intentError(intent: QvacAssistantIntent, message: string): QvacAssistan
   return { success: false, intent, error: message };
 }
 
+function normalizePoolSlug(pool?: string): string {
+  const p = (pool ?? "moderate").toLowerCase().trim();
+  if (p === "conservative" || p === "c" || p === "safe") return "conservative";
+  if (p === "growth" || p === "g") return "growth";
+  return "moderate";
+}
+
+function normalizeRiskMode(
+  mode?: string
+): "safe" | "moderate" | "aggressive" {
+  const m = (mode ?? "moderate").toLowerCase().trim();
+  if (m === "safe" || m === "conservative" || m === "low") return "safe";
+  if (m === "aggressive" || m === "growth" || m === "high") return "aggressive";
+  return "moderate";
+}
+
 export async function previewAssistantIntent(
   intent: QvacAssistantIntent,
   context: PreviewContext
@@ -176,7 +192,13 @@ export async function previewAssistantIntent(
   const wallet = context.wallet_address?.trim();
   if (!wallet) return intentError(intent, "Connect your wallet to use QVAC actions.");
 
-  if (intent.type === "market_search" || intent.type === "position_summary" || intent.type === "risk_explain" || intent.type === "unknown") {
+  if (
+    intent.type === "market_search" ||
+    intent.type === "position_summary" ||
+    intent.type === "risk_explain" ||
+    intent.type === "borrow_capacity" ||
+    intent.type === "unknown"
+  ) {
     return { success: true, intent };
   }
 
@@ -284,6 +306,130 @@ export async function previewAssistantIntent(
         resolved_market_ticker: resolved.resolved.market_ticker,
         resolved_market_title: resolved.resolved.market_title,
       },
+      command,
+      execution_plan: routeResult.execution_plan,
+    };
+  }
+
+  if (intent.type === "lend_deposit") {
+    const amount = intent.amount_ui ?? 0;
+    if (!amount || amount <= 0) return intentError(intent, "Specify how much cUSDT to lend (amount_ui).");
+    const pool = normalizePoolSlug(intent.pool);
+    const command: AnyQvacCommand = {
+      intent_id: crypto.randomUUID(),
+      user_wallet: wallet,
+      input_accounting_asset: "cUSDT",
+      underlying_asset: "USDT",
+      execution_asset: "USDT",
+      amount_ui: amount,
+      requires_user_confirmation: true,
+      service: "lend",
+      action: "deposit",
+      input_asset: "cUSDT",
+      pool,
+    };
+    const routeResult = await routeQvacCommand(command);
+    if (!routeResult.success || !routeResult.execution_plan) {
+      return intentError(intent, routeResult.error || "Unable to prepare lend deposit preview.");
+    }
+    return {
+      success: true,
+      intent: { ...intent, pool },
+      command,
+      execution_plan: routeResult.execution_plan,
+    };
+  }
+
+  if (intent.type === "lend_withdraw") {
+    const amount = intent.amount_ui ?? 0;
+    if (!amount || amount <= 0) return intentError(intent, "Specify how much to withdraw from lending.");
+    const pool = normalizePoolSlug(intent.pool);
+    const command: AnyQvacCommand = {
+      intent_id: crypto.randomUUID(),
+      user_wallet: wallet,
+      input_accounting_asset: "cUSDT",
+      underlying_asset: "USDT",
+      execution_asset: "USDT",
+      amount_ui: amount,
+      requires_user_confirmation: true,
+      service: "lend",
+      action: "withdraw",
+      input_asset: "cUSDT",
+      pool,
+    };
+    const routeResult = await routeQvacCommand(command);
+    if (!routeResult.success || !routeResult.execution_plan) {
+      return intentError(intent, routeResult.error || "Unable to prepare lend withdraw preview.");
+    }
+    return {
+      success: true,
+      intent: { ...intent, pool },
+      command,
+      execution_plan: routeResult.execution_plan,
+    };
+  }
+
+  if (intent.type === "borrow_open") {
+    const collateralAmt = intent.amount_ui ?? 0;
+    const borrowAmt = intent.borrow_amount_ui ?? 0;
+    if (!collateralAmt || collateralAmt <= 0) return intentError(intent, "Specify how much collateral to provide.");
+    if (!borrowAmt || borrowAmt <= 0) return intentError(intent, "Specify how much you want to borrow.");
+    const collateral_asset = (intent.collateral_asset ?? "USDT") as Asset;
+    const borrow_asset = (intent.borrow_asset ?? "USDT") as Asset;
+    const risk_mode = normalizeRiskMode(intent.risk_mode);
+    const command: AnyQvacCommand = {
+      intent_id: crypto.randomUUID(),
+      user_wallet: wallet,
+      input_accounting_asset: collateral_asset,
+      underlying_asset: "USDT",
+      execution_asset: "USDT",
+      amount_ui: collateralAmt,
+      requires_user_confirmation: true,
+      service: "borrow",
+      action: "open",
+      collateral_asset,
+      borrow_asset,
+      borrow_amount_ui: borrowAmt,
+      risk_mode,
+    };
+    const routeResult = await routeQvacCommand(command);
+    if (!routeResult.success || !routeResult.execution_plan) {
+      return intentError(intent, routeResult.error || "Unable to prepare borrow preview.");
+    }
+    return {
+      success: true,
+      intent: { ...intent, collateral_asset, borrow_asset, risk_mode },
+      command,
+      execution_plan: routeResult.execution_plan,
+    };
+  }
+
+  if (intent.type === "borrow_close") {
+    const repayAmt = intent.repay_amount_ui ?? 0;
+    const unlockAmt = intent.amount_ui ?? 0;
+    if (!repayAmt || repayAmt <= 0) return intentError(intent, "Specify how much to repay.");
+    if (!unlockAmt || unlockAmt <= 0) return intentError(intent, "Specify how much collateral to unlock.");
+    const repay_asset = (intent.repay_asset ?? "USDT") as Asset;
+    const command: AnyQvacCommand = {
+      intent_id: crypto.randomUUID(),
+      user_wallet: wallet,
+      input_accounting_asset: repay_asset,
+      underlying_asset: "USDT",
+      execution_asset: "USDT",
+      amount_ui: unlockAmt,
+      requires_user_confirmation: true,
+      service: "borrow",
+      action: "close",
+      repay_asset,
+      repay_amount_ui: repayAmt,
+    };
+    const routeResult = await routeQvacCommand(command);
+    if (!routeResult.success || !routeResult.execution_plan) {
+      return intentError(intent, routeResult.error || "Unable to prepare repay preview.");
+    }
+    return {
+      success: true,
+      intent: { ...intent, repay_asset },
       command,
       execution_plan: routeResult.execution_plan,
     };

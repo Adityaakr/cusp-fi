@@ -83,9 +83,9 @@ function collateralPositionToActive(position: OutcomeCollateralPosition): Active
 
 function riskBadge(ltv: number): { text: string; color: string; bg: string } {
   if (ltv <= 0) return { text: "—", color: "text-muted-foreground", bg: "" };
-  if (ltv <= 20) return { text: "Safe", color: "text-cusp-green", bg: "bg-cusp-green/10" };
-  if (ltv <= 25) return { text: "Moderate", color: "text-cusp-amber", bg: "bg-cusp-amber/10" };
-  if (ltv < 40) return { text: "Risky", color: "text-cusp-red", bg: "bg-cusp-red/10" };
+  if (ltv <= 35) return { text: "Safe", color: "text-cusp-green", bg: "bg-cusp-green/10" };
+  if (ltv <= 50) return { text: "Moderate", color: "text-cusp-amber", bg: "bg-cusp-amber/10" };
+  if (ltv < 60) return { text: "Risky", color: "text-cusp-red", bg: "bg-cusp-red/10" };
   return { text: "Liquidatable", color: "text-cusp-red", bg: "bg-cusp-red/15" };
 }
 
@@ -151,7 +151,7 @@ const LendPage = () => {
   }, [activeCustodyPositions, lockedCollateralPositions, outcomeLoans]);
 
   // Live DFlow markets for discovery
-  const marketsQuery = useDflowMarkets({ status: "active", limit: 120 });
+  const marketsQuery = useDflowMarkets({ status: "active", limit: 50 });
   const dflowMarkets = useMemo(() => {
     const list = [...(marketsQuery.data ?? [])];
     list.sort((a, b) => (b.volume ?? b.volume24h ?? 0) - (a.volume ?? a.volume24h ?? 0));
@@ -252,7 +252,7 @@ const LendPage = () => {
           )}
           {!poolState?.poolReady && (
             <div className="mt-3 flex items-start gap-1.5 text-[10px] text-cusp-amber/90">
-              <Info className="size-3 shrink-0 mt-px" />
+              <AlertTriangle className="size-3 shrink-0 mt-px" />
               The mainnet LP signer is not configured yet. Outcome positions still sync live, but supply, withdraw, and funded borrows stay disabled until the pool wallet is wired.
             </div>
           )}
@@ -501,42 +501,26 @@ const LendPage = () => {
               )}
             </div>
 
-            {/* ── Safety Explanation ── */}
-            <div className="bg-bg-1 border border-cusp-teal/20 rounded-xl p-4">
-              <div className="flex items-start gap-2">
-                <Info className="size-4 text-cusp-teal shrink-0 mt-0.5" />
-                <div>
-                  <h4 className="text-xs font-medium text-foreground mb-1.5">MVP Safety Note</h4>
-                  <p className="text-[11px] text-muted-foreground leading-relaxed">
-                    For this MVP, CUSP uses live market data and wallet outcome-token positions to calculate
-                    borrow limits and liquidation risk. Demo loans are tracked through database accounting.
-                    Production lending will require escrowed collateral or delegated token control for
-                    enforceable liquidation.
-                  </p>
-                </div>
-              </div>
-            </div>
-
             {/* ── How It Works ── */}
             <div className="bg-bg-1 border border-border rounded-xl p-4">
               <h3 className="text-sm font-medium text-foreground mb-3">How it works</h3>
               <div className="space-y-3">
                 {[
                   {
-                    title: "30% Max LTV · 20% Safe LTV",
-                    desc: "Borrow up to 30% of your outcome token's market value. We recommend 20% for a safer margin against price swings.",
+                    title: "50% Max LTV · 35% Safe LTV",
+                    desc: "Borrow up to 50% of your outcome token's market value. We recommend around 35% for a safer buffer against price swings.",
                   },
                   {
                     title: "Live price valuation",
                     desc: "Collateral is valued using real-time DFlow market prices. As implied probability changes, so does your borrowing capacity and health factor.",
                   },
                   {
-                    title: "Liquidation at 40% LTV",
-                    desc: "If market price drops enough that your LTV exceeds 40%, the position can be liquidated. The liquidation price shown is the token price where this happens.",
+                    title: "Liquidation at 60% LTV",
+                    desc: "If market price drops enough that your LTV exceeds 60%, the position can be liquidated. The liquidation price shown is the token price where this happens.",
                   },
                   {
                     title: "Hard expiry",
-                    desc: "Loans auto-close 2 hours before market resolution, protecting lenders from binary settlement risk.",
+                    desc: "Loans now carry a 7-day hard expiry by default, limiting stale borrows and forcing periodic rollover or repayment.",
                   },
                 ].map((item) => (
                   <div key={item.title} className="p-3 bg-bg-2 rounded-md">
@@ -561,13 +545,13 @@ const LendPage = () => {
               </h4>
               <div className="space-y-2">
                 {[
-                  ["Max LTV", "30%"],
-                  ["Safe LTV", "20%"],
-                  ["Liquidation threshold", "40% LTV"],
+                  ["Max LTV", "50%"],
+                  ["Safe LTV", "35%"],
+                  ["Liquidation threshold", "60% LTV"],
                   ["Borrow APR", `${(poolState?.borrowRateApr ?? 8).toFixed(1)}%`],
                   ["Collateral", "DFlow YES/NO tokens"],
                   ["Borrow asset", "USDC"],
-                  ["Hard expiry", "2h before resolution"],
+                  ["Hard expiry", "7 days"],
                   ["Health < 1.0", "→ Liquidation"],
                 ].map(([label, value]) => (
                   <div key={label} className="flex justify-between text-xs">

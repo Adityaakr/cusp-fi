@@ -1,5 +1,6 @@
 import HealthGauge from "./HealthGauge";
 import CountdownTimer from "./CountdownTimer";
+import { OUTCOME_LIQUIDATION_THRESHOLD_BPS } from "@/lib/protocol-constants";
 import { type ActiveLoan } from "@/data/mockData";
 
 interface LoanCardProps {
@@ -22,13 +23,14 @@ function formatUsd(value: number): string {
 const LoanCard = ({ loan, onRepay }: LoanCardProps) => {
   const borrowAsset = loan.borrowAsset || "USDC";
   const isBorrowed = loan.borrowedAmount > 0;
+  const liquidationThreshold = OUTCOME_LIQUIDATION_THRESHOLD_BPS / 10_000;
 
   // Estimate liquidation price from LTV and collateral
   // liqPrice ≈ collateralValue × (ltv/100) / (collateralValue / currentImpliedPrice) × (1 / liqThreshold)
   // Simplified: if LTV is 30% and liq threshold 40%, liq price ≈ currentPrice × (LTV/liqThreshold)
   const liqPrice = loan.liquidationPrice ?? (
     loan.collateralValue > 0 && loan.borrowedAmount > 0
-      ? (loan.borrowedAmount / (loan.collateralValue * 0.40)) * (loan.collateralValue / (loan.collateralValue / 0.60))
+      ? (loan.borrowedAmount / (loan.collateralValue * liquidationThreshold)) * (loan.collateralValue / (loan.collateralValue / 0.60))
       : 0
   );
 

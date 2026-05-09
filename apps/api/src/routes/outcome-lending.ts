@@ -10,6 +10,7 @@ import {
   quoteOutcomeCollateral,
   registerMainnetPoolDeposit,
   registerOutcomeCollateralLot,
+  resolveOutcomeMarketByMint,
   withdrawMainnetPoolLiquidity,
 } from "../services/outcome-lending.service.js";
 
@@ -69,6 +70,21 @@ router.get("/api/wallet/outcome-holdings", async (req, res) => {
     res.status(500).json({
       success: false,
       error: err instanceof Error ? err.message : "Outcome holdings fetch failed",
+    });
+  }
+});
+
+router.get("/api/outcome-collateral/by-mint/:mint", async (req, res) => {
+  try {
+    const mint = typeof req.params.mint === "string" ? req.params.mint : "";
+    const result = await resolveOutcomeMarketByMint(mint);
+    res.status(result.success ? 200 : 502).json(result);
+  } catch (err) {
+    res.status(500).json({
+      success: false,
+      found: false,
+      market: null,
+      error: err instanceof Error ? err.message : "Outcome market lookup failed",
     });
   }
 });

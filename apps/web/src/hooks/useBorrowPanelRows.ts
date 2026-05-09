@@ -1,4 +1,9 @@
 import { useMemo } from "react";
+import {
+  OUTCOME_LIQUIDATION_THRESHOLD_BPS,
+  OUTCOME_MAX_LTV_BPS,
+  OUTCOME_SAFE_LTV_BPS,
+} from "@/lib/protocol-constants";
 import type { Position, UserPortfolio } from "@/hooks/useUserPortfolio";
 import type { OutcomeTokenHolding } from "@/hooks/useOutcomeTokenHoldings";
 
@@ -27,12 +32,9 @@ export type BorrowPanelRow = {
   outcomeMint: string;
 };
 
-/** Max LTV: borrow up to 30% of collateral value */
-const MAX_LTV = 0.30;
-/** Suggested safe LTV: 20% */
-const SAFE_LTV = 0.20;
-/** Liquidation threshold: 40% LTV — above max borrow but below 1:1 */
-const LIQUIDATION_LTV = 0.40;
+const MAX_LTV = OUTCOME_MAX_LTV_BPS / 10_000;
+const SAFE_LTV = OUTCOME_SAFE_LTV_BPS / 10_000;
+const LIQUIDATION_LTV = OUTCOME_LIQUIDATION_THRESHOLD_BPS / 10_000;
 
 export function useBorrowPanelRows(
   portfolio: UserPortfolio | null | undefined,
@@ -82,7 +84,7 @@ export function useBorrowPanelRows(
       // Given a borrow of maxBorrow, liquidation happens when:
       //   borrowAmount / (quantity × liqPrice) >= LIQUIDATION_LTV
       //   liqPrice = borrowAmount / (quantity × LIQUIDATION_LTV)
-      // Using max borrow as reference:
+      // Using max borrow as reference under the current max-LTV policy:
       const maxBorrow = Math.max(0, collateralUsd * MAX_LTV);
       const liquidationPrice =
         h.balance > 0 && maxBorrow > 0

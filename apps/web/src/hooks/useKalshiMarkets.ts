@@ -106,21 +106,16 @@ export function useKalshiSportsFilters() {
   });
 }
 
-export function useKalshiCategorySeries(
-  category: string | undefined,
-  enabled = true,
-  variant: KalshiSearchSeriesVariant = "hydrated_open_unopened"
-) {
+export function useKalshiCategorySeries(category: string | undefined, enabled = true) {
   const normalizedCategory = category?.trim() ?? "";
 
   const query = useQuery({
-    queryKey: [...QUERY_KEYS.categorySeries, normalizedCategory, variant] as const,
+    queryKey: [...QUERY_KEYS.categorySeries, normalizedCategory] as const,
     queryFn: () =>
       fetchAllKalshiSearchSeries({
         category: normalizedCategory,
-        status: variant === "trending_open" ? "open" : "open,unopened",
-        pageSize: variant === "trending_open" ? 25 : 24,
-        variant,
+        status: "open",
+        pageSize: 100,
       }),
     enabled: enabled && normalizedCategory.length > 0,
     staleTime: KALSHI_MARKETS_STALE_MS,
@@ -164,7 +159,6 @@ export function useKalshiScopedMarkets(params?: {
         competition: competition || undefined,
         scope: scope || undefined,
         pageSize: variant === "trending_open" ? 25 : 24,
-        variant,
       });
       return {
         items,

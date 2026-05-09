@@ -30,7 +30,7 @@ import { supabase } from "@/lib/supabase";
 import { useKYC } from "@/hooks/useKYC";
 import { useLeveragedTrade } from "@/hooks/useLeveragedTrade";
 import { useUserPortfolio } from "@/hooks/useUserPortfolio";
-import { useProtocolState } from "@/hooks/useProtocolState";
+import { useLendingPool } from "@/hooks/useLendingPool";
 import { Skeleton } from "@/components/ui/skeleton";
 import {
   Dialog,
@@ -40,7 +40,7 @@ import {
 } from "@/components/ui/dialog";
 import { MarketOutcomeTable } from "@/components/MarketOutcomeTable";
 import { MarketTradePanel, type MarketTradePanelProps } from "@/components/MarketTradePanel";
-import { ChevronLeft, BarChart3, Wifi, WifiOff } from "lucide-react";
+import { ChevronLeft, BarChart3, Circle, Wifi, WifiOff } from "lucide-react";
 
 const chartConfig = {
   yesPrice: {
@@ -76,9 +76,13 @@ function parseTradeSide(searchParams: URLSearchParams): "YES" | "NO" {
   return s === "NO" ? "NO" : "YES";
 }
 
-function parseLeverageFromSearchParams(searchParams: URLSearchParams): 1 | 2 | 3 {
+type MarketLeverageOption = 1 | 2 | 3 | 5;
+
+function parseLeverageFromSearchParams(searchParams: URLSearchParams): MarketLeverageOption {
   const raw = searchParams.get("leverage");
-  if (raw === "1" || raw === "2" || raw === "3") return Number(raw) as 1 | 2 | 3;
+  if (raw === "1" || raw === "2" || raw === "3" || raw === "5") {
+    return Number(raw) as MarketLeverageOption;
+  }
   if (searchParams.get("mode") === "leverage") return 2;
   return 1;
 }
@@ -130,29 +134,18 @@ const MarketDetail = () => {
   /** While single-market REST is pending, keep event scope so sibling outcome rows do not disappear. */
   const lastEventTickerRef = useRef<string | undefined>(undefined);
 
-  useEffect(() => {
-    setActiveTicker(routeTicker);
-  }, [routeTicker]);
+ 
 
   const dflowMarketQuery = useDflowMarket(activeTicker, {
     refetchInterval: 30_000,
   });
   const queriedMarket = dflowMarketQuery.data;
-  const {
-    isLive,
-    prices: livePrices,
-    orderbook: liveOrderbook,
-    orderbookUpdatedAt,
-    recentTrades,
-  } = useDflowWebSocket(activeTicker);
-  const eventTickerForQuery = queriedMarket?.eventTicker ?? lastEventTickerRef.current;
 
-  const liveDataQuery = useDflowLiveDataByEvent(eventTickerForQuery, {
-    enabled: Boolean(eventTickerForQuery),
-    refetchInterval: isLive ? 30_000 : false,
-  });
+  useEffect(() => {
+    setActiveTicker(routeTicker);
+  }, [routeTicker]);
 
-  const eventQuery = useDflowEvent(eventTickerForQuery, {
+  const eventQuery = useDflowEvent(queriedMarket?.eventTicker, {
     refetchInterval: 30_000,
   });
   const eventMarkets = useMemo(
@@ -224,6 +217,15 @@ const MarketDetail = () => {
     prefetchMarketByTicker,
     eventQuery.data?.markets,
   ]);
+
+  const {
+    isLive,
+    prices: livePrices,
+    orderbook: liveOrderbook,
+    orderbookUpdatedAt,
+    recentTrades,
+  } = useDflowWebSocket(activeTicker);
+
   const isLoading = !activeTicker || (!market && dflowMarketQuery.isLoading);
   const error = !market ? dflowMarketQuery.error : null;
   const eventMarketsLoading = eventQuery.isPending;
@@ -272,13 +274,18 @@ const MarketDetail = () => {
   const [tradeSide, setTradeSide] = useState<"YES" | "NO">(() => parseTradeSide(searchParams));
   const [tradeModalOpen, setTradeModalOpen] = useState(false);
   const [contracts, setContracts] = useState(() => searchParams.get("qvacAmount") ?? "");
-  const [leverage, setLeverage] = useState<1 | 2 | 3>(() =>
+  const [leverage, setLeverage] = useState<MarketLeverageOption>(() =>
     parseLeverageFromSearchParams(searchParams)
   );
 
   useEffect(() => {
     setTradeSide(parseTradeSide(searchParams));
   }, [searchParams]);
+
+  const liveDataQuery = useDflowLiveDataByEvent(market?.eventTicker, {
+    enabled: !!market?.eventTicker,
+    refetchInterval: 30_000,
+  });
 
   const tradeOutcomeImageUrl = useMemo(
     () =>
@@ -308,34 +315,31 @@ const MarketDetail = () => {
   const { verified: kycVerified, loading: kycLoading, startVerification } = useKYC();
   const { openPosition, status: leveragedStatus, error: leveragedError, result: leveragedResult, reset: resetLeveraged } = useLeveragedTrade();
   const { data: portfolio, refetch: refetchPortfolio } = useUserPortfolio();
-  const { state: protocolState } = useProtocolState();
   const [successDetails, setSuccessDetails] = useState<{ side: string; amount: number; ticker: string } | null>(null);
 
   const goOutcomeTrade = useCallback(
     (outcomeTicker: string, side: "YES" | "NO") => {
       setActiveTicker(outcomeTicker);
+      setTradeSide(side);
       const next = new URLSearchParams(searchParams);
       next.set("side", side);
+      next.delete("openTrade");
+      setSearchParams(next, { replace: true });
+
       if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
-        next.set("openTrade", "1");
+        setTradeModalOpen(true);
       }
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`, {
-        replace: true,
-        state: location.state,
-      });
     },
-    [navigate, searchParams, location.state]
+    [searchParams, setSearchParams]
   );
 
   const goOutcomeView = useCallback(
     (outcomeTicker: string) => {
       setActiveTicker(outcomeTicker);
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${searchParams.toString()}`, {
-        replace: true,
-        state: location.state,
-      });
+      setTradeStatus("idle");
+      setTradeError(null);
     },
-    [navigate, searchParams, location.state]
+    []
   );
 
   const myPositions = useMemo(() => {
@@ -440,25 +444,26 @@ const MarketDetail = () => {
   const solanaAddress = addresses?.find((a) =>
     String(a.addressType || "").toLowerCase().includes("solana")
   )?.address;
+  const { data: lendingPoolState } = useLendingPool(solanaAddress ?? null);
 
   const tradeAmountUsd = parseFloat(contracts);
   const isValidAmountInput = !isNaN(tradeAmountUsd) && tradeAmountUsd > 0;
   const currentPrice = tradeSide === "YES" ? displayYesPrice : displayNoPrice;
   
-  /** USDT amount the user is putting down (margin) */
+  /** USDC amount the user is putting down (margin) */
   const amountNum = isValidAmountInput ? tradeAmountUsd : NaN;
   const isValidAmount = Number.isFinite(amountNum) && amountNum > 0;
 
-  // Auto-reduce leverage based on mainnet vault reserve
-  const mainnetReserve = protocolState?.mainnet_reserve ?? 0;
+  // Auto-reduce leverage based on live mainnet LP pool liquidity
+  const poolLiquidity = lendingPoolState?.availableLiquidity ?? 0;
   const effectiveLeverage = useMemo(() => {
     if (leverage <= 1 || !isValidAmount) return leverage;
     const borrowNeeded = amountNum * (leverage - 1);
-    const maxBorrow = mainnetReserve * 0.8; // keep 20% reserve
+    const maxBorrow = poolLiquidity * 0.8; // keep 20% reserve
     if (borrowNeeded <= maxBorrow) return leverage;
     if (maxBorrow <= 0) return 1;
     return Math.max(1, Math.floor((1 + maxBorrow / amountNum) * 10) / 10);
-  }, [leverage, amountNum, mainnetReserve, isValidAmount]);
+  }, [leverage, amountNum, poolLiquidity, isValidAmount]);
   const leverageReduced = effectiveLeverage < leverage;
 
   const totalPositionUsdc = isValidAmount ? amountNum * effectiveLeverage : 0;
@@ -488,7 +493,7 @@ const MarketDetail = () => {
     }
 
     console.log("[trade] Connected wallet:", solanaAddress);
-    console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDT:", amountNum);
+    console.log("[trade] Leverage:", leverage, "| Side:", tradeSide, "| Margin/notional USDC:", amountNum);
 
     if (!isValidAmount) {
       setTradeError("Enter a valid amount");
@@ -523,7 +528,7 @@ const MarketDetail = () => {
     if (leverage > 1) {
       if (effectiveLeverage <= 1) {
         setTradeError(
-          `Vault lending pool ($${mainnetReserve.toFixed(2)}) is too low to support leverage. Deposit more to the Trading pool or use 1x.`
+          `Mainnet LP pool ($${poolLiquidity.toFixed(2)}) is too low to support leverage. Supply more in /lend or use 1x.`
         );
         return;
       }
@@ -574,7 +579,7 @@ const MarketDetail = () => {
         const msg = signErr instanceof Error ? signErr.message : String(signErr);
         if (msg.toLowerCase().includes("revert") || msg.toLowerCase().includes("simulation")) {
           throw new Error(
-            `Transaction simulation failed. This usually means insufficient balance (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Deposit more USDT to your Solflare wallet.`
+            `Transaction simulation failed. This usually means insufficient balance (have $${userMainnetUsdc.toFixed(2)}, need $${amountNum.toFixed(2)}) or insufficient SOL for network fees. Deposit more USDC to your Solflare wallet.`
           );
         }
         throw signErr;
@@ -627,7 +632,7 @@ const MarketDetail = () => {
       displayYesPrice,
       displayNoPrice,
       currentPrice,
-      mainnetReserve,
+      poolLiquidity,
       effectiveLeverage,
       leverageReduced,
       amountNum,
@@ -660,7 +665,7 @@ const MarketDetail = () => {
     displayYesPrice,
     displayNoPrice,
     currentPrice,
-    mainnetReserve,
+    poolLiquidity,
     effectiveLeverage,
     leverageReduced,
     amountNum,
@@ -830,8 +835,8 @@ const MarketDetail = () => {
           </details>
         )}
 
-        <div className="grid lg:grid-cols-3 gap-6 items-start">
-          <div className="lg:col-span-2 flex flex-col gap-6 min-w-0">
+        <div className="grid gap-6 items-start lg:grid-cols-[minmax(0,1fr)_24rem]">
+          <div className="flex flex-col gap-6 min-w-0">
           {/* Chart - full market (YES + NO) */}
           <div className="bg-bg-1 border border-border rounded-xl p-5 sm:p-6 min-w-0">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 sm:gap-4 mb-4">
@@ -951,6 +956,90 @@ const MarketDetail = () => {
               onYes={(t) => goOutcomeTrade(t, "YES")}
               onNo={(t) => goOutcomeTrade(t, "NO")}
             />
+
+            {/* Order Book with Depth - Live (real DFlow orders via REST + WebSocket) */}
+            <div className="bg-bg-1 border border-border rounded-xl p-5 sm:p-6">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
+                  <BarChart3 className="size-4 text-muted-foreground" />
+                  Order Book
+                  {isLive ? (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-normal text-cusp-green">
+                      <Wifi className="size-3" />
+                      Live
+                    </span>
+                  ) : (
+                    <span className="inline-flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
+                      <WifiOff className="size-3" />
+                      Connecting...
+                    </span>
+                  )}
+                </h3>
+                {orderbook && orderbookFromWs && orderbookUpdatedAt && (
+                  <span className="text-[10px] text-cusp-green font-mono">Real-time</span>
+                )}
+              </div>
+              {orderbook ? (
+                <div className="grid md:grid-cols-2 gap-6">
+                  <div>
+                    <h4 className="text-xs font-medium text-cusp-green mb-3">{market.yesLabel || "YES"} Bids</h4>
+                    <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                      {yesBids.length > 0 ? (
+                        yesBids.map(({ price, qtyNum, pct }) => (
+                          <div
+                            key={price}
+                            className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
+                          >
+                            <div
+                              className="absolute inset-y-0 left-0 bg-cusp-green/10 rounded transition-[width] duration-300 ease-out"
+                              style={{ width: `${pct}%` }}
+                            />
+                            <span className="relative font-mono text-sm text-cusp-green">
+                              ${price}
+                            </span>
+                            <span className="relative text-xs text-muted-foreground font-mono">
+                              {qtyNum.toLocaleString()}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-4">No bids</p>
+                      )}
+                    </div>
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-medium text-cusp-red mb-3">{market.noLabel || "NO"} Bids</h4>
+                    <div className="space-y-0.5 max-h-52 overflow-y-auto">
+                      {noBids.length > 0 ? (
+                        noBids.map(({ price, qtyNum, pct }) => (
+                          <div
+                            key={price}
+                            className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
+                          >
+                            <div
+                              className="absolute inset-y-0 left-0 bg-cusp-red/10 rounded transition-[width] duration-300 ease-out"
+                              style={{ width: `${pct}%` }}
+                            />
+                            <span className="relative font-mono text-sm text-cusp-red">
+                              ${price}
+                            </span>
+                            <span className="relative text-xs text-muted-foreground font-mono">
+                              {qtyNum.toLocaleString()}
+                            </span>
+                          </div>
+                        ))
+                      ) : (
+                        <p className="text-xs text-muted-foreground py-4">No bids</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                  Live order book unavailable for this market.
+                </div>
+              )}
+            </div>
           </div>
 
           <div className="hidden lg:block lg:sticky lg:top-20 self-start min-w-0 w-full">
@@ -982,89 +1071,6 @@ const MarketDetail = () => {
           </DialogContent>
         </Dialog>
 
-        {/* Order Book with Depth - Live (real DFlow orders via REST + WebSocket) */}
-        <div className="mt-6 bg-bg-1 border border-border rounded-xl p-5 sm:p-6">
-          <div className="flex items-center justify-between mb-4">
-            <h3 className="flex items-center gap-2 text-sm font-semibold text-foreground">
-              <BarChart3 className="size-4 text-muted-foreground" />
-              Order Book
-              {isLive ? (
-                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-cusp-green">
-                  <Wifi className="size-3" />
-                  Live
-                </span>
-              ) : (
-                <span className="inline-flex items-center gap-1 text-[10px] font-normal text-muted-foreground">
-                  <WifiOff className="size-3" />
-                  Connecting...
-                </span>
-              )}
-            </h3>
-            {orderbook && orderbookFromWs && orderbookUpdatedAt && (
-              <span className="text-[10px] text-cusp-green font-mono">Real-time</span>
-            )}
-          </div>
-          {orderbook ? (
-            <div className="grid md:grid-cols-2 gap-6">
-              <div>
-                <h4 className="text-xs font-medium text-cusp-green mb-3">{market.yesLabel || "YES"} Bids</h4>
-                <div className="space-y-0.5 max-h-52 overflow-y-auto">
-                  {yesBids.length > 0 ? (
-                    yesBids.map(({ price, qtyNum, pct }) => (
-                      <div
-                        key={price}
-                        className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
-                      >
-                        <div
-                          className="absolute inset-y-0 left-0 bg-cusp-green/10 rounded transition-[width] duration-300 ease-out"
-                          style={{ width: `${pct}%` }}
-                        />
-                        <span className="relative font-mono text-sm text-cusp-green">
-                          ${price}
-                        </span>
-                        <span className="relative text-xs text-muted-foreground font-mono">
-                          {qtyNum.toLocaleString()}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground py-4">No bids</p>
-                  )}
-                </div>
-              </div>
-              <div>
-                <h4 className="text-xs font-medium text-cusp-red mb-3">{market.noLabel || "NO"} Bids</h4>
-                <div className="space-y-0.5 max-h-52 overflow-y-auto">
-                  {noBids.length > 0 ? (
-                    noBids.map(({ price, qtyNum, pct }) => (
-                      <div
-                        key={price}
-                        className="relative flex justify-between items-center py-1.5 px-2 rounded group hover:bg-bg-2/50 transition-colors"
-                      >
-                        <div
-                          className="absolute inset-y-0 left-0 bg-cusp-red/10 rounded transition-[width] duration-300 ease-out"
-                          style={{ width: `${pct}%` }}
-                        />
-                        <span className="relative font-mono text-sm text-cusp-red">
-                          ${price}
-                        </span>
-                        <span className="relative text-xs text-muted-foreground font-mono">
-                          {qtyNum.toLocaleString()}
-                        </span>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-xs text-muted-foreground py-4">No bids</p>
-                  )}
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-              Live order book unavailable for this market.
-            </div>
-          )}
-        </div>
       </div>
     </Layout>
   );

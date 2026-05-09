@@ -1,9 +1,13 @@
 export const MIN_TRADE_USDC = 1;
-export const MAX_PROTOCOL_LEVERAGE = 3;
+export const MAX_PROTOCOL_LEVERAGE = 5;
 export const EARLY_CLOSURE_WINDOW_SECONDS = 7 * 24 * 60 * 60;
 export const MIN_RESERVE_BPS = 2_500;
 export const BPS_DENOMINATOR = 10_000;
 export const DEFAULT_BASE_LIQUIDATION_THRESHOLD_BPS = 7_700;
+export const LEVERAGE_LIQUIDATION_THRESHOLD_BPS = 9_000;
+export const OUTCOME_SAFE_LTV_BPS = 3_500;
+export const OUTCOME_MAX_LTV_BPS = 5_000;
+export const OUTCOME_LIQUIDATION_THRESHOLD_BPS = 6_000;
 
 export const USDC_MINT_MAINNET = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const USDT_MINT_MAINNET = "Es9vMFrzaCERn2QytQkwT4NSr8F3rzA4XB9vNehqWj6q";
@@ -57,22 +61,22 @@ export const OUTCOME_RISK_TIER_CONFIGS = {
   low: {
     tier: "low" as const,
     label: "Low Risk",
-    maxLtvBps: 3_000,
-    liquidationThresholdBps: 3_500,
+    maxLtvBps: OUTCOME_MAX_LTV_BPS,
+    liquidationThresholdBps: OUTCOME_LIQUIDATION_THRESHOLD_BPS,
     maxPoolAllocationBps: 1_000,
   },
   medium: {
     tier: "medium" as const,
     label: "Medium Risk",
-    maxLtvBps: 2_000,
-    liquidationThresholdBps: 2_500,
+    maxLtvBps: OUTCOME_MAX_LTV_BPS,
+    liquidationThresholdBps: OUTCOME_LIQUIDATION_THRESHOLD_BPS,
     maxPoolAllocationBps: 500,
   },
   high: {
     tier: "high" as const,
     label: "High Risk",
-    maxLtvBps: 1_000,
-    liquidationThresholdBps: 1_500,
+    maxLtvBps: OUTCOME_MAX_LTV_BPS,
+    liquidationThresholdBps: OUTCOME_LIQUIDATION_THRESHOLD_BPS,
     maxPoolAllocationBps: 200,
   },
 } as const;

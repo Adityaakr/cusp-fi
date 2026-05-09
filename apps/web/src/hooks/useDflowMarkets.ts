@@ -89,34 +89,17 @@ export function useDflowMarkets(params?: {
   eventTicker?: string;
   refetchInterval?: number | false;
   enabled?: boolean;
-  /** One GET /events page + optional maxMarkets cap (see `/markets` All tab). */
-  activeMarketsSinglePage?: boolean;
 }) {
   const { enabled = true, ...queryParams } = params ?? {};
   return useQuery({
     queryKey: [...QUERY_KEYS.markets, queryParams],
     queryFn: async () => {
-      if ((queryParams.status ?? "active") !== "active" || queryParams.eventTicker) {
-        const res = await fetchMarkets({
-          status: queryParams.status ?? "active",
-          limit: queryParams.limit ?? 200,
-          eventTicker: queryParams.eventTicker,
-        });
-        return res.markets.map((m) => dflowMarketToCusp(m));
-      }
-
-      const pageLimit = queryParams.limit ?? 200;
-      if (queryParams.activeMarketsSinglePage) {
-        return fetchAllActiveMarketsViaEvents({
-          pageLimit,
-          maxPages: 1,
-          maxMarkets: pageLimit,
-        });
-      }
-
-      return fetchAllActiveMarketsViaEvents({
-        pageLimit,
+      const res = await fetchMarkets({
+        status: queryParams.status ?? "active",
+        limit: queryParams.limit ?? 200,
+        eventTicker: queryParams.eventTicker,
       });
+      return res.markets.map((m) => dflowMarketToCusp(m));
     },
     staleTime: MARKETS_STALE_MS,
     refetchInterval: queryParams.refetchInterval,
@@ -126,6 +109,30 @@ export function useDflowMarkets(params?: {
       (queryParams.eventTicker !== undefined
         ? Boolean(queryParams.eventTicker)
         : true),
+  });
+}
+
+export function useDflowAllMarketsBrowse(options?: {
+  limit?: number;
+  maxPages?: number;
+  refetchInterval?: number | false;
+  enabled?: boolean;
+}) {
+  const limit = options?.limit ?? 200;
+  const maxPages = options?.maxPages ?? 2;
+
+  return useQuery({
+    queryKey: [...QUERY_KEYS.markets, "browseAllViaEvents", limit, maxPages] as const,
+    queryFn: () =>
+      fetchAllActiveMarketsViaEvents({
+        maxMarkets: limit,
+        maxPages,
+      }),
+    enabled: options?.enabled !== false,
+    staleTime: MARKETS_STALE_MS,
+    refetchInterval: options?.refetchInterval,
+    refetchOnWindowFocus: false,
+    placeholderData: keepPreviousData,
   });
 }
 
@@ -241,50 +248,40 @@ export function useDflowMarket(ticker: string | undefined, options?: { refetchIn
     enabled: !!ticker,
     staleTime: 15_000,
     refetchInterval: options?.refetchInterval,
-    /** Avoid dropping event scope while the active outcome ticker changes (sibling markets). */
-    placeholderData: keepPreviousData,
   });
 }
 
-/**
- * Parallel GET /market/:ticker for each ticker (e.g. all outcomes after GET /event with nested markets).
- * Shares query cache with `useDflowMarket`. Enable only once you have the ticker list (e.g. `eventQuery.isSuccess`).
- */
 export function useDflowMarketPrefetchQueries(
   tickers: string[],
   options?: { enabled?: boolean; refetchInterval?: number | false }
 ) {
-  const deduped = useMemo(
-    () => Array.from(new Set(tickers.map((t) => t.trim()).filter((t) => t.length > 0))),
-    [tickers.join("\0")]
-  );
-
+  const deduped = useMemo(() => [...new Set(tickers.map((t) => t.trim()).filter(Boolean))], [tickers]);
   const enabled = options?.enabled !== false && deduped.length > 0;
 
   const queries = useQueries({
     queries: deduped.map((ticker) => ({
-      queryKey: [...QUERY_KEYS.market, ticker] as const,
+      queryKey: [...QUERY_KEYS.market, "prefetch", ticker],
       queryFn: async () => {
         const m = await fetchMarket(ticker);
         return dflowMarketToCusp(m);
       },
       enabled,
       staleTime: 15_000,
-      refetchInterval: options?.refetchInterval ?? false,
+      refetchInterval: options?.refetchInterval,
       refetchOnWindowFocus: false,
     })),
   });
 
   const byTickerLower = useMemo(() => {
     const map = new Map<string, CuspMarket>();
-    deduped.forEach((ticker, i) => {
-      const data = queries[i]?.data;
-      if (data) map.set(ticker.toLowerCase(), data);
-    });
+    for (const q of queries) {
+      const data = q.data;
+      if (data?.ticker) map.set(data.ticker.toLowerCase(), data);
+    }
     return map;
-  }, [deduped, queries]);
+  }, [queries]);
 
-  return { byTickerLower, queries };
+  return { byTickerLower };
 }
 
 export function useDflowEvent(
@@ -307,7 +304,7 @@ export function useDflowEvent(
 
 export function useDflowLiveDataByEvent(
   eventTicker: string | undefined,
-  options?: { enabled?: boolean; refetchInterval?: number | false }
+  options?: { refetchInterval?: number | false; enabled?: boolean }
 ) {
   return useQuery({
     queryKey: [...QUERY_KEYS.liveDataByEvent, eventTicker ?? ""] as const,
@@ -319,7 +316,6 @@ export function useDflowLiveDataByEvent(
     staleTime: 15_000,
     refetchInterval: options?.refetchInterval,
     refetchOnWindowFocus: false,
-    retry: false,
   });
 }
 

@@ -79,6 +79,11 @@ export function useWithdraw() {
         cusdcMint, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
 
+      const preUsdcBalancePromise = connection
+        .getTokenAccountBalance(userUsdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
+
       // Build withdraw instruction
       // Data: discriminator (8 bytes) + cusdc_amount (u64 LE, 8 bytes)
       const data = Buffer.alloc(16);
@@ -116,6 +121,15 @@ export function useWithdraw() {
 
       await connection.confirmTransaction(signature, "confirmed");
 
+      const postUsdcBalance = await connection
+        .getTokenAccountBalance(userUsdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
+      const preUsdcBalance = await preUsdcBalancePromise;
+      const usdcReceived = Math.max(postUsdcBalance - preUsdcBalance, 0);
+      const realizedExchangeRate =
+        cusdcAmount > 0 ? usdcReceived / cusdcAmount : 1;
+
       // Record withdrawal in Supabase
       if (supabase && solanaAddress) {
         try {
@@ -124,12 +138,11 @@ export function useWithdraw() {
           });
 
           if (userId) {
-            const usdcReceived = cusdcAmount; // 1:1 at launch
             await supabase.from("withdrawals").insert({
               user_id: userId,
               cusdc_amount: cusdcAmount,
               usdc_amount: usdcReceived,
-              exchange_rate: 1,
+              exchange_rate: realizedExchangeRate,
               withdrawal_type: "vault",
               status: "completed",
               tx_signature: signature,
@@ -146,6 +159,7 @@ export function useWithdraw() {
 
       await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["exchangeRateHistory"] }),
         queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
         queryClient.refetchQueries({ queryKey: ["protocolState"] }),
         queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),

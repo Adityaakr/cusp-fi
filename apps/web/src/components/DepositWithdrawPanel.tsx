@@ -146,7 +146,7 @@ const DepositWithdrawPanel = () => {
       <div className="flex border-b border-border">
         {(isTestnet
           ? ([
-              { key: "earn" as Tab, label: "Vault Demo" },
+              { key: "earn" as Tab, label: "Vault Beta" },
               { key: "withdraw" as Tab, label: "Withdraw" },
             ] as Array<{ key: Tab; label: string }>)
           : ([
@@ -173,8 +173,8 @@ const DepositWithdrawPanel = () => {
           <p className="text-[10px] text-muted-foreground leading-relaxed">
             {isTestnet
               ? tab === "earn"
-                ? "Live devnet demo: deposit devnet USDC into the deployed Cusp vault contract and mint cUSDC. Production routing to Kamino is shown as strategy preview only."
-                : "Live devnet demo: burn cUSDC and redeem devnet USDC from the deployed Cusp vault contract."
+                ? "Live devnet beta: deposit devnet USDC into the deployed Cusp vault contract and mint cUSDC. This path stays isolated from the mainnet lending system."
+                : "Live devnet beta: burn cUSDC and redeem devnet USDC from the deployed Cusp vault contract."
               : tab === "trading"
                 ? "Deposit USDT to the trading pool. Used as margin for leveraged prediction market trades."
               : tab === "earn"
@@ -197,9 +197,20 @@ const DepositWithdrawPanel = () => {
                   <DialogTitle className="text-foreground">Production Flow Preview</DialogTitle>
                 </DialogHeader>
                 <div className="space-y-3 text-xs text-muted-foreground">
-                  <p>Production UX will be one managed flow:</p>
-                  <p className="font-mono text-foreground">Deposit USDC → Cusp vault → cUSDC receipts → Strategy capital managed via Kamino</p>
-                  <p>For devnet, the live piece we can honestly demo today is the deployed Cusp vault contract using devnet USDC and cUSDC receipts.</p>
+                  <p>Production UX should support both direct USDC deposits and USDT deposits routed through Jupiter.</p>
+                  <div className="rounded-md bg-bg-2 p-3">
+                    <p className="font-mono text-foreground leading-relaxed">
+                      USDC deposit → Cusp vault → cUSDC receipts → strategy capital deployed via Kamino
+                    </p>
+                  </div>
+                  <div className="rounded-md bg-bg-2 p-3">
+                    <p className="font-mono text-foreground leading-relaxed">
+                      USDT deposit → Jupiter swap to USDC → Cusp vault → cUSDC receipts → strategy capital deployed via Kamino
+                    </p>
+                  </div>
+                  <p>
+                    Devnet stays simpler on purpose: the live beta path is the deployed Cusp vault contract using devnet USDC and cUSDC receipts, without mixing in the mainnet Kamino execution layer.
+                  </p>
                 </div>
               </DialogContent>
             </Dialog>

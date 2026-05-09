@@ -12,6 +12,20 @@ import {
 
 export type StepType = "amount" | "select" | "market_search" | "confirm";
 
+export interface QvacMarketSearchValue {
+  ticker: string;
+  title: string;
+  subtitle?: string;
+  category?: string;
+  imageUrl?: string;
+  yesPrice?: number;
+  noPrice?: number;
+  yesLabel?: string;
+  noLabel?: string;
+  volume24h?: number;
+  resolutionDate?: string;
+}
+
 export interface QvacFlowStep {
   key: string;
   question: string;
@@ -34,6 +48,24 @@ export interface QvacFlow {
   buildCommand: (values: Record<string, unknown>, wallet: string) => AnyQvacCommand;
   executor: "hook" | "api";
   hookRef?: string;
+}
+
+export function getMarketQueryValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "ticker" in value) {
+    const ticker = (value as QvacMarketSearchValue).ticker;
+    return typeof ticker === "string" ? ticker : "";
+  }
+  return "";
+}
+
+export function getMarketDisplayValue(value: unknown): string {
+  if (typeof value === "string") return value;
+  if (value && typeof value === "object" && "title" in value) {
+    const title = (value as QvacMarketSearchValue).title;
+    return typeof title === "string" && title.trim() ? title : getMarketQueryValue(value);
+  }
+  return "";
 }
 
 const positiveAmount = (v: unknown): string | null => {
@@ -377,7 +409,7 @@ export const QVAC_FLOWS: QvacFlow[] = [
       action: (values.action as "buy" | "sell") || "buy",
       input_asset: "USDT" as Asset,
       input_amount_ui: values.input_amount_ui as number,
-      market_query: values.market_query as string,
+      market_query: getMarketQueryValue(values.market_query),
       side: (values.side as TradeSide) || "yes",
       max_slippage_bps: Number(values.max_slippage_bps) || 100,
     }),
@@ -450,7 +482,7 @@ export const QVAC_FLOWS: QvacFlow[] = [
       margin_amount_ui: values.margin_amount_ui as number,
       borrow_asset: "USDT" as Asset,
       leverage: Number(values.leverage) || 2,
-      market_query: values.market_query as string,
+      market_query: getMarketQueryValue(values.market_query),
       side: (values.side as TradeSide) || "yes",
       max_slippage_bps: Number(values.max_slippage_bps) || 100,
     }),
@@ -493,7 +525,7 @@ export const QVAC_FLOWS: QvacFlow[] = [
       margin_amount_ui: values.amount_ui as number,
       borrow_asset: "USDT" as Asset,
       leverage: 1,
-      market_query: values.market_query as string,
+      market_query: getMarketQueryValue(values.market_query),
       side: "yes" as TradeSide,
       max_slippage_bps: 100,
     }),

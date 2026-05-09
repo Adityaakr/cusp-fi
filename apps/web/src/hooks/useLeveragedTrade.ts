@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { usePhantom, useSolana } from "@/lib/wallet";
+import { cuspApiFetch } from "@/lib/cusp-api";
 import { supabase } from "@/lib/supabase";
 import { fetchOrderQuote } from "@/lib/dflow-api";
 import { getMainnetConnection } from "@/lib/solana";
@@ -16,41 +17,35 @@ export type LeveragedTradeStatus =
   | "success"
   | "error";
 
-/**
- * Extract the actual error message from a Supabase edge function response.
- * When an edge function returns non-2xx, the Supabase client sets:
- *   - error.message = "Edge Function returned a non-2xx status code" (unhelpful)
- *   - data = the JSON body (if parseable) OR null
- *   - error.context = the raw Response (in some client versions)
- */
-async function extractEdgeFunctionError(
-  res: { data: unknown; error: { message: string; context?: Response } | null },
-  fallback: string
-): Promise<string> {
-  // data?.error is the most reliable path (our edge functions always return { error: "..." })
-  const dataErr = (res.data as Record<string, unknown>)?.error;
-  if (typeof dataErr === "string" && dataErr.length > 0) return dataErr;
+type RiskCheckResponse = {
+  approved: boolean;
+  errors?: string[];
+  market_status?: string | null;
+  effective_leverage?: number;
+};
 
-  // Some Supabase client versions expose the raw Response on error.context
-  if (res.error?.context instanceof Response) {
-    try {
-      const body = await res.error.context.json();
-      if (body?.error) return body.error;
-    } catch { /* ignore parse failure */ }
-  }
-
-  // Last resort: the generic client error message
-  return res.error?.message || fallback;
-}
+type OpenLeveragePositionResponse = {
+  success: boolean;
+  position_id?: string;
+  total_usdc?: number;
+  borrowed_usdc?: number;
+  leverage?: number;
+  lend_signature?: string;
+  lend_warning?: string;
+  health_factor?: number;
+  error?: string;
+};
 
 export function useLeveragedTrade() {
   const [status, setStatus] = useState<LeveragedTradeStatus>("idle");
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<{
-    position_id: string;
+    position_id: string | null;
     tx_signature: string;
     leverage: number;
     total_usdc: number;
+    borrowed_usdc: number;
+    health_factor: number | null;
   } | null>(null);
   const { addresses } = usePhantom();
   const { solana } = useSolana();
@@ -72,11 +67,6 @@ export function useLeveragedTrade() {
 
     if (!solanaAddress || !solana) {
       setError("Connect your wallet first");
-      return;
-    }
-
-    if (!supabase) {
-      setError("Supabase not configured");
       return;
     }
 
@@ -103,55 +93,57 @@ export function useLeveragedTrade() {
       // 1. Risk check
       setStatus("risk_check");
 
-      const riskRes = await supabase.functions.invoke("risk-check", {
-        body: {
+      const riskRes = await cuspApiFetch<RiskCheckResponse>("/api/risk-check", {
+        method: "POST",
+        body: JSON.stringify({
           market_ticker: params.marketTicker,
           margin_usdc: params.marginUsdc,
           leverage: params.leverage,
           side: params.side,
-        },
+        }),
       });
 
-      if (riskRes.error) {
-        const detail = await extractEdgeFunctionError(riskRes, "Risk check unavailable");
-        throw new Error(`Risk check failed: ${detail}`);
-      }
-      if (!riskRes.data?.approved) {
-        const allErrors = (riskRes.data?.errors as string[]) ?? [];
+      if (!riskRes.approved) {
+        const allErrors = riskRes.errors ?? [];
         const actionable = allErrors.length > 0 ? allErrors.join("; ") : "Risk check rejected the trade";
         throw new Error(actionable);
       }
 
-      // 2. Vault lends borrowed USDT to user's wallet (server-side)
+      // 2. Mainnet LP pool lends borrowed USDC to user's wallet (server-side)
       setStatus("lending");
 
-      const posRes = await supabase.functions.invoke("open-position", {
-        body: {
+      const posRes = await cuspApiFetch<OpenLeveragePositionResponse>("/api/trade/leverage", {
+        method: "POST",
+        body: JSON.stringify({
           wallet_address: solanaAddress,
-          market_ticker: params.marketTicker,
-          side: params.side,
-          margin_usdc: params.marginUsdc,
+          market_query: params.marketTicker,
+          side: params.side.toLowerCase(),
+          margin_amount_ui: params.marginUsdc,
           leverage: params.leverage,
-          output_mint: params.outputMint,
-        },
+          max_slippage_bps: 100,
+        }),
       });
 
-      if (posRes.error) {
-        const errMsg = await extractEdgeFunctionError(posRes, "Failed to open position");
-        throw new Error(errMsg);
-      }
-      if (!posRes.data?.success && posRes.data?.error) {
-        throw new Error(posRes.data.error as string);
+      if (!posRes.success) {
+        throw new Error(posRes.error || "Failed to open position");
       }
 
-      const { position_id, total_usdc, borrowed_usdc, leverage: effLev, lend_warning, lend_signature } = posRes.data;
+      const {
+        position_id,
+        total_usdc,
+        borrowed_usdc,
+        leverage: effLev,
+        lend_warning,
+        lend_signature,
+        health_factor,
+      } = posRes;
 
       // If vault lending was skipped/failed, user trades with just their margin
       const lendingSucceeded = !!lend_signature && !lend_warning;
-      const tradeUsdc = lendingSucceeded ? total_usdc : params.marginUsdc;
+      const tradeUsdc = lendingSucceeded ? (total_usdc ?? params.marginUsdc) : params.marginUsdc;
 
       if (lend_warning) {
-        console.warn("[leveragedTrade] Vault lending skipped:", lend_warning);
+        console.warn("[leveragedTrade] LP pool lending skipped:", lend_warning);
       }
 
       // 3. User places DFlow trade from their own verified wallet
@@ -180,7 +172,7 @@ export function useLeveragedTrade() {
       // 4. Record trade execution
       setStatus("confirming");
 
-      if (position_id && sig) {
+      if (position_id && sig && supabase) {
         const outputQuantity = Number(outputAmount ?? 0) / 1e6;
         const entryPrice = outputQuantity > 0 ? tradeUsdc / outputQuantity : tradeUsdc;
         await supabase.functions.invoke("record-trade", {
@@ -199,10 +191,12 @@ export function useLeveragedTrade() {
       }
 
       const tradeResult = {
-        position_id,
+        position_id: position_id ?? null,
         tx_signature: sig,
-        leverage: lendingSucceeded ? effLev : 1,
+        leverage: lendingSucceeded ? (effLev ?? 1) : 1,
         total_usdc: tradeUsdc,
+        borrowed_usdc: lendingSucceeded ? (borrowed_usdc ?? 0) : 0,
+        health_factor: health_factor ?? null,
       };
 
       setResult(tradeResult);
@@ -210,6 +204,7 @@ export function useLeveragedTrade() {
       queryClient.invalidateQueries({ queryKey: ["protocolState"] });
       queryClient.invalidateQueries({ queryKey: ["userPortfolio"] });
       queryClient.invalidateQueries({ queryKey: ["outcomeTokenHoldings"] });
+      queryClient.invalidateQueries({ queryKey: ["lendingPool"] });
 
       return tradeResult;
     } catch (err) {

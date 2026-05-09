@@ -129,7 +129,7 @@ export function useCreateOutcomeLoan() {
             requested_borrow_usdc: args.borrowAmountUsdc,
             escrow_token_account: poolAta.toBase58(),
             interest_bps: 800,
-            expiry_hours: 24,
+            expiry_hours: 168,
           }),
         }
       );

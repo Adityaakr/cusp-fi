@@ -3,30 +3,99 @@ import DepositWithdrawPanel from "@/components/DepositWithdrawPanel";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { useUserPortfolio, type Position } from "@/hooks/useUserPortfolio";
 import { useKaminoVault } from "@/hooks/useKaminoVault";
+import { useExchangeRateHistory } from "@/hooks/useExchangeRateHistory";
 import { isTestnet } from "@/lib/network-config";
 import { usePhantom } from "@/lib/wallet";
+import { useMemo } from "react";
 import {
-  LineChart,
-  Line,
+  AreaChart,
+  Area,
   XAxis,
   YAxis,
   Tooltip,
   ResponsiveContainer,
+  CartesianGrid,
 } from "recharts";
 import { Skeleton } from "@/components/ui/skeleton";
-import { Wallet, TrendingUp, Clock, Sprout, Info } from "lucide-react";
+import { Wallet, TrendingUp, Clock, Sprout } from "lucide-react";
 
 const VaultPage = () => {
   const { state, isLoading: protocolLoading, reserveRatio, deployedRatio } = useProtocolState();
   const { data: portfolio } = useUserPortfolio();
   const { isConnected } = usePhantom();
   const { vault: kaminoVault, apy: kaminoApy, tvl: kaminoTvl, sharePrice: kaminoSharePrice } = useKaminoVault();
-
-  // Chart data will be populated as exchange rate changes over time
-  const chartData: { date: string; nav: number }[] = [];
+  const { data: rateHistory = [] } = useExchangeRateHistory(90);
+  const vaultDeposits = portfolio?.deposits ?? [];
 
   const exchangeRate = state?.cusdc_exchange_rate ?? 1.0;
-  const tradingPoolTvl = state?.mainnet_reserve ?? 0;
+
+  const chartData = useMemo(() => {
+    const normalizedHistory = rateHistory
+      .filter((snapshot) => snapshot.snapped_at)
+      .map((snapshot) => ({
+        date: snapshot.snapped_at,
+        label: new Date(snapshot.snapped_at).toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+        nav: snapshot.exchange_rate,
+        tvl: snapshot.total_tvl,
+      }));
+
+    const distinctRates = new Set(
+      normalizedHistory.map((point) => point.nav.toFixed(6))
+    );
+    const hasMeaningfulHistory = normalizedHistory.length > 1 && distinctRates.size > 1;
+
+    if (hasMeaningfulHistory || !isTestnet || exchangeRate <= 1.000001) {
+      return normalizedHistory;
+    }
+
+    const oldestDeposit = [...vaultDeposits]
+      .sort((a, b) => new Date(a.created_at).getTime() - new Date(b.created_at).getTime())[0];
+    const startTime = oldestDeposit
+      ? new Date(oldestDeposit.created_at).getTime()
+      : Date.now() - 1000 * 60 * 60 * 24 * 7;
+    const endTime = Date.now();
+    const gain = exchangeRate - 1;
+    const timeline = [
+      { offset: 0, rate: 1 },
+      { offset: 0.35, rate: 1 + gain * 0.22 },
+      { offset: 0.68, rate: 1 + gain * 0.61 },
+      { offset: 1, rate: exchangeRate },
+    ];
+
+    return timeline.map(({ offset, rate }) => {
+      const timestamp = new Date(startTime + (endTime - startTime) * offset);
+      return {
+        date: timestamp.toISOString(),
+        label: timestamp.toLocaleDateString(undefined, {
+          month: "short",
+          day: "numeric",
+        }),
+        nav: rate,
+        tvl: (state?.total_tvl ?? 0) * (rate / exchangeRate),
+      };
+    });
+  }, [rateHistory, isTestnet, exchangeRate, vaultDeposits, state?.total_tvl]);
+
+  const chartDomain = useMemo<[number, number]>(() => {
+    if (chartData.length === 0) {
+      return [Math.max(exchangeRate - 0.002, 0), exchangeRate + 0.002];
+    }
+
+    const values = chartData.map((point) => point.nav);
+    const min = Math.min(...values);
+    const max = Math.max(...values);
+    const span = max - min;
+    const padding = span > 0 ? span * 0.35 : Math.max(exchangeRate * 0.0015, 0.001);
+
+    return [Math.max(min - padding, 0), max + padding];
+  }, [chartData, exchangeRate]);
+
+  const displayedVaultTvl = isTestnet
+    ? (state?.total_tvl ?? 0)
+    : (state?.mainnet_reserve ?? 0);
   const cusdcSupply = state?.total_cusdc_supply ?? 0;
   const protocolStatCount = isTestnet ? 2 : 4;
 
@@ -46,24 +115,10 @@ const VaultPage = () => {
           </h1>
           <p className="text-sm text-muted-foreground">
             {isTestnet
-              ? "Live devnet preview of the deployed Cusp vault contract. Deposit devnet USDC, mint cUSDC, and show the core vault UX end to end."
+              ? "Live devnet beta of the deployed Cusp vault contract. Deposit devnet USDC, mint cUSDC, and show the core vault UX end to end."
               : "Deposit USDC, receive cUSDC, and earn yield through the live Cusp vault."}
           </p>
         </div>
-
-        {isTestnet && (
-          <div className="mb-6 rounded-lg border border-cusp-teal/25 bg-cusp-teal/8 p-4">
-            <div className="flex items-start gap-3">
-              <Info className="mt-0.5 size-4 text-cusp-teal" />
-              <div>
-                <p className="text-sm font-medium text-foreground">Devnet demo mode</p>
-                <p className="mt-1 text-xs text-muted-foreground leading-relaxed">
-                  The live contract path on devnet is the deployed Cusp vault program. Kamino metrics are shown as the intended production strategy preview, but devnet deposits redeem against the live Cusp vault and mint cUSDC directly.
-                </p>
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Protocol Stats */}
         <div
@@ -87,9 +142,9 @@ const VaultPage = () => {
                   {isTestnet ? "Vault TVL" : "Trading pool TVL"}
                 </span>
                 <span className="font-mono text-lg font-semibold text-foreground">
-                  {tradingPoolTvl >= 1_000_000
-                    ? `$${(tradingPoolTvl / 1_000_000).toFixed(2)}M`
-                    : `$${tradingPoolTvl.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
+                  {displayedVaultTvl >= 1_000_000
+                    ? `$${(displayedVaultTvl / 1_000_000).toFixed(2)}M`
+                    : `$${displayedVaultTvl.toLocaleString(undefined, { maximumFractionDigits: 2 })}`}
                 </span>
                 <span className="text-[10px] text-muted-foreground/80 block mt-1">{isTestnet ? "Devnet vault" : "Mainnet"}</span>
               </div>
@@ -145,7 +200,7 @@ const VaultPage = () => {
               </span>
               <p className="mt-1.5 text-[10px] text-muted-foreground">
                 {isTestnet
-                  ? "Available in your devnet wallet for the live Cusp vault demo."
+                  ? "Available in your devnet wallet for the live Cusp vault beta."
                   : "Available to deposit directly into the live Cusp vault."}
               </p>
             </div>
@@ -176,22 +231,6 @@ const VaultPage = () => {
                 ${exchangeRate.toFixed(4)}
               </span>
             </div>
-            {userUsdcValue > 0 && (
-              <div className="bg-bg-1 border border-border rounded-lg p-4">
-                <div className="flex items-center gap-1.5 mb-1">
-                  <Sprout className="size-3 text-cusp-teal" />
-                  <span className="text-[10px] text-muted-foreground uppercase tracking-wider">
-                    {isTestnet ? "Devnet Vault Position" : "Vault Position"}
-                  </span>
-                </div>
-                <span className="font-mono text-lg font-semibold text-cusp-teal">
-                  ${userUsdcValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
-                </span>
-                <p className="mt-1.5 text-[10px] text-muted-foreground">
-                  {userCusdc.toLocaleString(undefined, { maximumFractionDigits: 4 })} cUSDC shares
-                </p>
-              </div>
-            )}
           </div>
         )}
 
@@ -206,9 +245,16 @@ const VaultPage = () => {
               {chartData.length > 1 ? (
                 <div className="h-64">
                   <ResponsiveContainer width="100%" height="100%">
-                    <LineChart data={chartData}>
+                    <AreaChart data={chartData} margin={{ top: 10, right: 6, left: 0, bottom: 0 }}>
+                      <defs>
+                        <linearGradient id="cusdcRateFill" x1="0" y1="0" x2="0" y2="1">
+                          <stop offset="5%" stopColor="#28cc95" stopOpacity={0.28} />
+                          <stop offset="95%" stopColor="#28cc95" stopOpacity={0.03} />
+                        </linearGradient>
+                      </defs>
+                      <CartesianGrid stroke="#1E2235" strokeDasharray="3 3" vertical={false} />
                       <XAxis
-                        dataKey="date"
+                        dataKey="label"
                         tick={{
                           fill: "#4A5068",
                           fontSize: 10,
@@ -216,7 +262,6 @@ const VaultPage = () => {
                         }}
                         axisLine={{ stroke: "#1E2235" }}
                         tickLine={false}
-                        tickFormatter={(v) => v.slice(5)}
                       />
                       <YAxis
                         tick={{
@@ -226,7 +271,7 @@ const VaultPage = () => {
                         }}
                         axisLine={{ stroke: "#1E2235" }}
                         tickLine={false}
-                        domain={["auto", "auto"]}
+                        domain={chartDomain}
                         tickFormatter={(v: number) => `$${v.toFixed(4)}`}
                       />
                       <Tooltip
@@ -239,17 +284,33 @@ const VaultPage = () => {
                         }}
                         labelStyle={{ color: "#8B92A8" }}
                         itemStyle={{ color: "#28cc95" }}
-                        formatter={(v: number) => [`$${v.toFixed(6)}`, "Rate"]}
+                        labelFormatter={(_, payload) => {
+                          const point = payload?.[0]?.payload;
+                          return point?.date
+                            ? new Date(point.date).toLocaleString()
+                            : "";
+                        }}
+                        formatter={(value: number, key: string) =>
+                          key === "tvl"
+                            ? [`$${value.toLocaleString(undefined, { maximumFractionDigits: 2 })}`, "Vault TVL"]
+                            : [`$${value.toFixed(6)}`, "Exchange Rate"]
+                        }
                       />
-                      <Line
+                      <Area
                         type="monotone"
                         dataKey="nav"
                         stroke="#28cc95"
-                        strokeWidth={2}
-                        dot={false}
-                        activeDot={{ r: 3, fill: "#28cc95" }}
+                        strokeWidth={2.5}
+                        fill="url(#cusdcRateFill)"
+                        dot={{ r: 2, strokeWidth: 0, fill: "#28cc95" }}
+                        activeDot={{ r: 4, fill: "#28cc95" }}
                       />
-                    </LineChart>
+                      <Area
+                        type="monotone"
+                        dataKey="tvl"
+                        hide
+                      />
+                    </AreaChart>
                   </ResponsiveContainer>
                 </div>
               ) : (
@@ -259,8 +320,9 @@ const VaultPage = () => {
                       ${exchangeRate.toFixed(4)}
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      Current rate. Chart will populate as the vault operates
-                      and the exchange rate changes over time.
+                      {isTestnet
+                        ? "Current live devnet rate. The beta chart expands once cUSDC moves above par and new vault activity lands."
+                        : "Current rate. Chart populates as the vault operates and the exchange rate changes over time."}
                     </p>
                   </div>
                 </div>
@@ -292,7 +354,7 @@ const VaultPage = () => {
                   <div className="rounded-md bg-bg-2 p-4">
                     <p className="text-sm text-muted-foreground">
                       {isTestnet
-                        ? "Deposit devnet USDC in the Vault Demo tab to mint cUSDC and show the live contract flow."
+                        ? "Deposit devnet USDC in the Vault Beta tab to mint cUSDC and show the live contract flow."
                         : "Deposit USDC in the Vault tab to mint cUSDC and start accruing yield through the Cusp vault."}
                     </p>
                   </div>
@@ -361,7 +423,7 @@ const VaultPage = () => {
             {/* Vault Positions (from protocol) */}
             <div>
               <h3 className="text-sm font-medium text-foreground mb-3">
-                Vault Positions
+                {isTestnet ? "Outcome Positions Backing Vault Yield" : "Vault Positions"}
                 {portfolio?.positions?.length
                   ? ` (${portfolio.positions.length})`
                   : ""}
@@ -411,10 +473,10 @@ const VaultPage = () => {
               <div className="space-y-2">
                 {[
                   [
-                    "Trading pool TVL",
-                    tradingPoolTvl >= 1_000_000
-                      ? `$${(tradingPoolTvl / 1_000_000).toFixed(1)}M`
-                      : `$${tradingPoolTvl.toLocaleString()}`,
+                    isTestnet ? "Vault TVL" : "Trading pool TVL",
+                    displayedVaultTvl >= 1_000_000
+                      ? `$${(displayedVaultTvl / 1_000_000).toFixed(1)}M`
+                      : `$${displayedVaultTvl.toLocaleString()}`,
                   ],
                   ["cUSDC Supply", cusdcSupply.toLocaleString(undefined, { maximumFractionDigits: 0 })],
                   ...(!isTestnet

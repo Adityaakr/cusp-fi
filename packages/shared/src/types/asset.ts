@@ -153,6 +153,11 @@ export type QvacAssistantIntentType =
   | "direct_trade"
   | "leverage_open"
   | "leverage_close"
+  | "lend_deposit"
+  | "lend_withdraw"
+  | "borrow_open"
+  | "borrow_close"
+  | "borrow_capacity"
   | "market_search"
   | "position_summary"
   | "risk_explain"
@@ -172,6 +177,14 @@ export interface QvacAssistantIntent {
   amount_ui?: number;
   asset?: Asset;
   leverage?: number;
+  /** Lending pool slug (conservative | moderate | growth) */
+  pool?: string;
+  collateral_asset?: Asset;
+  borrow_asset?: Asset;
+  borrow_amount_ui?: number;
+  repay_asset?: Asset;
+  repay_amount_ui?: number;
+  risk_mode?: "safe" | "moderate" | "aggressive";
   confidence: number;
   needs_confirmation: boolean;
   missing_fields: string[];

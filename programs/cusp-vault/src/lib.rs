@@ -16,7 +16,7 @@ use solana_program::{
 use spl_token::instruction as token_instruction;
 use spl_token::state::{Account as TokenAccount, Mint};
 
-solana_program::declare_id!("CTFPnaBC6JRRqMPLvqAgHWnpZ4RXCpHKh44RaVBRhfwM");
+solana_program::declare_id!("9Jucf5RimpEJnCun98q258zXx9A6n9fP4JHzNzsJ9DBF");
 
 const VAULT_SEED: &[u8] = b"vault";
 const CUSDC_MINT_SEED: &[u8] = b"cusdc-mint";

@@ -1,10 +1,11 @@
-import { useState, useMemo, useEffect, useCallback } from "react";
+import { useState, useMemo, useEffect, useCallback, type MouseEvent } from "react";
 import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Search } from "lucide-react";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
 import { MarketAvatar as BaseMarketAvatar } from "@/components/MarketAvatar";
-import { useDflowMarkets, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
+import type { MarketsSortKey } from "@/components/MarketsTable";
+import { useDflowAllMarketsBrowse, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
 import {
   getMarketOutcomeRowLabels,
   getTagsListForCategoryLabel,
@@ -12,6 +13,7 @@ import {
   type CuspMarket,
 } from "@/lib/dflow-api";
 import { cn } from "@/lib/utils";
+import { MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
 
 type GroupedMarketRow = CuspMarket & {
   outcomeMarkets?: CuspMarket[];
@@ -33,12 +35,32 @@ function compareMarkets(a: CuspMarket, b: CuspMarket, key: MarketsSortKey, dir: 
       return mult * a.name.localeCompare(b.name);
     case "probability":
       return mult * (a.probability - b.probability);
+    case "yesBid":
+      return mult * (a.yesBestBid - b.yesBestBid);
+    case "yesAsk":
+      return mult * (a.yesBestAsk - b.yesBestAsk);
+    case "spread": {
+      const sa = a.yesSpread;
+      const sb = b.yesSpread;
+      if (sa == null && sb == null) return 0;
+      if (sa == null) return 1;
+      if (sb == null) return -1;
+      return mult * (sa - sb);
+    }
     case "volume24h":
       return mult * ((a.volume24h ?? 0) - (b.volume24h ?? 0));
     case "openInterest":
       return mult * ((a.openInterest ?? 0) - (b.openInterest ?? 0));
     case "close":
       return mult * (new Date(a.resolutionDate).getTime() - new Date(b.resolutionDate).getTime());
+    case "yield":
+      return mult * (a.estimatedYield - b.estimatedYield);
+    case "estimatedYield":
+      return mult * (a.estimatedYield - b.estimatedYield);
+    case "volume":
+      return mult * (a.volume - b.volume);
+    case "cusp":
+      return 0;
     default:
       return 0;
   }
@@ -54,6 +76,7 @@ function marketMatchesSearch(market: GroupedMarketRow, query: string): boolean {
     market.eventTicker,
     market.category,
     market.subCategory,
+    market.competition,
   ];
   const siblingFields =
     "outcomeMarkets" in market
@@ -78,8 +101,11 @@ function groupMarketsForListing(markets: CuspMarket[]): GroupedMarketRow[] {
   for (const market of markets) {
     const key = market.eventTicker?.trim() || market.ticker;
     const list = groups.get(key);
-    if (list) list.push(market);
-    else groups.set(key, [market]);
+    if (list) {
+      list.push(market);
+    } else {
+      groups.set(key, [market]);
+    }
   }
 
   return Array.from(groups.values()).map((group) => {
@@ -92,11 +118,13 @@ function groupMarketsForListing(markets: CuspMarket[]): GroupedMarketRow[] {
       return bScore - aScore;
     })[0];
 
-    if (uniqueByTicker.length <= 1) return { ...representative };
+    if (uniqueByTicker.length <= 1) {
+      return { ...representative };
+    }
 
     return {
       ...representative,
-      subtitle: `${uniqueByTicker.length} markets`,
+      subtitle: `${uniqueByTicker.length} options available`,
       outcomeMarkets: uniqueByTicker.sort((a, b) => {
         const bScore = (b.volume24h ?? 0) || b.volume || 0;
         const aScore = (a.volume24h ?? 0) || a.volume || 0;
@@ -105,8 +133,6 @@ function groupMarketsForListing(markets: CuspMarket[]): GroupedMarketRow[] {
     };
   });
 }
-
-type MarketsSortKey = "title" | "probability" | "volume24h" | "openInterest" | "close";
 
 const SORT_OPTIONS: Array<{ key: MarketsSortKey; label: string; dir: "asc" | "desc" }> = [
   { key: "volume24h", label: "Trending", dir: "desc" },
@@ -174,9 +200,17 @@ function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?:
   );
 }
 
-function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; onOpenMarket: (ticker: string) => void }) {
+function MarketEventCard({
+  market,
+  onOpenMarket,
+  onOpenLeveraged,
+}: {
+  market: GroupedMarketRow;
+  onOpenMarket: (ticker: string) => void;
+  onOpenLeveraged: (ticker: string, e: MouseEvent<HTMLButtonElement>) => void;
+}) {
   const outcomes = (market.outcomeMarkets?.length ? market.outcomeMarkets : [market]).slice(0, 2);
-  const metadataLabel = market.competition || market.subCategory || market.category;
+  const metadataLabel = market.competition?.trim() || market.subCategory?.trim() || market.category;
 
   return (
     <article
@@ -219,8 +253,19 @@ function MarketEventCard({ market, onOpenMarket }: { market: GroupedMarketRow; o
           <div className="text-sm font-medium">{formatUsd(market.volume24h ?? market.volume)} vol</div>
           <div className="mt-1 text-xs text-muted-foreground/70">{formatResolutionLabel(market.resolutionDate)}</div>
         </div>
-        <div className="text-right text-sm font-medium text-muted-foreground">
-          {(market.outcomeMarkets?.length ?? 1)} {(market.outcomeMarkets?.length ?? 1) === 1 ? "market" : "markets"}
+        <div className="flex flex-col items-end gap-2 shrink-0">
+          <button
+            type="button"
+            onClick={(e) => onOpenLeveraged(market.ticker, e)}
+            className="rounded-full border border-active/50 bg-cusp-teal/10 px-3 py-1.5 text-xs font-semibold text-cusp-teal transition-colors hover:bg-cusp-teal/20"
+          >
+            Leverage (2x)
+          </button>
+          <span className="text-[10px] text-muted-foreground/80">Up to {MAX_PROTOCOL_LEVERAGE}x in app</span>
+          <div className="text-right text-sm font-medium text-muted-foreground">
+            {market.outcomeMarkets?.length ?? 1}{" "}
+            {(market.outcomeMarkets?.length ?? 1) === 1 ? "market" : "markets"}
+          </div>
         </div>
       </div>
     </article>
@@ -271,21 +316,20 @@ const MarketsPage = () => {
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
   const [search, setSearch] = useState("");
 
-  const debouncedSearch = useDebouncedValue(search, 250);
+  const debouncedSearch = useDebouncedValue(search, 350);
   const tagsQuery = useDflowTags();
   const tagsByCategories = tagsQuery.data?.tagsByCategories ?? {};
   const hasApiCategories = Object.values(tagsByCategories).some((tags) => (tags?.length ?? 0) > 0);
 
-  const marketsQuery = useDflowMarkets({
-    status: "active",
-    limit: 50,
-    activeMarketsSinglePage: true,
+  const marketsQuery = useDflowAllMarketsBrowse({
+    limit: 200,
+    maxPages: 2,
     refetchInterval: 30_000,
   });
   const scopedMarketsQuery = useDflowScopedMarkets({
     categoryLabel: category === "All" ? undefined : category,
     tag: subCategory === "All" ? null : subCategory,
-    limit: 50,
+    limit: 200,
     enabled: hasApiCategories && category !== "All",
   });
 
@@ -298,7 +342,9 @@ const MarketsPage = () => {
       .map(([key]) => toTitleCaseCategory(key))
       .sort((a, b) => a.localeCompare(b));
 
-    if (apiCategories.length > 0) return ["All", ...apiCategories];
+    if (apiCategories.length > 0) {
+      return ["All", ...apiCategories];
+    }
 
     const categories = [...new Set(allMarkets.map((m) => m.category).filter(Boolean))].sort((a, b) =>
       a.localeCompare(b)
@@ -313,20 +359,26 @@ const MarketsPage = () => {
 
   useEffect(() => {
     if (category !== "All" && categoryTabs.length > 0 && !categoryTabs.includes(category)) {
-      setSearchParams((prev) => {
-        prev.delete("category");
-        prev.delete("subCategory");
-        return prev;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          prev.delete("category");
+          prev.delete("subCategory");
+          return prev;
+        },
+        { replace: true }
+      );
     }
   }, [category, categoryTabs, setSearchParams]);
 
   useEffect(() => {
     if (subCategory !== "All" && !subCategoryTabs.includes(subCategory)) {
-      setSearchParams((prev) => {
-        prev.delete("subCategory");
-        return prev;
-      }, { replace: true });
+      setSearchParams(
+        (prev) => {
+          prev.delete("subCategory");
+          return prev;
+        },
+        { replace: true }
+      );
     }
   }, [subCategory, subCategoryTabs, setSearchParams]);
 
@@ -354,35 +406,53 @@ const MarketsPage = () => {
     return [...markets].sort((a, b) => compareMarkets(a, b, sortKey, sortDir));
   }, [markets, sortKey, sortDir]);
 
-  const selectCategory = useCallback((cat: string) => {
-    setSearchParams((prev) => {
-      if (cat === "All") prev.delete("category");
-      else prev.set("category", cat);
-      prev.delete("subCategory");
-      return prev;
-    });
-  }, [setSearchParams]);
+  const selectCategory = useCallback(
+    (cat: string) => {
+      setSearchParams((prev) => {
+        if (cat === "All") prev.delete("category");
+        else prev.set("category", cat);
+        prev.delete("subCategory");
+        return prev;
+      });
+    },
+    [setSearchParams]
+  );
 
-  const selectSubCategory = useCallback((tag: string) => {
-    setSearchParams((prev) => {
-      if (tag === "All") prev.delete("subCategory");
-      else prev.set("subCategory", tag);
-      return prev;
-    });
-  }, [setSearchParams]);
+  const selectSubCategory = useCallback(
+    (tag: string) => {
+      setSearchParams((prev) => {
+        if (tag === "All") prev.delete("subCategory");
+        else prev.set("subCategory", tag);
+        return prev;
+      });
+    },
+    [setSearchParams]
+  );
 
   const setSortOption = useCallback((key: MarketsSortKey, dir: "asc" | "desc") => {
     setSortKey(key);
     setSortDir(dir);
   }, []);
 
+  const fromListPath = `${location.pathname}${location.search}`;
+
   const onOpenMarket = useCallback(
     (ticker: string) => {
       navigate(`/markets/${encodeURIComponent(ticker)}`, {
-        state: { from: `${location.pathname}${location.search}` },
+        state: { from: fromListPath },
       });
     },
-    [navigate, location.pathname, location.search]
+    [navigate, fromListPath]
+  );
+
+  const onOpenLeveraged = useCallback(
+    (ticker: string, e: MouseEvent<HTMLButtonElement>) => {
+      e.stopPropagation();
+      navigate(`/markets/${encodeURIComponent(ticker)}?leverage=2`, {
+        state: { from: fromListPath },
+      });
+    },
+    [navigate, fromListPath]
   );
 
   return (
@@ -459,7 +529,8 @@ const MarketsPage = () => {
                     {category === "All" ? "Markets" : category}
                   </h1>
                   <p className="mt-2 text-sm text-muted-foreground">
-                    Showing top {category === "All" ? "50" : "50 filtered"} markets first for a faster, more Kalshi-like browse experience.
+                    Showing up to {category === "All" ? "200" : "200 filtered"} active markets — browse by category or
+                    search. Leverage opens the trade panel at 2x (up to {MAX_PROTOCOL_LEVERAGE}x).
                   </p>
                 </div>
 
@@ -498,9 +569,7 @@ const MarketsPage = () => {
 
               {(category !== "All" || subCategoryTabs.length > 0) && (
                 <div className="mb-6 flex gap-2 overflow-x-auto pb-1 lg:hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
-                  {(category === "All"
-                    ? categoryTabs
-                    : ["All", ...subCategoryTabs]).map((item) => {
+                  {(category === "All" ? categoryTabs : ["All", ...subCategoryTabs]).map((item) => {
                     const active = category === "All" ? category === item : subCategory === item;
                     const onClick = category === "All" ? () => selectCategory(item) : () => selectSubCategory(item);
                     return (
@@ -541,7 +610,12 @@ const MarketsPage = () => {
                   {filtered.length > 0 ? (
                     <div className="grid grid-cols-1 gap-6 xl:grid-cols-2">
                       {filtered.map((market) => (
-                        <MarketEventCard key={market.id} market={market} onOpenMarket={onOpenMarket} />
+                        <MarketEventCard
+                          key={market.id}
+                          market={market}
+                          onOpenMarket={onOpenMarket}
+                          onOpenLeveraged={onOpenLeveraged}
+                        />
                       ))}
                     </div>
                   ) : (

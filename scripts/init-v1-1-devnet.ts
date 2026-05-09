@@ -46,7 +46,12 @@ function u16le(value: number): Buffer {
 async function main() {
   console.log("=== Initializing current CUSP devnet state ===\n");
 
-  const keypairPath = path.resolve(process.env.HOME || "~", ".config/solana/id.json");
+  const repoKeypairPath = path.resolve(__dirname, "../.keys/devnet-admin.json");
+  const keypairPath = process.env.WALLET_KEYPAIR
+    ? path.resolve(process.env.WALLET_KEYPAIR)
+    : fs.existsSync(repoKeypairPath)
+      ? repoKeypairPath
+      : path.resolve(process.env.HOME || "~", ".config/solana/id.json");
   const keypairData = JSON.parse(fs.readFileSync(keypairPath, "utf-8"));
   const wallet = Keypair.fromSecretKey(Uint8Array.from(keypairData));
   const connection = new Connection(DEVNET_RPC, "confirmed");

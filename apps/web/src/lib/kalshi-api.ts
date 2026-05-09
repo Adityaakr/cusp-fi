@@ -211,46 +211,33 @@ export async function fetchKalshiSportsFilters(): Promise<KalshiFiltersBySportsR
   return fetchJson(`${KALSHI_API}/search/filters_by_sport`);
 }
 
-export async function fetchKalshiSearchSeries(params: KalshiSearchSeriesParams): Promise<KalshiSearchSeriesResponse> {
+export async function fetchKalshiSearchSeries(params: {
+  category: string;
+  status?: "open" | "closed" | "settled" | "unopened" | "open,unopened";
+  tag?: string;
+  competition?: string;
+  scope?: string;
+  orderBy?: string;
+  reverse?: boolean;
+  pageSize?: number;
+  cursor?: string;
+  hydrate?: string[];
+  withMilestones?: boolean;
+}): Promise<KalshiSearchSeriesResponse> {
   const search = new URLSearchParams();
-  const variant = params.variant ?? "hydrated_open_unopened";
-
   search.set("category", params.category);
+  search.set("status", params.status ?? "open");
   search.set("order_by", params.orderBy ?? "trending");
-  search.set(
-    "page_size",
-    String(Math.max(1, Math.min(params.pageSize ?? (variant === "trending_open" ? 25 : 24), 200)))
-  );
-
-  if (variant === "trending_open") {
-    search.set("status", params.status ?? "open");
-  } else {
-    search.set("status", params.status ?? "open,unopened");
-    search.set("reverse", String(params.reverse ?? false));
-    const hydrate = (params.hydrate ?? ["milestones", "structured_targets"]).filter(Boolean);
-    if (hydrate.length > 0) search.set("hydrate", hydrate.join(","));
-  }
-
+  search.set("reverse", String(params.reverse ?? false));
+  search.set("page_size", String(Math.max(1, Math.min(params.pageSize ?? 100, 200))));
   if (params.tag?.trim()) search.append("tag", params.tag.trim());
   if (params.competition?.trim()) search.set("competition", params.competition.trim());
   if (params.scope?.trim()) search.set("scope", params.scope.trim());
   if (params.cursor?.trim()) search.set("cursor", params.cursor.trim());
+  const hydrate = (params.hydrate ?? ["milestones", "structured_targets"]).filter(Boolean);
+  if (hydrate.length > 0) search.set("hydrate", hydrate.join(","));
   if (params.withMilestones ?? true) search.set("with_milestones", "true");
   return fetchJson(`${KALSHI_API}/v1/search/series?${search}`);
-}
-
-export async function fetchKalshiSearchSeriesTrendingOpen(params: Omit<KalshiSearchSeriesParams, "variant">): Promise<KalshiSearchSeriesResponse> {
-  return fetchKalshiSearchSeries({
-    ...params,
-    variant: "trending_open",
-  });
-}
-
-export async function fetchKalshiSearchSeriesHydratedOpenUnopened(params: Omit<KalshiSearchSeriesParams, "variant">): Promise<KalshiSearchSeriesResponse> {
-  return fetchKalshiSearchSeries({
-    ...params,
-    variant: "hydrated_open_unopened",
-  });
 }
 
 export async function searchKalshiMarketsByQuery(query: string, limit: number = 25): Promise<KalshiSearchSeriesResponse> {
@@ -264,7 +251,17 @@ export async function searchKalshiMarketsByQuery(query: string, limit: number = 
   return fetchJson(`${KALSHI_API}/v1/search/series?${search}`);
 }
 
-export async function fetchAllKalshiSearchSeries(params: KalshiSearchSeriesParams & {
+export async function fetchAllKalshiSearchSeries(params: {
+  category: string;
+  status?: "open" | "closed" | "settled" | "unopened" | "open,unopened";
+  tag?: string;
+  competition?: string;
+  scope?: string;
+  orderBy?: string;
+  reverse?: boolean;
+  pageSize?: number;
+  hydrate?: string[];
+  withMilestones?: boolean;
   maxPages?: number;
 }): Promise<KalshiSearchSeriesItem[]> {
   const all: KalshiSearchSeriesItem[] = [];

@@ -4,6 +4,7 @@
  */
 
 import { DFLOW_METADATA_API, DFLOW_TRADE_API, USDC_MINT_ADDRESS } from "./network-config";
+import { cuspApiFetch } from "./cusp-api";
 
 const METADATA_API = DFLOW_METADATA_API;
 const TRADE_API = DFLOW_TRADE_API;
@@ -24,12 +25,6 @@ export interface DFlowEvent {
   competitionScope?: string;
   /** Present when `withNestedMarkets=true` on GET /api/v1/events */
   markets?: DFlowMarket[];
-  settlementSources?: DFlowSettlementSource[] | null;
-  strikeDate?: number | null;
-  strikePeriod?: string | null;
-  volumeFp?: string | null;
-  volume24hFp?: string | null;
-  openInterestFp?: string | null;
 }
 
 export interface DFlowSettlementSource {
@@ -37,8 +32,14 @@ export interface DFlowSettlementSource {
   url: string;
 }
 
-/** Single-event fetch shape matches list events payload. */
-export interface DFlowEventDetail extends DFlowEvent {}
+export interface DFlowEventDetail extends DFlowEvent {
+  settlementSources?: DFlowSettlementSource[] | null;
+  strikeDate?: number | null;
+  strikePeriod?: string | null;
+  volumeFp?: string | null;
+  volume24hFp?: string | null;
+  openInterestFp?: string | null;
+}
 
 export interface DFlowMarketAccount {
   marketLedger: string;
@@ -49,12 +50,9 @@ export interface DFlowMarketAccount {
   scalarOutcomePct?: number;
 }
 
-export interface DFlowMarketDerivedMetadata {
-  competition?: string;
-  [key: string]: unknown;
-}
-
 export interface DFlowMarket {
+  imageUrl?: string;
+  iconUrl?: string;
   ticker: string;
   eventTicker: string;
   marketType: string;
@@ -81,12 +79,12 @@ export interface DFlowMarket {
   canCloseEarly: boolean;
   rulesPrimary?: string;
   rulesSecondary?: string;
-  earlyCloseCondition?: string;
-  product_metadata_derived?: DFlowMarketDerivedMetadata;
   accounts: Record<string, DFlowMarketAccount>;
-  /** Present on some GET /market payloads (per-outcome art). */
-  imageUrl?: string;
-  iconUrl?: string;
+  product_metadata_derived?: DFlowMarketDerivedMetadata;
+}
+export interface DFlowMarketDerivedMetadata {
+  competition?: string;
+  [key: string]: unknown;
 }
 
 export interface DFlowEventsResponse {
@@ -269,22 +267,57 @@ export type OutcomeMarketByMint = {
 export async function fetchOutcomeMarketByMint(
   mint: string
 ): Promise<OutcomeMarketByMint> {
-  const rawMarket = await fetchJson<DFlowMarket>(
-    `${METADATA_API}/api/v1/market/by-mint/${mint}`
-  );
-  const market = dflowMarketToCusp(rawMarket);
-  const side =
-    market.yesMint === mint ? "YES" : market.noMint === mint ? "NO" : null;
+  const response = await cuspApiFetch<{
+    success: boolean;
+    found: boolean;
+    market: {
+      ticker: string;
+      title: string;
+      side: "YES" | "NO" | null;
+      current_price: number | null;
+      probability: number | null;
+      yes_mint: string | null;
+      no_mint: string | null;
+    } | null;
+  }>(`/api/outcome-collateral/by-mint/${mint}`);
 
-  if (!side) {
-    throw new Error(`Mint ${mint} does not match YES/NO legs for ${rawMarket.ticker}`);
+  if (!response.found || !response.market) {
+    throw new Error(`No outcome market found for mint ${mint}`);
   }
 
-  const currentPrice = side === "YES" ? market.yesPrice : market.noPrice;
-  const probability = Math.round(Math.max(0, Math.min(1, currentPrice)) * 100);
+  const side = response.market.side;
+  if (!side) {
+    throw new Error(`Mint ${mint} does not map to a YES/NO side`);
+  }
+
+  const currentPrice = Number(response.market.current_price ?? 0);
+  const probability =
+    response.market.probability ??
+    Math.round(Math.max(0, Math.min(1, currentPrice)) * 100);
 
   return {
-    market,
+    market: {
+      id: response.market.ticker,
+      ticker: response.market.ticker,
+      name: response.market.title,
+      category: "Prediction",
+      yesPrice: side === "YES" ? currentPrice : Math.max(0, 1 - currentPrice),
+      noPrice: side === "NO" ? currentPrice : Math.max(0, 1 - currentPrice),
+      probability: side === "YES" ? probability : 100 - probability,
+      volume: 0,
+      resolutionDate: "",
+      status: "active",
+      yesMint: response.market.yes_mint ?? undefined,
+      noMint: response.market.no_mint ?? undefined,
+      eventTicker: response.market.ticker,
+      estimatedYield: 0,
+      yesLabel: "YES",
+      noLabel: "NO",
+      yesBestBid: 0,
+      yesBestAsk: 0,
+      noBestAsk: 0,
+      yesSpread: null,
+    },
     side,
     currentPrice,
     probability,
@@ -525,6 +558,29 @@ export async function searchMarkets(query: string, limit = 50): Promise<CuspMark
   return result;
 }
 
+function normalizeEventBackedMarket(
+  event: DFlowEvent,
+  market: DFlowMarket,
+  options?: {
+    categoryLabel?: string;
+    sourceTag?: string;
+  }
+): CuspMarket {
+  const cuspMarket = dflowMarketToCusp(market);
+  const eventCompetition = event.competition?.trim() || undefined;
+  const eventImageUrl = event.imageUrl?.trim() || undefined;
+
+  return {
+    ...cuspMarket,
+    name: cuspMarket.name,
+    category: options?.categoryLabel ?? cuspMarket.category,
+    subCategory: options?.sourceTag ?? cuspMarket.subCategory,
+    sourceTag: options?.sourceTag ?? cuspMarket.sourceTag,
+    imageUrl: eventImageUrl ?? cuspMarket.imageUrl,
+    competition: eventCompetition ?? cuspMarket.competition,
+  };
+}
+
 function flattenActiveMarketsFromEvents(
   events: DFlowEvent[],
   options?: {
@@ -542,16 +598,7 @@ function flattenActiveMarketsFromEvents(
       if (market.status !== "active") continue;
       if (seen.has(market.ticker)) continue;
       seen.add(market.ticker);
-      const cuspMarket = dflowMarketToCusp(market);
-      const eventCompetition = event.competition?.trim() || undefined;
-      markets.push({
-        ...cuspMarket,
-        category: options?.categoryLabel ?? cuspMarket.category,
-        subCategory: options?.sourceTag,
-        sourceTag: options?.sourceTag,
-        imageUrl: event.imageUrl,
-        competition: cuspMarket.competition ?? eventCompetition,
-      });
+      markets.push(normalizeEventBackedMarket(event, market, options));
 
       if (options?.limit && markets.length >= options.limit) {
         return markets;
@@ -645,19 +692,6 @@ async function fetchActiveMarketsForSeriesTickers(params: {
   );
   const seen = new Set<string>();
   const markets: CuspMarket[] = [];
-  let currentEventImageUrl: string | undefined;
-  const pushMarket = (market: DFlowMarket) => {
-    if (market.status !== "active") return;
-    if (seen.has(market.ticker)) return;
-    seen.add(market.ticker);
-    markets.push({
-      ...dflowMarketToCusp(market),
-      category: params.categoryLabel,
-      subCategory: params.sourceTag,
-      sourceTag: params.sourceTag,
-      imageUrl: currentEventImageUrl,
-    });
-  };
 
   for (const chunk of chunkArray(tickers, DFLOW_SERIES_TICKERS_PER_EVENTS_REQUEST)) {
     if (markets.length >= limit) break;
@@ -668,9 +702,16 @@ async function fetchActiveMarketsForSeriesTickers(params: {
       limit,
     });
     for (const ev of res.events ?? []) {
-      currentEventImageUrl = ev.imageUrl;
       for (const market of ev.markets ?? []) {
-        pushMarket(market);
+        if (market.status !== "active") continue;
+        if (seen.has(market.ticker)) continue;
+        seen.add(market.ticker);
+        markets.push(
+          normalizeEventBackedMarket(ev, market, {
+            categoryLabel: params.categoryLabel,
+            sourceTag: params.sourceTag,
+          })
+        );
         if (markets.length >= limit) break;
       }
       if (markets.length >= limit) break;

@@ -602,6 +602,71 @@ export async function listWalletOutcomeHoldings(
   });
 }
 
+export interface OutcomeMarketByMintLookupResult {
+  success: boolean;
+  found: boolean;
+  market: {
+    ticker: string;
+    title: string;
+    side: OutcomeSide | null;
+    current_price: number | null;
+    probability: number | null;
+    yes_mint: string | null;
+    no_mint: string | null;
+  } | null;
+  error?: string;
+}
+
+export async function resolveOutcomeMarketByMint(
+  mint: string
+): Promise<OutcomeMarketByMintLookupResult> {
+  if (!mint) {
+    return {
+      success: false,
+      found: false,
+      market: null,
+      error: "mint is required",
+    };
+  }
+
+  try {
+    const market = await fetchMarketByMint(mint);
+    const side = inferSideFromMarket(market, mint);
+    const currentPrice = side ? sidePriceFromMarket(market, side) : null;
+    const { yesMint, noMint } = extractOutcomeMints(market);
+
+    return {
+      success: true,
+      found: true,
+      market: {
+        ticker: String(market?.ticker || ""),
+        title: String(market?.title || market?.ticker || "Prediction outcome"),
+        side,
+        current_price: currentPrice,
+        probability: probabilityFromPrice(currentPrice),
+        yes_mint: yesMint || null,
+        no_mint: noMint || null,
+      },
+    };
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown market lookup failure";
+    if (message.includes("404")) {
+      return {
+        success: true,
+        found: false,
+        market: null,
+      };
+    }
+
+    return {
+      success: false,
+      found: false,
+      market: null,
+      error: message,
+    };
+  }
+}
+
 function getCusdcMintSafely(): string {
   try {
     return getCusdcMint().toBase58();
@@ -1452,7 +1517,7 @@ export async function createOutcomeLoanFromCollateralTransfer(params: {
     : 500;
   const expiryHours = Number.isFinite(Number(params.expiry_hours))
     ? Math.max(1, Math.floor(Number(params.expiry_hours)))
-    : 24;
+    : 168;
 
   const pendingRecord = await withRailwayTransaction(async (client) => {
     const userId = await getOrCreateUserId(wallet_address, client);
@@ -1824,7 +1889,7 @@ export async function openOutcomeLoan(params: {
       : 500;
     const expiryHours = Number.isFinite(Number(params.expiry_hours))
       ? Math.max(1, Math.floor(Number(params.expiry_hours)))
-      : 24;
+      : 168;
 
     const insertedLoan = await client.query<{ id: string }>(
       `

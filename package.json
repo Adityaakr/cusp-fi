@@ -16,6 +16,7 @@
   },
   "dependencies": {
     "@qvac/cli": "^0.3.0",
-    "@qvac/sdk": "^0.10.2"
+    "@qvac/sdk": "^0.10.2",
+    "bare-runtime-darwin-arm64": "1.28.5"
   }
 }

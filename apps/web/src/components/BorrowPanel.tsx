@@ -1,6 +1,11 @@
 import { useState, useMemo } from "react";
 import { Link } from "react-router-dom";
 import { usePhantom } from "@/lib/wallet";
+import {
+  OUTCOME_LIQUIDATION_THRESHOLD_BPS,
+  OUTCOME_MAX_LTV_BPS,
+  OUTCOME_SAFE_LTV_BPS,
+} from "@/lib/protocol-constants";
 import { useUserPortfolio } from "@/hooks/useUserPortfolio";
 import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
 import { useBorrowPanelRows, type BorrowPanelRow } from "@/hooks/useBorrowPanelRows";
@@ -10,9 +15,9 @@ import { Loader2, CheckCircle, AlertCircle } from "lucide-react";
 
 function riskLabel(ltv: number): { text: string; color: string } {
   if (ltv <= 0) return { text: "—", color: "text-muted-foreground" };
-  if (ltv <= 20) return { text: "Safe", color: "text-cusp-green" };
-  if (ltv <= 25) return { text: "Moderate", color: "text-cusp-amber" };
-  if (ltv < 40) return { text: "Risky", color: "text-cusp-red" };
+  if (ltv <= 35) return { text: "Safe", color: "text-cusp-green" };
+  if (ltv <= 50) return { text: "Moderate", color: "text-cusp-amber" };
+  if (ltv < 60) return { text: "Risky", color: "text-cusp-red" };
   return { text: "Liquidatable", color: "text-cusp-red font-bold" };
 }
 
@@ -22,8 +27,9 @@ function healthFactorColor(hf: number): string {
   return "text-cusp-red";
 }
 
-const MAX_LTV = 0.30;
-const LIQUIDATION_LTV = 0.40;
+const MAX_LTV = OUTCOME_MAX_LTV_BPS / 10_000;
+const SAFE_LTV = OUTCOME_SAFE_LTV_BPS / 10_000;
+const LIQUIDATION_LTV = OUTCOME_LIQUIDATION_THRESHOLD_BPS / 10_000;
 
 const BorrowPanel = () => {
   const { isConnected, addresses } = usePhantom();
@@ -102,7 +108,7 @@ const BorrowPanel = () => {
         </div>
         <div className="flex items-center justify-between mt-2">
           <p className="text-[11px] text-muted-foreground leading-relaxed max-w-[65%]">
-            Select a position below, enter borrow amount. Max <span className="font-mono text-foreground">30% LTV</span>.
+            Select a position below, enter borrow amount. Max <span className="font-mono text-foreground">50% LTV</span>.
           </p>
           {isConnected && portfolio && (
             <div className="text-[10px] text-right">
@@ -165,7 +171,7 @@ const BorrowPanel = () => {
                   type="button"
                   onClick={() => setBorrowAmount(selected.safeBorrowUsd.toFixed(2))}
                   className="text-[9px] font-mono text-cusp-green hover:underline"
-                  title="Safe borrow (20% LTV)"
+                  title={`Safe borrow (${Math.round(SAFE_LTV * 100)}% LTV)`}
                 >
                   SAFE
                 </button>
@@ -173,7 +179,7 @@ const BorrowPanel = () => {
                   type="button"
                   onClick={() => setBorrowAmount(selected.maxBorrowUsd.toFixed(2))}
                   className="text-[9px] font-mono text-cusp-amber hover:underline"
-                  title="Max borrow (30% LTV)"
+                  title={`Max borrow (${Math.round(MAX_LTV * 100)}% LTV)`}
                 >
                   MAX
                 </button>
@@ -297,7 +303,7 @@ const BorrowPanel = () => {
             {loanStatus === "creating"
               ? "Processing…"
               : numBorrow > (selected?.maxBorrowUsd ?? 0)
-                ? "Exceeds 30% LTV"
+                ? "Exceeds 50% LTV"
                 : "Borrow USDC"}
           </button>
         </div>
