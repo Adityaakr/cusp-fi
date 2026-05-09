@@ -1,11 +1,12 @@
 import { useState, useMemo, useEffect, useCallback } from "react";
-import { useSearchParams, useNavigate } from "react-router-dom";
+import { useSearchParams, useNavigate, useLocation } from "react-router-dom";
 import { ChevronDown, Search } from "lucide-react";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
 import { MarketAvatar as BaseMarketAvatar } from "@/components/MarketAvatar";
 import { useDflowMarkets, useDflowScopedMarkets, useDflowTags } from "@/hooks/useDflowMarkets";
 import {
+  getMarketOutcomeRowLabels,
   getTagsListForCategoryLabel,
   toTitleCaseCategory,
   type CuspMarket,
@@ -154,7 +155,7 @@ function OutcomeRow({ market, accent = "green" }: { market: CuspMarket; accent?:
     <div className="grid grid-cols-[minmax(0,1fr)_72px_86px] items-center gap-4">
       <div className="min-w-0">
         <div className="truncate text-sm font-medium text-foreground">
-          <InlineMarkdownText text={market.yesLabel || market.name} />
+          <InlineMarkdownText text={getMarketOutcomeRowLabels(market).primary} />
         </div>
         <div className="mt-2 h-[3px] w-full overflow-hidden rounded-full bg-bg-3">
           <div
@@ -262,6 +263,7 @@ function MarketCardSkeleton() {
 
 const MarketsPage = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const category = searchParams.get("category") || "All";
   const subCategory = searchParams.get("subCategory") || "All";
@@ -374,9 +376,14 @@ const MarketsPage = () => {
     setSortDir(dir);
   }, []);
 
-  const onOpenMarket = useCallback((ticker: string) => {
-    navigate(`/markets/${encodeURIComponent(ticker)}`);
-  }, [navigate]);
+  const onOpenMarket = useCallback(
+    (ticker: string) => {
+      navigate(`/markets/${encodeURIComponent(ticker)}`, {
+        state: { from: `${location.pathname}${location.search}` },
+      });
+    },
+    [navigate, location.pathname, location.search]
+  );
 
   return (
     <Layout showFooter={false}>

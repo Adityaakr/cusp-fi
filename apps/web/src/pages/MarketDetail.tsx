@@ -1,10 +1,9 @@
-import { useParams, Link, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef, useCallback } from "react";
 import { useQueryClient } from "@tanstack/react-query";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import Layout from "@/components/Layout";
 import { MarketAvatar } from "@/components/MarketAvatar";
-import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
 import {
   ChartContainer,
@@ -16,12 +15,13 @@ import {
   useDflowMarket,
   useDflowEvent,
   useDflowCandlesticks,
+  useDflowMarketPrefetchQueries,
   type CandlestickTimeframe,
 } from "@/hooks/useDflowMarkets";
 import { useDflowWebSocket } from "@/hooks/useDflowWebSocket";
 import { usePhantom, useSolana } from "@/lib/wallet";
 import { VersionedTransaction } from "@solana/web3.js";
-import { dflowMarketToCusp, fetchOrderQuote } from "@/lib/dflow-api";
+import { dflowMarketToCusp, dflowMarketImageUrl, fetchOrderQuote, getMarketOutcomeRowLabels } from "@/lib/dflow-api";
 import { MAINNET_USDC_MINT } from "@/lib/network-config";
 import { getMainnetConnection } from "@/lib/solana";
 import { MIN_TRADE_USDC } from "@/lib/protocol-constants";
@@ -39,7 +39,7 @@ import {
 } from "@/components/ui/dialog";
 import { MarketOutcomeTable } from "@/components/MarketOutcomeTable";
 import { MarketTradePanel, type MarketTradePanelProps } from "@/components/MarketTradePanel";
-import { ChevronLeft, BarChart3, Circle, Wifi, WifiOff } from "lucide-react";
+import { ChevronLeft, BarChart3, Wifi, WifiOff } from "lucide-react";
 
 const chartConfig = {
   yesPrice: {
@@ -53,6 +53,14 @@ const chartConfig = {
 };
 
 const TIMEFRAMES: CandlestickTimeframe[] = ["1D", "1W", "1M", "3M", "1Y"];
+
+type MarketDetailLocationState = { from?: string };
+
+/** Same-origin path only (for `location.state.from` when returning from market detail). */
+function safeInternalNavPath(raw: unknown): string | null {
+  if (typeof raw !== "string" || !raw.startsWith("/") || raw.startsWith("//")) return null;
+  return raw;
+}
 
 function formatUsdCompact(n: number): string {
   if (!Number.isFinite(n) || n < 0) return "—";
@@ -114,6 +122,7 @@ function computeDepthData(
 const MarketDetail = () => {
   const { ticker: routeTicker } = useParams<{ ticker: string }>();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const [timeframe, setTimeframe] = useState<CandlestickTimeframe>("1Y");
   const [activeTicker, setActiveTicker] = useState<string | undefined>(routeTicker);
@@ -145,24 +154,70 @@ const MarketDetail = () => {
     [eventQuery.data?.markets]
   );
 
+  /** Every ticker from the event (any status) + current URL ticker — drives GET /market/:ticker after event loads. */
+  const eventNestedMarketTickers = useMemo(() => {
+    const set = new Set<string>();
+    for (const m of eventQuery.data?.markets ?? []) {
+      const t = m.ticker?.trim();
+      if (t) set.add(t);
+    }
+    const at = activeTicker?.trim();
+    if (at) set.add(at);
+    return Array.from(set);
+  }, [eventQuery.data?.markets, activeTicker]);
+
   useEffect(() => {
     const et =
       queriedMarket?.eventTicker ??
       eventMarkets.find((m) => m.ticker.toLowerCase() === activeTicker?.toLowerCase())?.eventTicker;
     if (et) lastEventTickerRef.current = et;
   }, [queriedMarket?.eventTicker, eventMarkets, activeTicker]);
-  const market = useMemo(() => {
+  const marketFromSources = useMemo(() => {
     if (!activeTicker) return queriedMarket;
     const resolvedMarket = (
       eventMarkets.find((outcome) => outcome.ticker.toLowerCase() === activeTicker.toLowerCase()) ??
       queriedMarket
     );
-    if (!resolvedMarket) return resolvedMarket;
-    return {
-      ...resolvedMarket,
-      imageUrl: resolvedMarket.imageUrl ?? eventQuery.data?.imageUrl,
-    };
-  }, [activeTicker, eventMarkets, queriedMarket, eventQuery.data?.imageUrl]);
+    return resolvedMarket ?? undefined;
+  }, [activeTicker, eventMarkets, queriedMarket]);
+
+  const { byTickerLower: prefetchMarketByTicker } = useDflowMarketPrefetchQueries(eventNestedMarketTickers, {
+    enabled: eventQuery.isSuccess && eventNestedMarketTickers.length > 0,
+    refetchInterval: 30_000,
+  });
+
+  /** Selected contract + imageUrl from that ticker only (GET /market wins, then prefetch, then nested raw). */
+  const market = useMemo(() => {
+    if (!marketFromSources || !activeTicker) return marketFromSources;
+    const key = activeTicker.toLowerCase();
+    if (marketFromSources.ticker.toLowerCase() !== key) return marketFromSources;
+
+    const fromQueried =
+      queriedMarket?.ticker.toLowerCase() === key ? queriedMarket.imageUrl?.trim() : undefined;
+
+    const prefetched = prefetchMarketByTicker.get(key);
+    const fromPrefetch =
+      prefetched && prefetched.ticker.toLowerCase() === key ? prefetched.imageUrl?.trim() : undefined;
+
+    const rawNested = eventQuery.data?.markets?.find((dm) => dm.ticker.toLowerCase() === key);
+    const fromNestedRaw = rawNested ? dflowMarketImageUrl(rawNested) : undefined;
+
+    const resolved =
+      fromQueried ||
+      fromPrefetch ||
+      fromNestedRaw ||
+      marketFromSources.imageUrl?.trim() ||
+      undefined;
+
+    if (resolved === marketFromSources.imageUrl) return marketFromSources;
+    return { ...marketFromSources, imageUrl: resolved || undefined };
+  }, [
+    marketFromSources,
+    activeTicker,
+    queriedMarket,
+    prefetchMarketByTicker,
+    eventQuery.data?.markets,
+  ]);
   const isLoading = !activeTicker || (!market && dflowMarketQuery.isLoading);
   const error = !market ? dflowMarketQuery.error : null;
   const eventMarketsLoading = eventQuery.isPending;
@@ -175,16 +230,32 @@ const MarketDetail = () => {
       byTicker.set(market.ticker.toLowerCase(), market);
     }
     return Array.from(byTicker.values()).sort((a, b) => {
-      if (market) {
-        if (a.ticker.toLowerCase() === market.ticker.toLowerCase()) return -1;
-        if (b.ticker.toLowerCase() === market.ticker.toLowerCase()) return 1;
-      }
       const bScore = (b.volume24h ?? 0) || b.volume || 0;
       const aScore = (a.volume24h ?? 0) || a.volume || 0;
       if (bScore !== aScore) return bScore - aScore;
-      return b.probability - a.probability;
+      if (b.probability !== a.probability) return b.probability - a.probability;
+      return a.ticker.localeCompare(b.ticker);
     });
   }, [eventMarkets, market]);
+
+  const detailCardTitle = useMemo(() => {
+    if (!market) return "";
+    return getMarketOutcomeRowLabels(market, eventQuery.data?.title?.trim()).primary;
+  }, [market, eventQuery.data?.title]);
+
+  const eventHeaderAvatarMarket = useMemo(() => {
+    if (!market) return null;
+    const ev = eventQuery.data;
+    const title = ev?.title?.trim() || market.name;
+    return {
+      imageUrl: ev?.imageUrl?.trim() || undefined,
+      name: title,
+      category: market.category,
+      competition: ev?.competition?.trim() || market.competition,
+      subCategory: market.subCategory,
+    };
+  }, [eventQuery.data, market]);
+
   const { data: candlesticks, isLoading: chartLoading } = useDflowCandlesticks(activeTicker, timeframe, {
     refetchInterval: timeframe === "1D" || timeframe === "1W" ? 15_000 : 30_000,
     enabled: !!market,
@@ -236,17 +307,23 @@ const MarketDetail = () => {
       if (typeof window !== "undefined" && window.matchMedia("(max-width: 1023px)").matches) {
         next.set("openTrade", "1");
       }
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`, { replace: true });
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${next.toString()}`, {
+        replace: true,
+        state: location.state,
+      });
     },
-    [navigate, searchParams]
+    [navigate, searchParams, location.state]
   );
 
   const goOutcomeView = useCallback(
     (outcomeTicker: string) => {
       setActiveTicker(outcomeTicker);
-      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${searchParams.toString()}`, { replace: true });
+      navigate(`/markets/${encodeURIComponent(outcomeTicker)}?${searchParams.toString()}`, {
+        replace: true,
+        state: location.state,
+      });
     },
-    [navigate, searchParams]
+    [navigate, searchParams, location.state]
   );
 
   const myPositions = useMemo(() => {
@@ -288,7 +365,6 @@ const MarketDetail = () => {
   // Live prices override market (yesAsk for YES, noAsk for NO; fallback to bid)
   const displayYesPrice = livePrices?.yesAsk ?? livePrices?.yesBid ?? market?.yesPrice ?? 0;
   const displayNoPrice = livePrices?.noAsk ?? livePrices?.noBid ?? market?.noPrice ?? 0;
-  const displayProbability = Math.round((displayYesPrice || (1 - displayNoPrice)) * 100);
 
   // Chart: full market (YES + NO) — historical candlesticks + live trades + current live price
   const chartData = useMemo(() => {
@@ -527,6 +603,8 @@ const MarketDetail = () => {
     if (!market) return null;
     return {
       market,
+      headline: detailCardTitle,
+      isLive,
       tradeSide,
       setTradeSide,
       contracts,
@@ -560,6 +638,8 @@ const MarketDetail = () => {
     };
   }, [
     market,
+    detailCardTitle,
+    isLive,
     tradeSide,
     contracts,
     leverage,
@@ -586,6 +666,23 @@ const MarketDetail = () => {
     handleTrade,
   ]);
 
+  const returnToFromList = useMemo(
+    () => safeInternalNavPath((location.state as MarketDetailLocationState | null)?.from),
+    [location.state]
+  );
+
+  const handleMarketsBack = useCallback(() => {
+    if (returnToFromList) {
+      navigate(returnToFromList);
+      return;
+    }
+    if (typeof window !== "undefined" && window.history.length <= 1) {
+      navigate("/markets");
+      return;
+    }
+    navigate(-1);
+  }, [navigate, returnToFromList]);
+
   if (isLoading || !activeTicker) {
     return (
       <Layout>
@@ -606,9 +703,13 @@ const MarketDetail = () => {
       <Layout>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <p className="text-cusp-red">Market not found.</p>
-          <Link to="/markets" className="text-cusp-teal hover:underline mt-2 inline-block">
-            ← Back to Markets
-          </Link>
+          <button
+            type="button"
+            onClick={handleMarketsBack}
+            className="text-cusp-teal hover:underline mt-2 inline-block text-left"
+          >
+            ← Back
+          </button>
         </div>
       </Layout>
     );
@@ -618,41 +719,30 @@ const MarketDetail = () => {
     <Layout>
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8 pb-24 lg:pb-8">
         {/* Breadcrumb */}
-        <Link
-          to="/markets"
+        <button
+          type="button"
+          onClick={handleMarketsBack}
           className="inline-flex items-center gap-1.5 text-sm text-muted-foreground hover:text-cusp-teal transition-colors mb-6"
         >
           <ChevronLeft className="size-4" />
-          Back to Markets
-        </Link>
+          Back
+        </button>
 
-        {/* Header */}
+        {/* Event-level hero: event image + title; selected outcome lives in the trade panel */}
         <div className="mb-8">
           <div className="flex items-start gap-4">
-            <MarketAvatar market={market} className="h-14 w-14 shrink-0 rounded-2xl" />
+            {eventHeaderAvatarMarket && (
+              <MarketAvatar market={eventHeaderAvatarMarket} className="h-14 w-14 shrink-0 rounded-2xl" />
+            )}
             <div className="min-w-0 flex-1">
-              <div className="flex flex-wrap items-center gap-2 mb-3">
-                <h1 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
-                  <InlineMarkdownText text={market.name} />
-                </h1>
-                {isLive && (
-                  <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cusp-green/15 text-cusp-green text-[11px] font-medium animate-live-pulse">
-                    <Circle className="size-1.5 fill-current" />
-                    Live
-                  </span>
-                )}
-              </div>
-              <div className="flex flex-wrap items-center gap-3">
-                <span className="text-[11px] font-mono px-2 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-                  {market.ticker}
-                </span>
-                <span className="text-xs px-2.5 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
-                  {market.category}
-                </span>
-                <div className="flex items-center gap-2 min-w-[140px]">
-                  <ProbabilityBar probability={displayProbability} size="sm" />
-                </div>
-              </div>
+              <h1 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
+                <InlineMarkdownText text={eventQuery.data?.title?.trim() || market.name} />
+              </h1>
+              {sortedEventMarkets.length > 1 && (
+                <p className="mt-2 text-sm text-muted-foreground">
+                  Choose an outcome below or in the trade panel — prices update for the selected contract.
+                </p>
+              )}
             </div>
           </div>
         </div>

@@ -1,5 +1,5 @@
 import { useMemo } from "react";
-import { keepPreviousData, useInfiniteQuery, useQuery } from "@tanstack/react-query";
+import { keepPreviousData, useInfiniteQuery, useQueries, useQuery } from "@tanstack/react-query";
 import {
   fetchMarkets,
   fetchMarket,
@@ -15,6 +15,7 @@ import {
   fetchTotalActiveMarketsCount,
   fetchCategoryNestedMarketCounts,
   fetchMarketCategoryIndex,
+  type CuspMarket,
   type DFlowTagsResponse,
 } from "@/lib/dflow-api";
 
@@ -241,6 +242,47 @@ export function useDflowMarket(ticker: string | undefined, options?: { refetchIn
     /** Avoid dropping event scope while the active outcome ticker changes (sibling markets). */
     placeholderData: keepPreviousData,
   });
+}
+
+/**
+ * Parallel GET /market/:ticker for each ticker (e.g. all outcomes after GET /event with nested markets).
+ * Shares query cache with `useDflowMarket`. Enable only once you have the ticker list (e.g. `eventQuery.isSuccess`).
+ */
+export function useDflowMarketPrefetchQueries(
+  tickers: string[],
+  options?: { enabled?: boolean; refetchInterval?: number | false }
+) {
+  const deduped = useMemo(
+    () => Array.from(new Set(tickers.map((t) => t.trim()).filter((t) => t.length > 0))),
+    [tickers.join("\0")]
+  );
+
+  const enabled = options?.enabled !== false && deduped.length > 0;
+
+  const queries = useQueries({
+    queries: deduped.map((ticker) => ({
+      queryKey: [...QUERY_KEYS.market, ticker] as const,
+      queryFn: async () => {
+        const m = await fetchMarket(ticker);
+        return dflowMarketToCusp(m);
+      },
+      enabled,
+      staleTime: 15_000,
+      refetchInterval: options?.refetchInterval ?? false,
+      refetchOnWindowFocus: false,
+    })),
+  });
+
+  const byTickerLower = useMemo(() => {
+    const map = new Map<string, CuspMarket>();
+    deduped.forEach((ticker, i) => {
+      const data = queries[i]?.data;
+      if (data) map.set(ticker.toLowerCase(), data);
+    });
+    return map;
+  }, [deduped, queries]);
+
+  return { byTickerLower, queries };
 }
 
 export function useDflowEvent(

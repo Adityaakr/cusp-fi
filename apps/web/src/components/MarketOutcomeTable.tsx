@@ -1,4 +1,4 @@
-import type { CuspMarket } from "@/lib/dflow-api";
+import { getMarketOutcomeRowLabels, type CuspMarket } from "@/lib/dflow-api";
 import { useState } from "react";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -17,34 +17,6 @@ function yesNoCents(m: CuspMarket, side: "yes" | "no"): string {
         : m.noPrice;
   if (!Number.isFinite(p) || p <= 0) return "—";
   return `${Math.round(p * 100)}¢`;
-}
-
-function isGenericOutcomeLabel(label: string | undefined): boolean {
-  const normalized = label?.trim().toLowerCase() ?? "";
-  return !normalized || normalized === "yes" || normalized === "no";
-}
-
-function buildOutcomeLabel(market: CuspMarket, eventTitle?: string): { primary: string; secondary?: string } {
-  const rawTitle = market.name.trim();
-  const normalizedEventTitle = eventTitle?.trim().toLowerCase();
-  let primary = rawTitle;
-
-  if (normalizedEventTitle && rawTitle.toLowerCase().startsWith(normalizedEventTitle)) {
-    primary = rawTitle.slice(eventTitle!.trim().length).trim();
-    primary = primary.replace(/^[-–—:,\s]+/, "").replace(/\?+$/, "").trim();
-  }
-
-  if (!primary) {
-    primary = rawTitle;
-  }
-
-  const secondary =
-    !isGenericOutcomeLabel(market.yesLabel) &&
-    market.yesLabel.trim().toLowerCase() !== primary.trim().toLowerCase()
-      ? market.yesLabel.trim()
-      : undefined;
-
-  return { primary, secondary };
 }
 
 export interface MarketOutcomeTableProps {
@@ -109,7 +81,7 @@ export function MarketOutcomeTable({
           <tbody>
             {visibleMarkets.map((m) => {
               const active = m.ticker.toLowerCase() === activeTicker.toLowerCase();
-              const { primary, secondary } = buildOutcomeLabel(m, eventTitle);
+              const { primary, secondary } = getMarketOutcomeRowLabels(m, eventTitle);
               return (
                 <tr
                   key={m.ticker}

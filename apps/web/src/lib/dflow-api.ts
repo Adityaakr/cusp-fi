@@ -84,6 +84,9 @@ export interface DFlowMarket {
   earlyCloseCondition?: string;
   product_metadata_derived?: DFlowMarketDerivedMetadata;
   accounts: Record<string, DFlowMarketAccount>;
+  /** Present on some GET /market payloads (per-outcome art). */
+  imageUrl?: string;
+  iconUrl?: string;
 }
 
 export interface DFlowEventsResponse {
@@ -167,6 +170,39 @@ export interface CuspMarket {
   noBestAsk: number;
   /** YES bid–ask spread in dollars; null when one side missing */
   yesSpread: number | null;
+}
+
+/** True when API did not give a specific YES leg name (empty / YES / NO). */
+export function isGenericOutcomeLabel(label: string | undefined): boolean {
+  const normalized = label?.trim().toLowerCase() ?? "";
+  return !normalized || normalized === "yes" || normalized === "no";
+}
+
+function stripEventPrefixFromMarketTitle(marketName: string, eventTitle: string | undefined): string {
+  const rawTitle = marketName.trim();
+  const et = eventTitle?.trim();
+  const normalizedEventTitle = et?.toLowerCase();
+  let primary = rawTitle;
+  if (normalizedEventTitle && rawTitle.toLowerCase().startsWith(normalizedEventTitle)) {
+    primary = rawTitle.slice(et.length).trim();
+    primary = primary.replace(/^[-–—:,\s]+/, "").replace(/\?+$/, "").trim();
+  }
+  return primary || rawTitle;
+}
+
+/**
+ * Row label for an outcome: prefer non-generic `yesLabel` (same as `/markets` cards),
+ * else event-prefix-stripped `name` / full `name`.
+ */
+export function getMarketOutcomeRowLabels(
+  market: CuspMarket,
+  eventTitle?: string
+): { primary: string; secondary?: string } {
+  if (!isGenericOutcomeLabel(market.yesLabel)) {
+    return { primary: market.yesLabel.trim(), secondary: undefined };
+  }
+  const primary = stripEventPrefixFromMarketTitle(market.name, eventTitle);
+  return { primary, secondary: undefined };
 }
 
 export interface DFlowMarketCategoryIndex {
@@ -994,6 +1030,23 @@ function deriveNoLabel(title: string, yesSubTitle: string): string {
   return `Not ${yesSubTitle}`;
 }
 
+/** Best-effort image URL from a DFlow market row (REST or nested under an event). */
+export function dflowMarketImageUrl(m: DFlowMarket): string | undefined {
+  const ext = m as DFlowMarket & { image_url?: string; icon_url?: string };
+  const direct =
+    m.imageUrl?.trim() || m.iconUrl?.trim() || ext.image_url?.trim() || ext.icon_url?.trim();
+  if (direct) return direct;
+  const d = m.product_metadata_derived;
+  if (d && typeof d === "object") {
+    const rec = d as Record<string, unknown>;
+    for (const k of ["imageUrl", "image_url", "icon_url", "thumbnailUrl", "logoUrl"]) {
+      const v = rec[k];
+      if (typeof v === "string" && v.trim()) return v.trim();
+    }
+  }
+  return undefined;
+}
+
 export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADDRESS): CuspMarket {
   // Look up accounts by our settlement mint first; fall back to first available account entry
   let accounts = m.accounts[settlementMint];
@@ -1025,6 +1078,8 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
       ? m.noSubTitle.trim()
       : deriveNoLabel(m.title, yesLabel);
 
+  const imageUrl = dflowMarketImageUrl(m);
+
   return {
     id: m.ticker,
     ticker: m.ticker,
@@ -1053,5 +1108,6 @@ export function dflowMarketToCusp(m: DFlowMarket, settlementMint = USDC_MINT_ADD
     yesBestAsk: yesAsk > 0 ? yesAsk : 1 - noBid,
     noBestAsk: noAsk > 0 ? noAsk : 1 - yesBid,
     yesSpread,
+    ...(imageUrl ? { imageUrl } : {}),
   };
 }

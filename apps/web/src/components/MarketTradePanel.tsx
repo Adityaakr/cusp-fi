@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
 import { InlineMarkdownText } from "@/components/InlineMarkdownText";
 import { MarketAvatar } from "@/components/MarketAvatar";
+import ProbabilityBar from "@/components/ProbabilityBar";
 import type { CuspMarket } from "@/lib/dflow-api";
 import type { UserPortfolio, Position } from "@/hooks/useUserPortfolio";
 import { MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
-import { ShieldCheck, AlertTriangle, CheckCircle2 } from "lucide-react";
+import { ShieldCheck, AlertTriangle, CheckCircle2, Circle } from "lucide-react";
 import type { LeveragedTradeStatus } from "@/hooks/useLeveragedTrade";
 
 const LEVERAGE_OPTIONS = [1, 2, 3] as const;
@@ -16,6 +17,9 @@ function priceToCents(price: number): number {
 
 export interface MarketTradePanelProps {
   market: CuspMarket;
+  /** Outcome row title (e.g. primary label from event context); shown as panel headline. */
+  headline: string;
+  isLive: boolean;
   tradeSide: "YES" | "NO";
   setTradeSide: (s: "YES" | "NO") => void;
   contracts: string;
@@ -51,6 +55,8 @@ export interface MarketTradePanelProps {
 
 export function MarketTradePanel({
   market,
+  headline,
+  isLive,
   tradeSide,
   setTradeSide,
   contracts,
@@ -83,15 +89,38 @@ export function MarketTradePanel({
   onTradeStatusIdle,
   className = "",
 }: MarketTradePanelProps) {
+  const displayProbability = Math.round((displayYesPrice || (1 - displayNoPrice)) * 100);
+
   return (
     <div className={`bg-bg-1 border border-border rounded-xl p-5 sm:p-6 shadow-sm ${className}`}>
-      <div className="flex items-start gap-3 mb-4">
-        <MarketAvatar market={market} className="size-9 shrink-0 rounded-md" />
+      <div className="flex items-start gap-4 mb-4">
+        <MarketAvatar market={market} className="h-14 w-14 shrink-0 rounded-2xl" />
         <div className="min-w-0 flex-1">
-          <h3 className="text-sm font-semibold text-foreground leading-snug line-clamp-2">
-            <InlineMarkdownText text={market.name} />
-          </h3>
-          <p className="text-[11px] text-muted-foreground mt-0.5">
+          <div className="flex flex-wrap items-center gap-2 mb-3">
+            <div className="min-w-0 flex-1">
+              <h3 className="text-xl sm:text-2xl font-semibold text-foreground leading-tight">
+                <InlineMarkdownText text={headline} />
+              </h3>
+            </div>
+            {isLive && (
+              <span className="inline-flex items-center gap-1.5 px-2 py-0.5 rounded-full bg-cusp-green/15 text-cusp-green text-[11px] font-medium animate-live-pulse shrink-0 self-start">
+                <Circle className="size-1.5 fill-current" />
+                Live
+              </span>
+            )}
+          </div>
+          <div className="flex flex-wrap items-center gap-3">
+            <span className="text-[11px] font-mono px-2 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
+              {market.ticker}
+            </span>
+            <span className="text-xs px-2.5 py-1 rounded-md bg-bg-2 text-muted-foreground border border-border/60">
+              {market.category}
+            </span>
+            <div className="flex items-center gap-2 min-w-[140px]">
+              <ProbabilityBar probability={displayProbability} size="sm" />
+            </div>
+          </div>
+          <p className="text-[11px] text-muted-foreground mt-3">
             Buy {tradeSide === "YES" ? market.yesLabel || "Yes" : market.noLabel || "No"}
             {tradeSide === "YES" ? (
               <span className="text-cusp-green"> · {priceToCents(displayYesPrice)}¢</span>
