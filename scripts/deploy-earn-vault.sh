@@ -4,12 +4,12 @@ set -euo pipefail
 # ─── Cusp Earn Vault — Mainnet Deployment & Initialization ───────────────────
 #
 # Prerequisites:
-#   1. solana CLI installed (sh -c "$(curl -sSfL https://release.anza.xyz/stable/install)")
+#   1. solana CLI installed (`curl -fsSL https://www.solana.new/setup.sh | bash`)
 #   2. Funded deployer wallet: solana airdrop doesn't work on mainnet —
 #      transfer SOL to the wallet in ~/.config/solana/id.json
 #      You need ~3-5 SOL for deployment + init transactions
 #   3. cargo-build-sbf installed (comes with solana CLI)
-#   4. avm + anchor 0.30.1 installed
+#   4. Rust + Solana SBF toolchain installed
 #
 # Usage:
 #   chmod +x scripts/deploy-earn-vault.sh
@@ -24,6 +24,7 @@ echo ""
 
 PROGRAM_KEYPAIR="./target/deploy/cusp_earn_vault-keypair.json"
 PROGRAM_SO="./target/deploy/cusp_earn_vault.so"
+PROGRAM_HEADROOM="${PROGRAM_HEADROOM:-4096}"
 
 # Mainnet token mints
 USDC_MINT="EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v"
@@ -64,6 +65,11 @@ fi
 echo "[1/6] Building cusp-earn-vault program..."
 cargo-build-sbf --manifest-path programs/cusp-earn-vault/Cargo.toml --sbf-out-dir target/deploy
 echo "  Built: $PROGRAM_SO"
+PROGRAM_SIZE=$(wc -c < "$PROGRAM_SO" | tr -d '[:space:]')
+MAX_LEN=$((PROGRAM_SIZE + PROGRAM_HEADROOM))
+echo "  Program size: $PROGRAM_SIZE bytes"
+echo "  Headroom: $PROGRAM_HEADROOM bytes"
+echo "  Deploy allocation: $MAX_LEN bytes"
 echo ""
 
 # ─── Step 2: Get program ID ──────────────────────────────────────────────────
@@ -86,13 +92,13 @@ if [ -n "$PROGRAM_INFO" ]; then
   solana program deploy --url "$RPC_URL" \
     "$PROGRAM_SO" \
     --program-id "$PROGRAM_KEYPAIR" \
-    --max-len 400000
+    --max-len "$MAX_LEN"
 else
   echo "  First-time deployment. Creating program buffer..."
   solana program deploy --url "$RPC_URL" \
     "$PROGRAM_SO" \
     --program-id "$PROGRAM_KEYPAIR" \
-    --max-len 400000
+    --max-len "$MAX_LEN"
 fi
 
 echo "  Deployed successfully!"
@@ -100,8 +106,8 @@ echo ""
 
 # ─── Step 4: Initialize vault ───────────────────────────────────────────────
 #
-# We use `solana program invoke` with Anchor IDL to call initialize.
-# Alternatively, use the TypeScript init script (see scripts/init-earn-vault.ts).
+# Initialization is handled by the TypeScript script, which builds raw native
+# instructions for the plain Rust program (see scripts/init-earn-vault.ts).
 
 echo "[4/6] Initializing vault state + cUSDT mint..."
 echo ""

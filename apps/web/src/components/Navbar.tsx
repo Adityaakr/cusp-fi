@@ -1,13 +1,13 @@
 import { Link, useLocation } from "react-router-dom";
 import { useModal, usePhantom } from "@/lib/wallet";
 import { useState, useEffect, useRef, useCallback } from "react";
-import { MAINNET_RPC_URL, MAINNET_USDT_MINT } from "@/lib/network-config";
+import { MAINNET_RPC_URL, MAINNET_USDC_MINT } from "@/lib/network-config";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Menu, X, Sparkles } from "lucide-react";
 import { useQvac } from "@/components/qvac/QvacProvider";
 
 const RPC_URL = MAINNET_RPC_URL;
-const USDT_MINT = MAINNET_USDT_MINT;
+const USDC_MINT = MAINNET_USDC_MINT;
 
 const navLinks: Array<{ path: string; label: string; external?: boolean; soon?: boolean }> = [
   { path: "/lend", label: "Borrow" },
@@ -36,10 +36,10 @@ async function fetchSolBalance(address: string): Promise<number> {
   return (result?.value ?? 0) / 1e9;
 }
 
-async function fetchUsdtBalance(address: string): Promise<number> {
+async function fetchUsdcBalance(address: string): Promise<number> {
   const result = await rpcCall("getTokenAccountsByOwner", [
     address,
-    { mint: USDT_MINT },
+    { mint: USDC_MINT },
     { encoding: "jsonParsed", commitment: "confirmed" },
   ]);
   const accounts = result?.value ?? [];
@@ -49,13 +49,13 @@ async function fetchUsdtBalance(address: string): Promise<number> {
 
 function useWalletBalance(address: string | null) {
   const [sol, setSol] = useState<number | null>(null);
-  const [usdt, setUsdt] = useState<number | null>(null);
+  const [usdc, setUsdc] = useState<number | null>(null);
   const intervalRef = useRef<ReturnType<typeof setInterval>>();
 
   useEffect(() => {
     if (!address) {
       setSol(null);
-      setUsdt(null);
+      setUsdc(null);
       return;
     }
 
@@ -63,8 +63,8 @@ function useWalletBalance(address: string | null) {
 
     async function load() {
       try {
-        const [s, u] = await Promise.all([fetchSolBalance(address!), fetchUsdtBalance(address!)]);
-        if (!cancelled) { setSol(s); setUsdt(u); }
+        const [s, u] = await Promise.all([fetchSolBalance(address!), fetchUsdcBalance(address!)]);
+        if (!cancelled) { setSol(s); setUsdc(u); }
       } catch (err) {
         console.warn("[Navbar] balance fetch failed:", err);
       }
@@ -76,7 +76,7 @@ function useWalletBalance(address: string | null) {
     return () => { cancelled = true; clearInterval(intervalRef.current); };
   }, [address]);
 
-  return { sol, usdt };
+  return { sol, usdc };
 }
 
 const Navbar = () => {
@@ -91,7 +91,7 @@ const Navbar = () => {
     addresses?.[0]?.address ??
     null;
 
-  const { sol, usdt } = useWalletBalance(isConnected ? solanaAddress : null);
+  const { sol, usdc } = useWalletBalance(isConnected ? solanaAddress : null);
 
   const closeMobile = useCallback(() => setMobileOpen(false), []);
 
@@ -157,10 +157,10 @@ const Navbar = () => {
 
         <div className="flex items-center gap-3">
 
-{isConnected && usdt !== null && (
+{isConnected && usdc !== null && (
             <div className="hidden sm:flex items-center gap-2 text-xs font-mono text-muted-foreground">
-<span className="text-foreground/80">{usdt.toFixed(2)}</span>
-               <span>USDT</span>
+<span className="text-foreground/80">{usdc.toFixed(2)}</span>
+               <span>USDC</span>
             </div>
           )}
 
@@ -246,13 +246,13 @@ const Navbar = () => {
               );
             })}
           </div>
-{isConnected && usdt !== null && (
+{isConnected && usdc !== null && (
             <div className="px-4 py-3 border-t border-border/50">
               <div className="flex items-center justify-between px-3 py-2 rounded-lg bg-bg-2">
                 <span className="text-[11px] text-muted-foreground">Balance</span>
                 <div className="flex items-center gap-2 text-xs font-mono">
-<span className="text-foreground/80">{usdt.toFixed(2)}</span>
-                    <span className="text-muted-foreground">USDT</span>
+<span className="text-foreground/80">{usdc.toFixed(2)}</span>
+                    <span className="text-muted-foreground">USDC</span>
                 </div>
               </div>
             </div>

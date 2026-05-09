@@ -24,18 +24,9 @@ import {
   TransactionInstruction,
   TransactionMessage,
   VersionedTransaction,
-  SystemProgram,
   SYSVAR_RENT_PUBKEY,
 } from "@solana/web3.js";
-import {
-  TOKEN_PROGRAM_ID,
-  ASSOCIATED_TOKEN_PROGRAM_ID,
-  getAssociatedTokenAddress,
-  createAssociatedTokenAccountInstruction,
-  MINT_SIZE,
-  ACCOUNT_SIZE,
-  createInitializeMintInstruction,
-} from "@solana/spl-token";
+import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -51,7 +42,7 @@ const USDT_MINT = new PublicKey("Es9vMFrzaCERn2QytQkwT4NSr8F3rzA4XB9vNehqWj6q");
 
 const RPC_URL = "https://api.mainnet-beta.solana.com";
 
-// ─── Anchor discriminators ───────────────────────────────────────────────────
+// ─── Legacy discriminator compatibility ──────────────────────────────────────
 
 function sha256(input: string): Buffer {
   const crypto = require("crypto");
@@ -166,10 +157,6 @@ async function initializeVault(connection: Connection, payer: Keypair) {
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhashAndContext("confirmed");
 
-  const rent = await connection.getMinimumBalanceForRentExemption(MINT_SIZE);
-  const vaultStateSpace = 8 + 8 + 32 * 5 + 8 * 4 + 8 * 2 + 1 + 1 + 1 + 8; // ~232 bytes
-  const vaultStateRent = await connection.getMinimumBalanceForRentExemption(vaultStateSpace);
-
   // initialize instruction data:
   // 8 bytes discriminator + 32 bytes usdc_mint + 32 bytes usdt_mint = 72 bytes
   const data = Buffer.alloc(72);
@@ -178,23 +165,6 @@ async function initializeVault(connection: Connection, payer: Keypair) {
   USDT_MINT.toBuffer().copy(data, 40);
 
   const instructions: TransactionInstruction[] = [
-    // Create vault state account
-    SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubKey: VAULT_STATE_PDA,
-      space: vaultStateSpace,
-      lamports: vaultStateRent,
-      programId: PROGRAM_ID,
-    }),
-    // Create cUSDT mint account
-    SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubKey: CUSDT_MINT_PDA,
-      space: MINT_SIZE,
-      lamports: rent,
-      programId: PROGRAM_ID,
-    }),
-    // initialize instruction
     new TransactionInstruction({
       keys: [
         { pubkey: payer.publicKey, isSigner: true, isWritable: true },
@@ -235,23 +205,12 @@ async function initVaultAccount(connection: Connection, payer: Keypair) {
   const { blockhash, lastValidBlockHeight } =
     await connection.getLatestBlockhashAndContext("confirmed");
 
-  const rent = await connection.getMinimumBalanceForRentExemption(ACCOUNT_SIZE);
-
   // init_vault_account instruction data:
   // 8 bytes discriminator only = 8 bytes
   const data = Buffer.alloc(8);
   INIT_VAULT_ACCOUNT_DISCRIMINATOR.copy(data, 0);
 
   const instructions: TransactionInstruction[] = [
-    // Create vault USDC ATA
-    SystemProgram.createAccount({
-      fromPubkey: payer.publicKey,
-      newAccountPubKey: VAULT_USDC_ATA_PDA,
-      space: ACCOUNT_SIZE,
-      lamports: rent,
-      programId: PROGRAM_ID,
-    }),
-    // init_vault_account instruction
     new TransactionInstruction({
       keys: [
         { pubkey: payer.publicKey, isSigner: true, isWritable: true },

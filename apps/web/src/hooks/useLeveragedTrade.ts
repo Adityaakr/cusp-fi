@@ -3,6 +3,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { usePhantom, useSolana } from "@/lib/wallet";
 import { supabase } from "@/lib/supabase";
 import { fetchOrderQuote } from "@/lib/dflow-api";
+import { getMainnetConnection } from "@/lib/solana";
 import { VersionedTransaction } from "@solana/web3.js";
 import { MIN_TRADE_USDC, MAX_PROTOCOL_LEVERAGE } from "@/lib/protocol-constants";
 
@@ -164,7 +165,7 @@ export function useLeveragedTrade() {
         amount: totalAtomic,
         tradeUsdc,
       });
-      const { transaction } = await fetchOrderQuote({
+      const { transaction, outputAmount } = await fetchOrderQuote({
         userPublicKey: solanaAddress,
         inputMint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         outputMint: params.outputMint,
@@ -174,18 +175,22 @@ export function useLeveragedTrade() {
 
       const txBytes = Uint8Array.from(atob(transaction), (c) => c.charCodeAt(0));
       const tx = VersionedTransaction.deserialize(txBytes);
-      const sig = await solana.signAndSendTransaction(tx);
+      const sig = await solana.signAndSendTransaction(tx, getMainnetConnection());
 
       // 4. Record trade execution
       setStatus("confirming");
 
       if (position_id && sig) {
+        const outputQuantity = Number(outputAmount ?? 0) / 1e6;
+        const entryPrice = outputQuantity > 0 ? tradeUsdc / outputQuantity : tradeUsdc;
         await supabase.functions.invoke("record-trade", {
           body: {
             position_id,
             tx_signature: sig,
             output_mint: params.outputMint,
-            total_usdc: total_usdc,
+            total_usdc: tradeUsdc,
+            output_amount: outputQuantity,
+            entry_price: entryPrice,
           },
         }).catch(() => {
           // Non-critical: if record-trade fails, trade still happened on-chain
@@ -204,6 +209,7 @@ export function useLeveragedTrade() {
       setStatus("success");
       queryClient.invalidateQueries({ queryKey: ["protocolState"] });
       queryClient.invalidateQueries({ queryKey: ["userPortfolio"] });
+      queryClient.invalidateQueries({ queryKey: ["outcomeTokenHoldings"] });
 
       return tradeResult;
     } catch (err) {

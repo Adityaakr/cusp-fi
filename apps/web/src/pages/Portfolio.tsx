@@ -2,7 +2,9 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useUserPortfolio, type Position, type LeveragedTrade, type TradeExecution } from "@/hooks/useUserPortfolio";
-import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
+import { useOutcomeTokenHoldings, type OutcomeTokenHolding } from "@/hooks/useOutcomeTokenHoldings";
+import { useOutcomeCollateralPositions, type OutcomeCollateralPosition } from "@/hooks/useOutcomeCollateralPositions";
+import { useLivePortfolioPositions } from "@/hooks/useLivePortfolioPositions";
 import { useProtocolState } from "@/hooks/useProtocolState";
 import { usePhantom } from "@/lib/wallet";
 import { useQvac } from "@/components/qvac/QvacProvider";
@@ -34,6 +36,13 @@ const tabs = [
 ];
 
 type TabId = (typeof tabs)[number]["id"];
+type CollateralPositionView = OutcomeCollateralPosition & {
+  usdc_cost: number;
+  entry_price: number;
+  current_value: number | null;
+  unrealized_pnl: number | null;
+  unrealized_pnl_pct: number | null;
+};
 
 function shortAddr(addr: string, len = 4) {
   if (addr.length <= len * 2 + 1) return addr;
@@ -73,13 +82,24 @@ function PnlBadge({ value, pct }: { value: number | null | undefined; pct?: numb
 
 function SideBadge({ side }: { side: string }) {
   const isYes = side === "YES";
+  const isNo = side === "NO";
   return (
     <span
       className={`inline-flex items-center gap-1 text-[11px] font-bold px-2 py-0.5 rounded-full uppercase tracking-wide ${
-        isYes ? "bg-cusp-green/15 text-cusp-green" : "bg-cusp-red/15 text-cusp-red"
+        isYes
+          ? "bg-cusp-green/15 text-cusp-green"
+          : isNo
+            ? "bg-cusp-red/15 text-cusp-red"
+            : "bg-bg-2 text-muted-foreground"
       }`}
     >
-      {isYes ? <CheckCircle2 className="size-3" /> : <XCircle className="size-3" />}
+      {isYes ? (
+        <CheckCircle2 className="size-3" />
+      ) : isNo ? (
+        <XCircle className="size-3" />
+      ) : (
+        <div className="size-3 rounded-full border border-current" />
+      )}
       {side}
     </span>
   );
@@ -89,6 +109,8 @@ function TypeBadge({ type }: { type: string }) {
   const colors: Record<string, string> = {
     direct: "bg-cusp-teal/10 text-cusp-teal border-cusp-teal/20",
     leveraged: "bg-cusp-amber/10 text-cusp-amber border-cusp-amber/20",
+    collateral: "bg-cusp-purple/10 text-cusp-purple border-cusp-purple/20",
+    borrowed: "bg-cusp-amber/10 text-cusp-amber border-cusp-amber/20",
     vault: "bg-purple-500/10 text-purple-400 border-purple-500/20",
   };
   return (
@@ -103,8 +125,10 @@ function StatusBadge({ status }: { status: string }) {
     open: { color: "text-cusp-green", dot: "bg-cusp-green" },
     active: { color: "text-cusp-green", dot: "bg-cusp-green" },
     confirmed: { color: "text-cusp-green", dot: "bg-cusp-green" },
+    locked: { color: "text-cusp-purple", dot: "bg-cusp-purple" },
     submitted: { color: "text-cusp-amber", dot: "bg-cusp-amber" },
     pending: { color: "text-cusp-amber", dot: "bg-cusp-amber" },
+    released: { color: "text-muted-foreground", dot: "bg-muted-foreground" },
     settled: { color: "text-muted-foreground", dot: "bg-muted-foreground" },
     closed: { color: "text-muted-foreground", dot: "bg-muted-foreground" },
     liquidated: { color: "text-cusp-red", dot: "bg-cusp-red" },
@@ -171,7 +195,9 @@ function PositionCard({ p }: { p: Position }) {
       <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
         <div>
           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Entry</span>
-          <span className="font-mono text-xs text-foreground">${p.entry_price.toFixed(2)}</span>
+          <span className="font-mono text-xs text-foreground">
+            {p.entry_price > 0 ? `$${p.entry_price.toFixed(2)}` : "--"}
+          </span>
         </div>
         <div>
           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Current</span>
@@ -182,7 +208,9 @@ function PositionCard({ p }: { p: Position }) {
         <div>
           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Shares</span>
           <span className="font-mono text-xs text-foreground">
-            {p.quantity.toLocaleString(undefined, { maximumFractionDigits: 2 })}
+            {p.quantity > 0
+              ? p.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })
+              : "--"}
           </span>
         </div>
       </div>
@@ -230,6 +258,207 @@ function PositionCard({ p }: { p: Position }) {
             View Market
           </Link>
         </div>
+      </div>
+    </div>
+  );
+}
+
+function WalletOutcomePositionCard({ holding }: { holding: OutcomeTokenHolding }) {
+  const side = holding.side ?? "UNKNOWN";
+  const isYes = side === "YES";
+  const isNo = side === "NO";
+
+  return (
+    <div
+      className={`bg-bg-1 border rounded-xl p-4 sm:p-5 transition-all hover:shadow-md ${
+        isYes
+          ? "border-cusp-green/20 hover:border-cusp-green/40"
+          : isNo
+            ? "border-cusp-red/20 hover:border-cusp-red/40"
+            : "border-border hover:border-active/40"
+      }`}
+    >
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SideBadge side={side} />
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded border bg-bg-2 text-muted-foreground border-border">
+            wallet
+          </span>
+        </div>
+        <a
+          href={`https://solscan.io/token/${holding.mint}`}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-cusp-teal/70 hover:text-cusp-teal transition-colors"
+          title="View token on Solscan"
+        >
+          <ExternalLink className="size-3.5" />
+        </a>
+      </div>
+
+      <Link
+        to={holding.ticker ? `/markets/${holding.ticker}` : "/markets"}
+        className="text-sm font-medium text-foreground hover:text-cusp-teal transition-colors line-clamp-2 leading-snug mb-1 block"
+      >
+        {holding.title ?? "Prediction outcome"}
+      </Link>
+      <span className="text-[10px] font-mono text-muted-foreground">
+        {holding.ticker ?? shortAddr(holding.mint)}
+      </span>
+
+      <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Price</span>
+          <span className="font-mono text-xs text-foreground">
+            {holding.currentPrice != null ? `$${holding.currentPrice.toFixed(2)}` : "--"}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Shares</span>
+          <span className="font-mono text-xs text-foreground">
+            {holding.balance.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Probability</span>
+          <span className="font-mono text-xs text-foreground">
+            {holding.probability != null ? `${holding.probability}%` : "--"}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mt-2">
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Value</span>
+          <span className="font-mono text-xs text-foreground">
+            {holding.currentValue != null ? `$${holding.currentValue.toFixed(2)}` : "--"}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Entry</span>
+          <span className="text-[10px] text-muted-foreground">Wallet only</span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">P&L</span>
+          <span className="text-[10px] text-muted-foreground">Need cost basis</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
+        <span className="text-[10px] text-muted-foreground font-mono">{shortAddr(holding.mint)}</span>
+        <Link
+          to={holding.ticker ? `/markets/${holding.ticker}` : "/markets"}
+          className="text-[10px] text-cusp-teal hover:underline"
+        >
+          View Market
+        </Link>
+      </div>
+    </div>
+  );
+}
+
+function CollateralPositionCard({ p }: { p: CollateralPositionView }) {
+  const type = p.loan_status === "active" || p.loan_status === "pending" ? "borrowed" : "collateral";
+  const currentPrice = p.current_price;
+  const ltvPct =
+    p.current_value && p.current_value > 0
+      ? (p.borrowed_amount_usdc / p.current_value) * 100
+      : 0;
+  const hasBorrow = p.borrowed_amount_usdc > 0;
+  const healthText = hasBorrow
+    ? (p.health_factor != null ? p.health_factor.toFixed(2) : "--")
+    : "Not borrowed";
+
+  return (
+    <div className="bg-bg-1 border border-cusp-purple/20 hover:border-cusp-purple/40 rounded-xl p-4 sm:p-5 transition-all hover:shadow-md">
+      <div className="flex items-start justify-between gap-3 mb-3">
+        <div className="flex items-center gap-2 flex-wrap">
+          <SideBadge side={p.side} />
+          <TypeBadge type={type} />
+          <StatusBadge status={p.loan_status ?? p.collateral_status} />
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <SolscanTxLink sig={p.borrow_tx_signature ?? p.deposit_tx_signature} />
+        </div>
+      </div>
+
+      <Link
+        to={`/markets/${p.market_ticker}`}
+        className="text-sm font-medium text-foreground hover:text-cusp-teal transition-colors line-clamp-2 leading-snug mb-1 block"
+      >
+        {p.market_title || p.market_ticker}
+      </Link>
+      <span className="text-[10px] font-mono text-muted-foreground">{p.market_ticker}</span>
+
+      <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Entry</span>
+          <span className="font-mono text-xs text-foreground">
+            {p.entry_price > 0 ? `$${p.entry_price.toFixed(2)}` : "--"}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Current</span>
+          <span className="font-mono text-xs text-foreground">
+            {currentPrice != null ? `$${currentPrice.toFixed(2)}` : "--"}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Locked</span>
+          <span className="font-mono text-xs text-foreground">
+            {p.quantity.toLocaleString(undefined, { maximumFractionDigits: 4 })}
+          </span>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mt-2">
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Collateral</span>
+          <span className="font-mono text-xs text-foreground">
+            {p.current_value != null ? `$${p.current_value.toFixed(2)}` : `$${p.snapshot_value_usdc.toFixed(2)}`}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Borrowed</span>
+          <span className="font-mono text-xs text-cusp-amber">
+            ${p.borrowed_amount_usdc.toFixed(2)}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">P&L</span>
+          <PnlBadge value={p.unrealized_pnl} pct={p.unrealized_pnl_pct} />
+        </div>
+      </div>
+
+      <div className="grid grid-cols-3 gap-3 mt-2">
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Health</span>
+          <span className={`${hasBorrow ? "font-mono" : ""} text-xs ${p.health_factor != null && p.health_factor < 1.1 ? "text-cusp-red" : "text-foreground"}`}>
+            {healthText}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">LTV</span>
+          <span className="font-mono text-xs text-foreground">
+            {`${ltvPct.toFixed(1)}%`}
+          </span>
+        </div>
+        <div>
+          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Custody</span>
+          <span className="font-mono text-xs text-muted-foreground">{shortAddr(p.custody_wallet)}</span>
+        </div>
+      </div>
+
+      <div className="flex items-center justify-between mt-3 pt-2 border-t border-border/30">
+        <span className="text-[10px] text-muted-foreground">
+          {p.loan_status === "active" || p.loan_status === "pending" ? "Held by Cusp Pool" : "Locked in Cusp Pool"}
+        </span>
+        <Link
+          to={`/markets/${p.market_ticker}`}
+          className="text-[10px] text-cusp-teal hover:underline"
+        >
+          View Market
+        </Link>
       </div>
     </div>
   );
@@ -355,17 +584,82 @@ function TradeRow({ t }: { t: TradeExecution }) {
 
 const PortfolioPage = () => {
   const [tab, setTab] = useState<TabId>("positions");
-  const { isConnected } = usePhantom();
+  const { isConnected, addresses } = usePhantom();
+  const wallet =
+    addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address ?? null;
   const { data: portfolio, isLoading, dataUpdatedAt } = useUserPortfolio();
   const { data: outcomeHoldings = [], isLoading: outcomeLoading } = useOutcomeTokenHoldings(
     portfolio ?? undefined
   );
+  const { data: rawCollateralPositions = [] } = useOutcomeCollateralPositions(wallet);
+  const custodiedMints = useMemo(
+    () => rawCollateralPositions.map((position) => position.mint),
+    [rawCollateralPositions]
+  );
+  const { livePositions, walletOnlyHoldings } = useLivePortfolioPositions(
+    portfolio ?? undefined,
+    outcomeHoldings,
+    custodiedMints
+  );
   const { state } = useProtocolState();
 
-  const openPositions = useMemo(
-    () => (portfolio?.positions ?? []).filter((p) => p.status === "open"),
-    [portfolio?.positions]
-  );
+  const collateralPositions = useMemo((): CollateralPositionView[] => {
+    const remainingByMint = new Map<string, { quantity: number; cost: number }>();
+
+    for (const position of portfolio?.positions ?? []) {
+      if (position.status !== "open" || !position.outcome_mint) continue;
+      const existing = remainingByMint.get(position.outcome_mint) ?? { quantity: 0, cost: 0 };
+      existing.quantity += Math.max(0, Number(position.quantity) || 0);
+      existing.cost += Math.max(0, Number(position.usdc_cost) || 0);
+      remainingByMint.set(position.outcome_mint, existing);
+    }
+
+    for (const position of livePositions) {
+      if (!position.outcome_mint) continue;
+      const existing = remainingByMint.get(position.outcome_mint);
+      if (!existing) continue;
+      existing.quantity = Math.max(0, existing.quantity - Math.max(0, Number(position.quantity) || 0));
+      existing.cost = Math.max(0, existing.cost - Math.max(0, Number(position.usdc_cost) || 0));
+    }
+
+    return rawCollateralPositions
+      .map((position) => {
+        const remaining = remainingByMint.get(position.mint);
+        let allocatedCost = 0;
+
+        if (remaining && remaining.quantity > 0 && remaining.cost > 0 && position.quantity > 0) {
+          const ratio = Math.min(1, position.quantity / remaining.quantity);
+          allocatedCost = remaining.cost * ratio;
+          remaining.quantity = Math.max(0, remaining.quantity - position.quantity);
+          remaining.cost = Math.max(0, remaining.cost - allocatedCost);
+        }
+
+        const usdcCost =
+          allocatedCost > 0 ? allocatedCost : Math.max(0, position.snapshot_value_usdc);
+        const entryPrice =
+          usdcCost > 0 && position.quantity > 0
+            ? usdcCost / position.quantity
+            : Math.max(0, position.snapshot_price);
+        const currentValue =
+          position.current_value ??
+          (position.current_price != null ? position.quantity * position.current_price : position.snapshot_value_usdc);
+        const unrealizedPnl =
+          currentValue != null && usdcCost > 0 ? currentValue - usdcCost : null;
+        const unrealizedPnlPct =
+          unrealizedPnl != null && usdcCost > 0 ? (unrealizedPnl / usdcCost) * 100 : null;
+
+        return {
+          ...position,
+          usdc_cost: usdcCost,
+          entry_price: entryPrice,
+          current_value: currentValue,
+          unrealized_pnl: unrealizedPnl,
+          unrealized_pnl_pct: unrealizedPnlPct,
+        };
+      })
+      .sort((a, b) => (b.current_value ?? 0) - (a.current_value ?? 0));
+  }, [livePositions, portfolio?.positions, rawCollateralPositions]);
+
   const settledPositions = useMemo(
     () => (portfolio?.positions ?? []).filter((p) => p.status !== "open"),
     [portfolio?.positions]
@@ -379,9 +673,36 @@ const PortfolioPage = () => {
   const totalDeposited = portfolio?.total_deposited ?? 0;
   const totalCusdc = portfolio?.total_cusdc ?? 0;
   const vaultValue = totalCusdc * exchangeRate;
+  const liveTrackedInvested = livePositions.reduce((sum, position) => sum + (position.usdc_cost ?? 0), 0);
+  const liveTrackedCurrentValue = livePositions.reduce(
+    (sum, position) => sum + (position.current_value ?? 0),
+    0
+  );
+  const liveTrackedUnrealizedPnl = livePositions.reduce(
+    (sum, position) => sum + (position.unrealized_pnl ?? 0),
+    0
+  );
+  const collateralCurrentValue = collateralPositions.reduce(
+    (sum, position) => sum + (position.current_value ?? 0),
+    0
+  );
+  const collateralUnrealizedPnl = collateralPositions.reduce(
+    (sum, position) => sum + (position.unrealized_pnl ?? 0),
+    0
+  );
+  const walletOnlyCurrentValue = walletOnlyHoldings.reduce(
+    (sum, holding) => sum + (holding.currentValue ?? 0),
+    0
+  );
+  const displayedInvested =
+    portfolio?.total_invested ??
+    liveTrackedInvested + collateralPositions.reduce((sum, position) => sum + position.usdc_cost, 0);
+  const displayedCurrentValue = liveTrackedCurrentValue + collateralCurrentValue + walletOnlyCurrentValue;
+  const displayedUnrealizedPnl = liveTrackedUnrealizedPnl + collateralUnrealizedPnl;
+  const displayedPositionCount = livePositions.length + collateralPositions.length + walletOnlyHoldings.length;
 
   const tabCounts: Record<TabId, number> = {
-    positions: openPositions.length,
+    positions: displayedPositionCount,
     tokens: outcomeHoldings.length,
     leveraged: activeLeveraged.length,
     history: portfolio?.trade_executions?.length ?? 0,
@@ -432,7 +753,7 @@ const PortfolioPage = () => {
                   Total Invested
                 </span>
                 <span className="font-mono text-lg font-semibold text-foreground">
-                  ${(portfolio?.total_invested ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${displayedInvested.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
               </div>
               <div className="bg-bg-1 border border-border rounded-xl p-4">
@@ -440,14 +761,19 @@ const PortfolioPage = () => {
                   Current Value
                 </span>
                 <span className="font-mono text-lg font-semibold text-foreground">
-                  ${(portfolio?.total_current_value ?? 0).toLocaleString(undefined, { maximumFractionDigits: 2 })}
+                  ${displayedCurrentValue.toLocaleString(undefined, { maximumFractionDigits: 2 })}
                 </span>
+                {walletOnlyCurrentValue > 0 && (
+                  <span className="text-[9px] text-muted-foreground block mt-0.5">
+                    Includes ${walletOnlyCurrentValue.toFixed(2)} from live wallet-only holdings
+                  </span>
+                )}
               </div>
               <div className="bg-bg-1 border border-border rounded-xl p-4">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
                   Unrealized P&L
                 </span>
-                <PnlBadge value={portfolio?.unrealized_pnl ?? 0} />
+                <PnlBadge value={displayedUnrealizedPnl} />
               </div>
               <div className="bg-bg-1 border border-border rounded-xl p-4">
                 <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
@@ -468,7 +794,7 @@ const PortfolioPage = () => {
                 </span>
                 {totalCusdc > 0 && (
                   <span className="text-[9px] text-muted-foreground block mt-0.5">
-                    {totalCusdc.toFixed(4)} cUSDT
+                    {totalCusdc.toFixed(4)} cUSDC
                   </span>
                 )}
               </div>
@@ -512,11 +838,22 @@ const PortfolioPage = () => {
                   <Skeleton key={i} className="h-[240px] rounded-xl" shimmer={i === 0} />
                 ))}
               </div>
-            ) : openPositions.length > 0 ? (
+            ) : displayedPositionCount > 0 ? (
               <>
+                {collateralPositions.length > 0 && (
+                  <div className="mb-4 rounded-xl border border-cusp-purple/20 bg-cusp-purple/5 px-4 py-3 text-[11px] text-muted-foreground">
+                    Locked collateral stays visible here even after it leaves the wallet. Cards marked <span className="text-cusp-amber font-medium">borrowed</span> are securing an active USDC loan in the Cusp pool.
+                  </div>
+                )}
                 <div className="grid gap-4 sm:grid-cols-2">
-                  {openPositions.map((p) => (
+                  {collateralPositions.map((p) => (
+                    <CollateralPositionCard key={`collateral-${p.collateral_lot_id}`} p={p} />
+                  ))}
+                  {livePositions.map((p) => (
                     <PositionCard key={p.id} p={p} />
+                  ))}
+                  {walletOnlyHoldings.map((holding) => (
+                    <WalletOutcomePositionCard key={`wallet-${holding.mint}`} holding={holding} />
                   ))}
                 </div>
                 {settledPositions.length > 0 && (
@@ -538,7 +875,7 @@ const PortfolioPage = () => {
                 <Layers className="size-10 text-muted-foreground/30 mx-auto mb-4" />
                 <p className="text-sm font-medium text-muted-foreground mb-1">No open positions</p>
                 <p className="text-[11px] text-muted-foreground/60 mb-4">
-                  Place a trade on any market to see your positions here.
+                  Place a trade on any market to see your positions here. Wallet-held outcomes and Cusp-held collateral both appear automatically.
                 </p>
                 <Link
                   to="/markets"
@@ -565,18 +902,21 @@ const PortfolioPage = () => {
               <div className="grid gap-4 sm:grid-cols-2">
                 {outcomeHoldings.map((h) => {
                   const isYes = h.side === "YES";
+                  const isNo = h.side === "NO";
                   return (
                     <div
                       key={h.mint}
                       className={`bg-bg-1 border rounded-xl p-4 sm:p-5 transition-all hover:shadow-md ${
                         isYes
                           ? "border-cusp-green/20 hover:border-cusp-green/40"
-                          : "border-cusp-red/20 hover:border-cusp-red/40"
+                          : isNo
+                            ? "border-cusp-red/20 hover:border-cusp-red/40"
+                            : "border-border hover:border-active/40"
                       }`}
                     >
                       <div className="flex items-start justify-between gap-3 mb-3">
                         <div className="flex items-center gap-2 flex-wrap">
-                          <SideBadge side={h.side ?? "YES"} />
+                          <SideBadge side={h.side ?? "UNKNOWN"} />
                           <span className="text-[10px] font-mono text-muted-foreground/60 px-1.5 py-0.5 rounded bg-bg-2">
                             {h.program === "token-2022" ? "Token-2022" : "SPL"}
                           </span>
@@ -593,12 +933,14 @@ const PortfolioPage = () => {
                       </div>
 
                       <Link
-                        to={`/markets/${h.ticker}`}
+                        to={h.ticker ? `/markets/${h.ticker}` : "/markets"}
                         className="text-sm font-medium text-foreground hover:text-cusp-teal transition-colors line-clamp-2 leading-snug mb-1 block"
                       >
                         {h.title ?? "Prediction outcome"}
                       </Link>
-                      <span className="text-[10px] font-mono text-muted-foreground">{h.ticker}</span>
+                      <span className="text-[10px] font-mono text-muted-foreground">
+                        {h.ticker ?? shortAddr(h.mint)}
+                      </span>
 
                       <div className="grid grid-cols-3 gap-3 mt-4 pt-3 border-t border-border/50">
                         <div>
@@ -608,9 +950,30 @@ const PortfolioPage = () => {
                           </span>
                         </div>
                         <div>
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Price</span>
+                          <span className="font-mono text-xs text-foreground">
+                            {h.currentPrice != null ? `$${h.currentPrice.toFixed(2)}` : "--"}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Value</span>
+                          <span className="font-mono text-xs text-foreground">
+                            {h.currentValue != null ? `$${h.currentValue.toFixed(2)}` : "--"}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="grid grid-cols-3 gap-3 mt-2">
+                        <div>
                           <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Side</span>
                           <span className={`font-mono text-xs font-semibold ${isYes ? "text-cusp-green" : "text-cusp-red"}`}>
                             {h.side} tokens
+                          </span>
+                        </div>
+                        <div>
+                          <span className="text-[9px] text-muted-foreground uppercase tracking-wider block mb-0.5">Probability</span>
+                          <span className="font-mono text-xs text-foreground">
+                            {h.probability != null ? `${h.probability}%` : "--"}
                           </span>
                         </div>
                         <div>
@@ -730,7 +1093,7 @@ const PortfolioPage = () => {
                 </div>
                 <div className="bg-bg-1 border border-border rounded-xl p-4">
                   <span className="text-[10px] text-muted-foreground uppercase tracking-wider block mb-1">
-                    cUSDT Balance
+                    cUSDC Balance
                   </span>
                   <span className="font-mono text-lg font-semibold text-foreground">
                     {totalCusdc.toLocaleString(undefined, { maximumFractionDigits: 4 })}
@@ -756,10 +1119,10 @@ const PortfolioPage = () => {
                   >
                     <div>
                       <span className="text-sm font-medium text-foreground">
-                        ${d.amount_usdc.toLocaleString()} USDT
+                        ${d.amount_usdc.toLocaleString()} USDC
                       </span>
                       <span className="text-xs text-muted-foreground ml-2">
-                        &rarr; {d.cusdc_minted.toLocaleString(undefined, { maximumFractionDigits: 4 })} cUSDT
+                        &rarr; {d.cusdc_minted.toLocaleString(undefined, { maximumFractionDigits: 4 })} cUSDC
                       </span>
                       <span className="text-[10px] text-muted-foreground block mt-0.5">
                         {formatDate(d.created_at)} at rate ${d.exchange_rate.toFixed(4)}
@@ -777,7 +1140,7 @@ const PortfolioPage = () => {
                 <CreditCard className="size-10 text-muted-foreground/30 mx-auto mb-4" />
                 <p className="text-sm font-medium text-muted-foreground mb-1">No vault activity</p>
                 <p className="text-[11px] text-muted-foreground/60 mb-4">
-                  Deposit USDT to earn yield from the lending pool.
+                  Deposit USDC to earn yield from the lending pool.
                 </p>
                 <Link
                   to="/vault"

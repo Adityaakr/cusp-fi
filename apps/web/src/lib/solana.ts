@@ -12,10 +12,28 @@ import {
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
   createAssociatedTokenAccountInstruction,
+  TokenAccountNotFoundError,
 } from "@solana/spl-token";
-import { SOLANA_RPC_URL, USDC_MINT_ADDRESS, USDT_MINT_ADDRESS, MAINNET_RPC_URL, MAINNET_USDC_MINT, MAINNET_USDT_MINT, EARN_VAULT_PROGRAM_ID, EARN_VAULT_STATE, CUSDT_MINT, EARN_VAULT_USDC_ATA } from "./network-config";
+import {
+  SOLANA_RPC_URL,
+  USDC_MINT_ADDRESS,
+  USDT_MINT_ADDRESS,
+  MAINNET_RPC_URL,
+  MAINNET_USDC_MINT,
+  MAINNET_USDT_MINT,
+  EARN_VAULT_PROGRAM_ID,
+  EARN_VAULT_STATE,
+  CUSDT_MINT,
+  EARN_VAULT_USDC_ATA,
+  isTestnet,
+} from "./network-config";
 
 const RPC_URL = SOLANA_RPC_URL;
+const DEVNET_VAULT_DEFAULTS = {
+  vaultState: "5szLQH1949L6Kw71EyPYBDSY3aieVMRZC8okt9w1H5Xx",
+  cusdcMint: "EUiFn375xqWYFkGeLQUgBhhBcKXLFsrTDyzWaXs338Tt",
+  vaultUsdcAccount: "F2QFXkrx4FCN38SqCp63upExKm9HCzNsqPujdU7fnPd7",
+} as const;
 
 let _connection: Connection | null = null;
 let _mainnetConnection: Connection | null = null;
@@ -36,6 +54,10 @@ export function getMainnetConnection(): Connection {
   return _mainnetConnection;
 }
 
+export function getEarnVaultConnection(): Connection {
+  return isTestnet ? getConnection() : getMainnetConnection();
+}
+
 export const USDC_MINT = new PublicKey(USDC_MINT_ADDRESS);
 export const MAINNET_USDC = new PublicKey(MAINNET_USDC_MINT);
 export const USDT_MINT = new PublicKey(USDT_MINT_ADDRESS);
@@ -48,19 +70,33 @@ export const CUSDT_MINT_PDA = CUSDT_MINT;
 export const EARN_VAULT_USDC_ATA_PDA = EARN_VAULT_USDC_ATA;
 export const EARN_VAULT_PROGRAM = EARN_VAULT_PROGRAM_ID;
 
+function resolveVaultAddress(
+  explicitValue: string | undefined,
+  fallbackValue: string
+): PublicKey | null {
+  const resolved = explicitValue || (isTestnet ? fallbackValue : "");
+  return resolved ? new PublicKey(resolved) : null;
+}
+
 export function getCusdcMint(): PublicKey | null {
-  const mint = import.meta.env.VITE_CUSDC_MINT;
-  return mint ? new PublicKey(mint) : null;
+  return resolveVaultAddress(
+    import.meta.env.VITE_CUSDC_MINT,
+    DEVNET_VAULT_DEFAULTS.cusdcMint
+  );
 }
 
 export function getVaultPublicKey(): PublicKey | null {
-  const key = import.meta.env.VITE_VAULT_PUBLIC_KEY;
-  return key ? new PublicKey(key) : null;
+  return resolveVaultAddress(
+    import.meta.env.VITE_VAULT_PUBLIC_KEY,
+    DEVNET_VAULT_DEFAULTS.vaultState
+  );
 }
 
 export function getVaultUsdcAccount(): PublicKey | null {
-  const key = import.meta.env.VITE_VAULT_USDC_ACCOUNT;
-  return key ? new PublicKey(key) : null;
+  return resolveVaultAddress(
+    import.meta.env.VITE_VAULT_USDC_ACCOUNT,
+    DEVNET_VAULT_DEFAULTS.vaultUsdcAccount
+  );
 }
 
 export async function getTokenBalance(
@@ -120,7 +156,7 @@ export function solToLamports(sol: number): number {
   return Math.round(sol * LAMPORTS_PER_SOL);
 }
 
-/** Fetch the vault keypair's mainnet USDT balance (the real lending pool for leverage) */
+/** Fetch the configured mainnet reserve account's USDC balance if it exists. */
 export async function getMainnetVaultUsdcBalance(): Promise<number> {
   const vaultPubkey = getVaultPublicKey();
   if (!vaultPubkey) return 0;
@@ -135,10 +171,11 @@ export async function getMainnetVaultUsdcBalance(): Promise<number> {
     );
     const account = await getAccount(connection, ata);
     const balance = Number(account.amount) / 1e6;
-    console.log("[solana] Mainnet vault USDT balance:", balance);
     return balance;
   } catch (err) {
-    console.warn("[solana] Failed to fetch mainnet vault USDT balance:", err);
+    if (!(err instanceof TokenAccountNotFoundError)) {
+      console.warn("[solana] Failed to fetch mainnet reserve USDC balance:", err);
+    }
     return 0;
   }
 }
@@ -166,7 +203,7 @@ export interface EarnVaultState {
 const EARN_VAULT_DISCRIMINATOR = Buffer.from([251, 209, 241, 183, 47, 65, 154, 86]);
 
 export async function getEarnVaultState(): Promise<EarnVaultState | null> {
-  const connection = getMainnetConnection();
+  const connection = getEarnVaultConnection();
   try {
     const accountInfo = await connection.getAccountInfo(EARN_VAULT_STATE_PDA);
     if (!accountInfo || !accountInfo.data) {
@@ -175,7 +212,7 @@ export async function getEarnVaultState(): Promise<EarnVaultState | null> {
     }
 
     const data = accountInfo.data;
-    let offset = 8; // skip Anchor discriminator
+    let offset = 8; // skip legacy account discriminator
 
     const admin = new PublicKey(data.slice(offset, offset + 32));
     offset += 32;

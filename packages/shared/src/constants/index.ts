@@ -14,8 +14,11 @@ export {
   DFLOW_WS_URL,
   RISK_TIER_CONFIGS,
   RISK_TIER_ORDER,
+  OUTCOME_RISK_TIER_ORDER,
+  OUTCOME_RISK_TIER_CONFIGS,
   isRiskTier,
   getRiskTierForProbability,
+  getOutcomeRiskTierForScore,
   effectiveLiquidationThresholdBps,
   computeHealthFactor,
 } from "./protocol";
