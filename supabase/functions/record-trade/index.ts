@@ -16,7 +16,7 @@ Deno.serve(async (req) => {
   }
 
   try {
-    const { position_id, tx_signature, output_mint, total_usdc } = await req.json();
+    const { position_id, tx_signature, output_mint, total_usdc, output_amount, entry_price } = await req.json();
 
     if (!position_id || !tx_signature) {
       return new Response(
@@ -35,6 +35,29 @@ Deno.serve(async (req) => {
       Prefer: "return=representation",
     };
 
+    const resolvedOutputAmount =
+      typeof output_amount === "number" && Number.isFinite(output_amount) ? output_amount : 0;
+    const resolvedTotalUsdc =
+      typeof total_usdc === "number" && Number.isFinite(total_usdc) ? total_usdc : 0;
+    const resolvedEntryPrice =
+      typeof entry_price === "number" && Number.isFinite(entry_price)
+        ? entry_price
+        : resolvedOutputAmount > 0 && resolvedTotalUsdc > 0
+          ? resolvedTotalUsdc / resolvedOutputAmount
+          : 0;
+
+    // Update the pending position with the real filled quantity and entry price.
+    await fetch(`${SUPABASE_URL}/rest/v1/positions?id=eq.${position_id}`, {
+      method: "PATCH",
+      headers: sbHeaders,
+      body: JSON.stringify({
+        quantity: resolvedOutputAmount,
+        entry_price: resolvedEntryPrice,
+        outcome_mint: output_mint || null,
+        status: "open",
+      }),
+    });
+
     // Record trade execution
     await fetch(`${SUPABASE_URL}/rest/v1/trade_executions`, {
       method: "POST",
@@ -44,8 +67,8 @@ Deno.serve(async (req) => {
         direction: "open",
         input_mint: "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
         output_mint: output_mint || "",
-        input_amount: total_usdc || 0,
-        output_amount: 0,
+        input_amount: resolvedTotalUsdc,
+        output_amount: resolvedOutputAmount,
         tx_signature,
         status: "submitted",
       }),
