@@ -70,6 +70,7 @@ export default defineConfig(({ mode }) => {
   };
 
   return {
+    envDir: repoRoot,
     server: {
       host: "::",
       port: 8080,

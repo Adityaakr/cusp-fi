@@ -38,7 +38,7 @@ flowchart TD
         DFlowWS[DFlow WebSocket\nLive Data]:::external
     end
 
-    subgraph Solana [Solana Blockchain - Anchor Programs]
+    subgraph Solana [Solana Blockchain - Native Rust Programs]
         Vault[Cusp Vault Program\nYield & Deposits]:::onchain
         Leverage[Cusp Leverage Program\nMargin & Liquidations]:::onchain
     end
@@ -80,8 +80,8 @@ flowchart TD
 - **Role:** Serves as the robust off-chain database.
 - **Data Flow:** Handles user preferences, application state that doesn't need to be decentralized, and complex analytics indexing that would be too expensive to compute directly on-chain.
 
-### 5. On-Chain Solana Programs (Anchor)
-- **Tech Stack:** Rust, Anchor Framework, Solana Web3.js.
+### 5. On-Chain Solana Programs (Native Rust)
+- **Tech Stack:** Native Rust, `solana-program`, SPL Token, Solana Web3.js.
 - **Cusp Vault Program (`cusp-vault`):** 
   - Manages secure user deposits and token staking.
   - Orchestrates yield generation strategies securely on the blockchain.

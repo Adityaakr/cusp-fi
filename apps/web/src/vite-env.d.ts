@@ -7,6 +7,10 @@ interface ImportMetaEnv {
   readonly VITE_SUPABASE_PUBLISHABLE_KEY?: string;
   readonly VITE_SUPABASE_ANON_KEY?: string;
   readonly VITE_SOLANA_RPC_URL?: string;
+  readonly VITE_DEVNET_RPC_URL?: string;
+  readonly VITE_TESTNET_RPC_URL?: string;
+  readonly VITE_MAINNET_RPC_URL?: string;
+  readonly VITE_CUSP_API_BASE?: string;
   readonly VITE_SOLANA_NETWORK?: string;
   readonly VITE_CUSDC_MINT?: string;
   readonly VITE_VAULT_USDC_ACCOUNT?: string;

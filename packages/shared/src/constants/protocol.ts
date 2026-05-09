@@ -51,6 +51,31 @@ export const RISK_TIER_CONFIGS = {
 };
 
 export const RISK_TIER_ORDER = ["conservative", "moderate", "growth"] as const;
+export const OUTCOME_RISK_TIER_ORDER = ["low", "medium", "high"] as const;
+
+export const OUTCOME_RISK_TIER_CONFIGS = {
+  low: {
+    tier: "low" as const,
+    label: "Low Risk",
+    maxLtvBps: 3_000,
+    liquidationThresholdBps: 3_500,
+    maxPoolAllocationBps: 1_000,
+  },
+  medium: {
+    tier: "medium" as const,
+    label: "Medium Risk",
+    maxLtvBps: 2_000,
+    liquidationThresholdBps: 2_500,
+    maxPoolAllocationBps: 500,
+  },
+  high: {
+    tier: "high" as const,
+    label: "High Risk",
+    maxLtvBps: 1_000,
+    liquidationThresholdBps: 1_500,
+    maxPoolAllocationBps: 200,
+  },
+} as const;
 
 export function isRiskTier(value: unknown): value is "conservative" | "moderate" | "growth" {
   return value === "conservative" || value === "moderate" || value === "growth";
@@ -61,6 +86,14 @@ export function getRiskTierForProbability(probabilityPct: number): "conservative
   if (probabilityPct > 85) return "conservative";
   if (probabilityPct >= 65) return "moderate";
   if (probabilityPct >= 50) return "growth";
+  return "ineligible";
+}
+
+export function getOutcomeRiskTierForScore(score: number): "low" | "medium" | "high" | "ineligible" {
+  if (!Number.isFinite(score)) return "ineligible";
+  if (score >= 80) return "low";
+  if (score >= 60) return "medium";
+  if (score >= 40) return "high";
   return "ineligible";
 }
 
