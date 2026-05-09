@@ -9,6 +9,7 @@ router.get("/api/health", (_req, res) => {
     services: {
       dflow: !!process.env.DFLOW_API_KEY,
       supabase: !!process.env.SUPABASE_URL,
+      railway_postgres: !!process.env.DATABASE_URL,
       solana: !!process.env.SOLANA_RPC_URL,
     },
   });
