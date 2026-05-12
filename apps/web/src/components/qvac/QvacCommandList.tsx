@@ -26,6 +26,17 @@ export default function QvacCommandList() {
     <div className="flex flex-col gap-3">
       <QvacAssistantChat />
       <QvacSuggestions suggestions={suggestions} contextLabel={contextLabel} onSelect={selectFlow} />
+      <div className="px-1">
+        <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+          <span className="inline-flex size-5 items-center justify-center rounded-full bg-bg-2 text-[11px] text-muted-foreground">
+            →
+          </span>
+          Structured actions
+        </div>
+        <p className="mt-1 text-xs text-muted-foreground">
+          Or choose a guided flow for trading, borrowing, lending, or leverage.
+        </p>
+      </div>
       <Command className="rounded-xl border border-border bg-bg-1">
         <CommandInput placeholder="Type a command or action..." className="text-foreground" />
         <CommandList className="max-h-[320px]">

@@ -96,6 +96,7 @@ interface CollateralPositionWithLoanRow {
   health_factor: string | number | null;
   borrow_tx_signature: string | null;
   expires_at: string | null;
+  resolution_time?: number | null;
 }
 
 export interface WalletOutcomeHoldingResult {

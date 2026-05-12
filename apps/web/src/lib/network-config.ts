@@ -91,6 +91,7 @@ export const MAINNET_RPC_URL = resolveMainnetRpc();
 export const TESTNET_RPC_URL = import.meta.env.VITE_TESTNET_RPC_URL || QUICKNODE_TESTNET_RPC;
 export const MAINNET_USDC_MINT = "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v";
 export const MAINNET_USDT_MINT = "Es9vMFrzaCERn2QytQkwT4NSr8F3rzA4XB9vNehqWj6q";
+export const DFLOW_CASH_MINT = "CASHx9KJUStyftLFWGvEVf59SGeG9sh5FfcnZMVPCASH";
 
 // ── Cusp Earn Vault (mainnet) ───────────────────────────────────────────────
 

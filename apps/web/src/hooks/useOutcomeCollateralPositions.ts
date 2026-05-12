@@ -25,6 +25,7 @@ export type OutcomeCollateralPosition = {
   deposit_tx_signature: string | null;
   borrow_tx_signature: string | null;
   expires_at: string | null;
+  resolution_time: number | null;
   custody_wallet: string;
   created_at: string;
   updated_at: string;

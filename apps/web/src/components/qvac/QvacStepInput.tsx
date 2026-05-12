@@ -16,7 +16,13 @@ interface SearchResultMarket extends QvacMarketSearchValue {
   eventTitle?: string;
 }
 
-export default function QvacStepInput({ step, value, onChange, onSubmit, isValid }: QvacStepInputProps) {
+export default function QvacStepInput({
+  step,
+  value,
+  onChange,
+  onSubmit,
+  isValid,
+}: QvacStepInputProps) {
   if (step.type === "amount") {
     return <AmountInput step={step} value={value} onChange={onChange} onSubmit={onSubmit} isValid={isValid} />;
   }
@@ -24,7 +30,7 @@ export default function QvacStepInput({ step, value, onChange, onSubmit, isValid
     return <SelectInput step={step} value={value} onChange={onChange} />;
   }
   if (step.type === "market_search") {
-    return <MarketSearchInput step={step} value={value} onChange={onChange} onSubmit={onSubmit} />;
+    return <MarketSearchInput step={step} value={value} onChange={onChange} />;
   }
   return null;
 }
@@ -90,6 +96,7 @@ function SelectInput({
       {step.options.map((opt) => (
         <button
           key={opt.value}
+          type="button"
           onClick={() => onChange(opt.value)}
           className={`flex items-center justify-between rounded-lg border px-4 py-3 text-left transition-colors ${
             value === opt.value
@@ -149,12 +156,10 @@ function MarketSearchInput({
   step,
   value,
   onChange,
-  onSubmit,
 }: {
   step: QvacFlowStep;
   value: unknown;
   onChange: (value: unknown) => void;
-  onSubmit: () => void;
 }) {
   const selectedMarket = useMemo(
     () => (value && typeof value === "object" && "ticker" in (value as Record<string, unknown>) ? (value as QvacMarketSearchValue) : null),
@@ -219,7 +224,6 @@ function MarketSearchInput({
     onChange(market);
     setQuery(market.title);
     setMarkets([]);
-    onSubmit();
   };
 
   return (

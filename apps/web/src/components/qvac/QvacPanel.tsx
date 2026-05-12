@@ -1,12 +1,18 @@
 import { useEffect, useCallback } from "react";
 import { X, Sparkles } from "lucide-react";
 import { useQvac, type QvacPhase } from "@/components/qvac/QvacProvider";
+import QvacAssistantChat from "@/components/qvac/QvacAssistantChat";
 import QvacCommandList from "@/components/qvac/QvacCommandList";
 import QvacChat from "@/components/qvac/QvacChat";
 import ExecutionSheet from "@/components/qvac/ExecutionSheet";
 
 export default function QvacPanel() {
   const { state, closeQvac, openQvac, setAssistantContext } = useQvac();
+
+  const contextLabel =
+    state.assistantContext?.current_market_title ||
+    state.assistantContext?.current_market_ticker ||
+    "General Assistant";
 
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
@@ -48,12 +54,15 @@ export default function QvacPanel() {
     return (
       <>
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={handleBackdropClick} />
-        <div className="fixed left-1/2 top-[10%] z-50 w-full max-w-lg -translate-x-1/2 px-4 sm:px-0 max-h-[80vh]">
-          <div className="flex max-h-[80vh] flex-col overflow-hidden rounded-2xl border border-border bg-bg-1 shadow-2xl">
+        <div className="fixed left-1/2 top-4 z-50 max-h-[88vh] w-full max-w-lg -translate-x-1/2 px-4 sm:top-6 sm:px-0">
+          <div className="flex max-h-[88vh] flex-col overflow-hidden rounded-2xl border border-border bg-bg-1 shadow-2xl">
             <div className="flex items-center justify-between border-b border-border px-4 py-3">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
                 <Sparkles className="size-4 text-cusp-teal" />
                 QVAC
+                <span className="inline-flex min-h-7 items-center rounded-full border border-cusp-teal/25 bg-cusp-teal/10 px-2.5 py-1 text-[11px] font-medium text-cusp-teal">
+                  {contextLabel}
+                </span>
               </div>
               <button
                 onClick={closeQvac}
@@ -81,7 +90,7 @@ export default function QvacPanel() {
     return (
       <>
         <div className="fixed inset-0 z-50 bg-black/50 backdrop-blur-sm" onClick={handleBackdropClick} />
-        <div className="fixed left-1/2 top-[10%] z-50 flex max-h-[80vh] w-full max-w-md -translate-x-1/2 flex-col px-4 sm:px-0">
+        <div className="fixed left-1/2 top-4 z-50 flex max-h-[88vh] w-full max-w-md -translate-x-1/2 flex-col px-4 sm:top-6 sm:px-0">
           <div className="rounded-2xl border border-border bg-bg-1 shadow-2xl overflow-hidden flex flex-col">
             <div className="flex items-center justify-between border-b border-border px-4 py-3 shrink-0">
               <div className="flex items-center gap-2 text-sm font-medium text-foreground">
@@ -99,15 +108,7 @@ export default function QvacPanel() {
               {state.flow ? (
                 <QvacChat />
               ) : state.assistantPreview ? (
-                <div className="flex flex-col gap-3">
-                  <div className="bg-bg-2 rounded-2xl px-4 py-3 border border-border">
-                    <p className="text-xs font-medium text-muted-foreground mb-1">Assistant</p>
-                    <p className="text-sm text-foreground whitespace-pre-wrap">{state.assistantPreview.intent.assistant_message}</p>
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Review the execution plan in the side panel, then confirm to submit the transaction.
-                  </p>
-                </div>
+                <QvacAssistantChat />
               ) : (
                 <p className="text-sm text-muted-foreground">Preparing preview…</p>
               )}

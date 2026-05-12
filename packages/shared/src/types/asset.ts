@@ -49,7 +49,7 @@ export interface QvacCommand extends QvacCommandBase {
 export interface VaultDepositCommand extends QvacCommandBase {
   service: "vault";
   action: "deposit";
-  asset: "USDT";
+  asset: "USDT" | "USDC";
   mint_receipt: "cUSDT";
 }
 
@@ -57,7 +57,7 @@ export interface VaultWithdrawCommand extends QvacCommandBase {
   service: "vault";
   action: "withdraw";
   asset: "cUSDT";
-  receive_asset: "USDT";
+  receive_asset: "USDT" | "USDC";
 }
 
 export interface LendDepositCommand extends QvacCommandBase {

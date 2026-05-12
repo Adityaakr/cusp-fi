@@ -285,6 +285,47 @@ function buildLocalFallbackIntent(message: string, currentPath: string): QvacAss
   );
 }
 
+function normalizeLookupText(value: string): string {
+  return value.toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+}
+
+function rowMatchesReference(row: BorrowPanelRow, reference: string): boolean {
+  const needle = normalizeLookupText(reference);
+  if (!needle) return false;
+
+  return [
+    row.id,
+    row.marketLabel,
+    row.ticker ?? "",
+    row.outcomeMint,
+    row.side,
+  ].some((candidate) => normalizeLookupText(candidate).includes(needle));
+}
+
+function formatBorrowOfferMessage(params: {
+  row: BorrowPanelRow;
+  borrowAmount: number;
+  requestedAmount?: number;
+  exceedsMax?: boolean;
+}) {
+  const maxBorrow = Number(params.row.maxBorrowUsd.toFixed(2));
+  const safeBorrow = Number(params.row.safeBorrowUsd.toFixed(2));
+  const borrowAmount = Number(params.borrowAmount.toFixed(2));
+
+  if (params.exceedsMax && params.requestedAmount) {
+    return [
+      `For ${params.row.marketLabel}, max borrowable is $${maxBorrow.toFixed(2)} USDC and max safe borrowable is $${safeBorrow.toFixed(2)} USDC.`,
+      `Your requested $${params.requestedAmount.toFixed(2)} is above the max, so I queued the safe amount instead.`,
+      `Say "yes" to borrow $${borrowAmount.toFixed(2)} USDC, or tell me another amount up to $${maxBorrow.toFixed(2)}.`,
+    ].join(" ");
+  }
+
+  return [
+    `For ${params.row.marketLabel}, max borrowable is $${maxBorrow.toFixed(2)} USDC and max safe borrowable is $${safeBorrow.toFixed(2)} USDC.`,
+    `Say "yes" to borrow $${borrowAmount.toFixed(2)} USDC, or tell me another amount.`,
+  ].join(" ");
+}
+
 export function useQvacAssistant() {
   const { addresses, isConnected } = usePhantom();
   const { state } = useQvac();
@@ -378,9 +419,60 @@ export function useQvacAssistant() {
 
     if (intent.type === "borrow_open") {
       const hasExplicitBorrowAmount = typeof intent.borrow_amount_ui === "number" && intent.borrow_amount_ui > 0;
-      const hasSelectedPosition = !!intent.position_reference_text;
+      const references = [
+        intent.position_reference_text,
+        intent.market_reference_text,
+        currentContext.position_id,
+        currentContext.current_market_ticker,
+        currentContext.current_market_title,
+      ].filter((value): value is string => typeof value === "string" && value.trim().length > 0);
 
-      if (!hasSelectedPosition) {
+      const matchedBorrowRows = references.length
+        ? borrowRows.filter((row) => references.some((reference) => rowMatchesReference(row, reference)))
+        : borrowRows.length === 1
+          ? [borrowRows[0]]
+          : [];
+
+      if (matchedBorrowRows.length === 1) {
+        const row = matchedBorrowRows[0];
+        const safeBorrow = Number(row.safeBorrowUsd.toFixed(2));
+        const maxBorrow = Number(row.maxBorrowUsd.toFixed(2));
+        const requestedBorrowAmount = hasExplicitBorrowAmount ? Number(intent.borrow_amount_ui!.toFixed(2)) : undefined;
+        const borrowAmount =
+          requestedBorrowAmount && requestedBorrowAmount > 0
+            ? Math.min(requestedBorrowAmount, maxBorrow)
+            : safeBorrow;
+
+        const enrichedIntent: QvacAssistantIntent = {
+          ...intent,
+          position_reference_text: row.id,
+          market_reference_text: row.ticker ?? row.marketLabel,
+          amount_ui: Number(row.collateralUsd.toFixed(2)),
+          collateral_asset: intent.collateral_asset ?? "USDC",
+          borrow_asset: "USDC",
+          borrow_amount_ui: Number(borrowAmount.toFixed(2)),
+          missing_fields: [],
+          assistant_message: formatBorrowOfferMessage({
+            row,
+            borrowAmount,
+            requestedAmount: requestedBorrowAmount,
+            exceedsMax: Boolean(requestedBorrowAmount && requestedBorrowAmount > maxBorrow),
+          }),
+        };
+
+        const preview = await previewIntent(enrichedIntent);
+        return preview.success
+          ? {
+              ...preview,
+              intent: {
+                ...preview.intent,
+                assistant_message: enrichedIntent.assistant_message,
+              },
+            }
+          : preview;
+      }
+
+      if (!intent.position_reference_text) {
         return {
           success: true,
           intent: {
@@ -389,8 +481,8 @@ export function useQvacAssistant() {
             borrow_asset: "USDC",
             assistant_message: borrowRows.length
               ? hasExplicitBorrowAmount
-                ? `Select one open position in the side panel. I’ll check whether ${intent.borrow_amount_ui?.toFixed?.(2) ?? intent.borrow_amount_ui} USDC fits that market.`
-                : "Select one open position in the side panel. I’ll show how much USDC you can borrow for that market."
+                ? `Select one open position in the side panel. I’ll show its max borrowable amount and max safe borrowable amount before you confirm ${intent.borrow_amount_ui?.toFixed?.(2) ?? intent.borrow_amount_ui} USDC.`
+                : "Select one open position in the side panel. I’ll show its max borrowable amount and max safe borrowable amount before you confirm."
               : "I couldn't find any borrow-eligible open positions in your wallet.",
             needs_confirmation: true,
             missing_fields: borrowRows.length ? [] : ["open_position"],

@@ -13,9 +13,12 @@ export default function QvacAssistantChat() {
     appendMessage,
     setAssistantBusy,
     setAssistantPreview,
+    setExecuting,
+    setSuccess,
+    setError,
   } = useQvac();
   const {
-    currentContext,
+    execute,
     recording,
     interpret,
     startVoiceCapture,
@@ -26,12 +29,6 @@ export default function QvacAssistantChat() {
   const [voiceBusy, setVoiceBusy] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
   const textareaRef = useRef<HTMLTextAreaElement | null>(null);
-
-  const contextPill = useMemo(() => {
-    if (currentContext.current_market_title) return currentContext.current_market_title;
-    if (currentContext.current_market_ticker) return currentContext.current_market_ticker;
-    return "General assistant";
-  }, [currentContext.current_market_ticker, currentContext.current_market_title]);
 
 
   const presetPrompts = useMemo(
@@ -55,12 +52,63 @@ export default function QvacAssistantChat() {
     });
   };
 
+  const isAffirmative = (message: string) =>
+    /^(yes|y|yeah|yep|confirm|confirmed|go ahead|do it|continue|proceed|ok|okay|sure)$/i.test(
+      message.trim()
+    );
+
+  const isNegative = (message: string) =>
+    /^(no|n|cancel|stop|not now|never mind|nevermind)$/i.test(message.trim());
+
   const sendMessage = async (rawMessage: string) => {
     const message = rawMessage.trim();
     if (!message || state.assistantBusy) return;
 
     appendMessage({ role: "user", content: message });
     setInput("");
+
+    if (state.assistantPreview && isNegative(message)) {
+      setAssistantPreview(null);
+      appendMessage({
+        role: "assistant",
+        content: "Okay — I canceled that QVAC action. You can ask for another one anytime.",
+      });
+      return;
+    }
+
+    if (state.assistantPreview && isAffirmative(message)) {
+      if (
+        state.assistantPreview.intent.type === "borrow_open" &&
+        !state.assistantPreview.command &&
+        (state.assistantPreview.candidates?.length ?? 0) > 0
+      ) {
+        appendMessage({
+          role: "assistant",
+          content:
+            "Pick one eligible position from the side panel first. I’ll show its max borrowable and safe borrowable amounts, then you can confirm.",
+        });
+        return;
+      }
+
+      setAssistantBusy(true);
+      setExecuting();
+      try {
+        const result = await execute(state.assistantPreview);
+        if (result.error) {
+          setError(result.error);
+          return;
+        }
+        setSuccess(result.txSignature ?? "confirmed");
+      } catch (error) {
+        setError(
+          error instanceof Error ? error.message : "QVAC could not confirm that request."
+        );
+      } finally {
+        setAssistantBusy(false);
+      }
+      return;
+    }
+
     setAssistantBusy(true);
     setAssistantPreview(null);
 
@@ -135,18 +183,20 @@ export default function QvacAssistantChat() {
 
   return (
     <section className="flex flex-col gap-3">
-      <div className="flex items-start justify-between gap-3 px-1">
-        <div className="min-w-0">
-          <div className="flex items-center gap-2 text-sm font-medium text-foreground">
-            <Sparkles className="size-4 text-cusp-teal" aria-hidden="true" />
-            Ask QVAC
+      <div className="rounded-2xl border border-border bg-bg-1/70 p-4">
+        <div className="flex items-start justify-between gap-3">
+          <div className="min-w-0">
+            <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+              <Sparkles className="size-4 text-cusp-teal" aria-hidden="true" />
+              QVAC · Assistant
+            </div>
+            <p className="mt-1 text-xs text-muted-foreground">
+              Ask in plain English to borrow, lend, trade, or route a position.
+            </p>
           </div>
-          <p className="mt-1 text-xs text-muted-foreground">
-            Borrow, lend, repay, or route a trade from plain English.
-          </p>
-        </div>
-        <div className="rounded-full border border-cusp-teal/25 bg-cusp-teal/10 px-2.5 py-1 text-[11px] font-medium text-cusp-teal">
-          {contextPill}
+          <span className="inline-flex min-h-7 items-center rounded-full border border-cusp-teal/25 bg-cusp-teal/10 px-2.5 py-1 text-[11px] font-medium text-cusp-teal">
+            Plain English
+          </span>
         </div>
       </div>
 
@@ -169,7 +219,7 @@ export default function QvacAssistantChat() {
           <div className="flex min-h-full flex-col gap-2.5 px-3 py-3 pr-4">
             {state.messages.length === 0 ? (
               <div className="rounded-xl border border-dashed border-border bg-bg-2/60 px-3 py-4 text-sm text-muted-foreground">
-                Try a quick prompt above, or type a custom command below.
+                Start with a quick action above or type your own command below.
               </div>
             ) : (
               state.messages.map((message, index) => (

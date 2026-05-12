@@ -12,6 +12,7 @@ export type OutcomeLoanRow = {
   market_ticker: string;
   side: "YES" | "NO";
   expires_at: string | null;
+  resolution_time: number | null;
 };
 
 export function useOutcomeLoans(walletAddress: string | null | undefined) {

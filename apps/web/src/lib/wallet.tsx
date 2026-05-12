@@ -5,11 +5,10 @@ import {
   useWallet,
   useConnection,
 } from "@solana/wallet-adapter-react";
-import { WalletAdapterNetwork } from "@solana/wallet-adapter-base";
 import { PhantomWalletAdapter } from "@solana/wallet-adapter-phantom";
 import { SolflareWalletAdapter } from "@solana/wallet-adapter-solflare";
 import { Connection, Transaction, VersionedTransaction } from "@solana/web3.js";
-import { SOLANA_NETWORK, SOLANA_RPC_URL } from "@/lib/network-config";
+import { SOLANA_RPC_URL } from "@/lib/network-config";
 import { X, LogOut, Copy, Check } from "lucide-react";
 
 
@@ -18,16 +17,12 @@ const WalletModalContext = createContext<{ open: () => void }>({
 });
 
 export function SolflareProviderWrapper({ children }: { children: React.ReactNode }) {
-  const walletNetwork =
-    SOLANA_NETWORK === "devnet"
-      ? WalletAdapterNetwork.Devnet
-      : WalletAdapterNetwork.Mainnet;
   const wallets = useMemo(
     () => [
       new PhantomWalletAdapter(),
-      new SolflareWalletAdapter({ network: walletNetwork }),
+      new SolflareWalletAdapter(),
     ],
-    [walletNetwork]
+    []
   );
 
   return (
@@ -57,21 +52,36 @@ function WalletModalProvider({ children }: { children: React.ReactNode }) {
 function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const { publicKey, connected, connecting, select, wallets, wallet, connect, disconnect } = useWallet();
   const [copied, setCopied] = useState(false);
-
-  if (!isOpen) return null;
+  const [pendingWalletName, setPendingWalletName] = useState<string | null>(null);
 
   const supportedWallets = wallets.filter(
     (entry) => entry.adapter.name === "Phantom" || entry.adapter.name === "Solflare"
   );
 
+  if (!isOpen) return null;
+
   const handleConnect = async (walletName: string) => {
     const target = supportedWallets.find((w) => w.adapter.name === walletName);
-    if (!target) return;
-    select(target.adapter.name);
+    if (!target || connecting) return;
+
     try {
+      setPendingWalletName(target.adapter.name);
+
+      if (wallet?.adapter.name && wallet.adapter.name !== target.adapter.name && connected) {
+        await disconnect().catch(() => undefined);
+      }
+
+      if (wallet?.adapter.name !== target.adapter.name) {
+        select(target.adapter.name);
+        await new Promise((resolve) => window.setTimeout(resolve, 0));
+      }
+
       await connect();
       onClose();
     } catch {}
+    finally {
+      setPendingWalletName(null);
+    }
   };
 
   const handleDisconnect = async () => {
@@ -152,11 +162,11 @@ function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
             </button>
           </div>
         ) : (
-          <div className="space-y-2">
-            {supportedWallets.map(({ adapter }) => (
-              <button
-                key={adapter.name}
-                onClick={() => handleConnect(adapter.name)}
+        <div className="space-y-2">
+          {supportedWallets.map(({ adapter }) => (
+            <button
+              key={adapter.name}
+              onClick={() => handleConnect(adapter.name)}
                 disabled={connecting}
                 className="w-full flex items-center gap-3 p-3 bg-bg-1 border border-border rounded-md hover:border-active hover:bg-bg-3 transition-all text-left disabled:opacity-50"
               >
@@ -168,7 +178,7 @@ function WalletModal({ isOpen, onClose }: { isOpen: boolean; onClose: () => void
                   </div>
                 )}
                 <span className="text-sm font-medium text-foreground">{adapter.name}</span>
-                {connecting && (
+                {(connecting || pendingWalletName === adapter.name) && (
                   <span className="ml-auto font-mono text-xs text-cusp-teal">Connecting...</span>
                 )}
               </button>

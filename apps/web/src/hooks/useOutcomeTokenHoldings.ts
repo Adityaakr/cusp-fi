@@ -3,6 +3,7 @@ import { usePhantom } from "@/lib/wallet";
 import { cuspApiFetch } from "@/lib/cusp-api";
 import type { UserPortfolio } from "@/hooks/useUserPortfolio";
 import { fetchOutcomeMarketByMint } from "@/lib/dflow-api";
+import { DFLOW_CASH_MINT } from "@/lib/network-config";
 import { getMainnetConnection, MAINNET_USDC, MAINNET_USDT } from "@/lib/solana";
 import { PublicKey } from "@solana/web3.js";
 import { TOKEN_2022_PROGRAM_ID, TOKEN_PROGRAM_ID } from "@solana/spl-token";
@@ -175,6 +176,7 @@ async function scanWalletOutcomeHoldingsFromMainnet(
   const excludedMints = new Set<string>([
     MAINNET_USDC.toBase58(),
     MAINNET_USDT.toBase58(),
+    DFLOW_CASH_MINT,
     "So11111111111111111111111111111111111111112",
   ]);
 

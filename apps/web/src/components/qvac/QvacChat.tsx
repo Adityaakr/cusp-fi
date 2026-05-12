@@ -6,7 +6,7 @@ import { previewQvacCommand } from "@/lib/qvac-api";
 import { useState } from "react";
 
 export default function QvacChat() {
-  const { state, setStepValue, nextStep, prevStep, submitForPreview, setExecutionPlan, setError } = useQvac();
+  const { state, setStepValue, nextStep, prevStep, submitForPreview, setExecutionPlan, setError, openQvac } = useQvac();
   const { addresses } = usePhantom();
   const [submitting, setSubmitting] = useState(false);
   const { flow, stepIndex, stepValues } = state;
@@ -82,6 +82,28 @@ export default function QvacChat() {
     );
   }
 
+  const canContinue = isCurrentStepValid();
+  const canSubmit = canContinue && allStepsFilled;
+
+  const handlePrimaryAction = async () => {
+    if (!currentStep) return;
+    if (isLastStep) {
+      if (!canSubmit) return;
+      await handleSubmit();
+      return;
+    }
+    if (!canContinue) return;
+    nextStep();
+  };
+
+  const handleBackAction = () => {
+    if (stepIndex <= 0) {
+      openQvac();
+      return;
+    }
+    prevStep();
+  };
+
   return (
     <div className="flex flex-col gap-4">
       {isWizard && (
@@ -125,7 +147,7 @@ export default function QvacChat() {
             step={currentStep}
             value={currentStepValue}
             onChange={(value) => setStepValue(currentStep.key, value)}
-            onSubmit={isLastStep && allStepsFilled ? () => void handleSubmit() : nextStep}
+            onSubmit={handlePrimaryAction}
             isValid={isCurrentStepValid()}
           />
         )}
@@ -143,14 +165,28 @@ export default function QvacChat() {
         )}
       </div>
 
-      {isWizard && isLastStep && allStepsFilled && (
-        <button
-          onClick={handleSubmit}
-          disabled={submitting}
-          className="w-full bg-cusp-teal text-primary-foreground font-medium py-2.5 rounded-lg hover:bg-cusp-teal/90 transition-colors text-sm"
-        >
-          {submitting ? "Preparing preview…" : "Review & Confirm"}
-        </button>
+      {isWizard && currentStep && (
+        <div className="flex items-center gap-3">
+          <button
+            type="button"
+            onClick={handleBackAction}
+            className="inline-flex min-h-10 items-center justify-center rounded-lg border border-border px-4 py-2.5 text-sm font-medium text-muted-foreground transition-colors hover:bg-bg-2 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cusp-teal/50"
+          >
+            {stepIndex <= 0 ? "Back to actions" : "Back"}
+          </button>
+          <button
+            type="button"
+            onClick={() => void handlePrimaryAction()}
+            disabled={isLastStep ? !canSubmit || submitting : !canContinue}
+            className="flex-1 rounded-lg bg-cusp-teal px-4 py-2.5 text-sm font-medium text-primary-foreground transition-colors hover:bg-cusp-teal/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cusp-teal/50 disabled:cursor-not-allowed disabled:opacity-50"
+          >
+            {isLastStep
+              ? submitting
+                ? "Preparing preview…"
+                : "Review & Confirm"
+              : "Continue"}
+          </button>
+        </div>
       )}
     </div>
   );

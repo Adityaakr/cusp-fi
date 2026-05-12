@@ -131,7 +131,6 @@ export default function ExecutionSheet() {
       return;
     }
 
-    setExecuting();
     try {
       const preview = await previewIntent({
         ...assistantPreview.intent,
@@ -144,17 +143,14 @@ export default function ExecutionSheet() {
         borrow_amount_ui: Number(requestedAmount.toFixed(2)),
         collateral_asset: "USDC",
         borrow_asset: "USDC",
-        assistant_message: `Borrowing ${requestedAmount.toFixed(2)} USDC against ${selected.marketLabel}.`,
+        assistant_message: [
+          `For ${selected.marketLabel}, max borrowable is $${selected.maxBorrowUsd.toFixed(2)} USDC and max safe borrowable is $${selected.safeBorrowUsd.toFixed(2)} USDC.`,
+          `Say "yes" to borrow $${requestedAmount.toFixed(2)} USDC, or adjust the amount before confirming.`,
+        ].join(" "),
         missing_fields: [],
       });
 
       setAssistantPreview(preview);
-      const result = await execute(preview);
-      if (result.error) {
-        setError(result.error);
-        return;
-      }
-      setSuccess(result.txSignature ?? "confirmed");
     } catch (err) {
       setError(err instanceof Error ? err.message : "Borrow failed");
     }
@@ -298,7 +294,7 @@ export default function ExecutionSheet() {
               disabled={!selectedBorrowId || !(Number(borrowAmount) > 0)}
               className="w-full bg-cusp-teal text-primary-foreground hover:bg-cusp-teal/90 font-medium"
             >
-              Review and borrow selected amount
+              Prepare borrow preview
             </Button>
             <Button variant="ghost" onClick={dismissSidebar} className="w-full text-muted-foreground">
               Cancel
