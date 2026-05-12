@@ -4,7 +4,7 @@
  */
 
 export const MIN_MARGIN_USDC = 1;
-export const MAX_LEVERAGE = 3;
+export const MAX_LEVERAGE = 5;
 export const MAX_POSITION_TVL_RATIO = 0.08;
 
 /**
