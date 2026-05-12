@@ -1,0 +1,38 @@
+{
+  "name": "@cusp/api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "lint": "eslint .",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@cusp/shared": "workspace:*",
+    "@solana/spl-token": "^0.4.14",
+    "@solana/web3.js": "^1.98.4",
+    "@supabase/supabase-js": "^2.100.0",
+    "bs58": "^6.0.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.5.0",
+    "express": "^4.21.0",
+    "pg": "^8.16.3",
+    "ws": "^8.18.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@cusp/eslint-config": "workspace:*",
+    "@cusp/tsconfig": "workspace:*",
+    "@types/cors": "^2.8.17",
+    "@types/express": "^5.0.2",
+    "@types/ws": "^8.18.0",
+    "@types/node": "^22.16.5",
+    "@types/pg": "^8.15.5",
+    "eslint": "^9.32.0",
+    "tsx": "^4.19.0",
+    "typescript": "^5.8.3"
+  }
+}
