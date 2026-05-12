@@ -1,8 +1,8 @@
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { useEffect, useState } from "react";
-import { usePhantom } from "@phantom/react-sdk";
+import { usePhantom } from "@/lib/wallet";
 import { PublicKey } from "@solana/web3.js";
-import { getConnection, getMainnetConnection, USDC_MINT, MAINNET_USDC } from "@/lib/solana";
+import { getConnection, getMainnetConnection, USDC_MINT, MAINNET_USDC, MAINNET_USDT } from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
   getAccount,
@@ -101,6 +101,7 @@ export interface UserPortfolio {
   total_cusdc: number;
   usdc_balance: number;
   mainnet_usdc_balance: number;
+  mainnet_usdt_balance: number;
   unified_usdc_balance: number;
   total_invested: number;
   total_current_value: number;
@@ -112,6 +113,7 @@ interface OnChainBalances {
   total_cusdc: number;
   usdc_balance: number;
   mainnet_usdc_balance: number;
+  mainnet_usdt_balance: number;
 }
 
 interface DbPortfolio {
@@ -132,6 +134,26 @@ const EMPTY_DB: DbPortfolio = {
   total_withdrawn: 0,
 };
 
+function normalizeOutcomeSide(side: string | null | undefined): "YES" | "NO" | string {
+  const normalized = String(side ?? "").trim().toUpperCase();
+  if (normalized === "YES" || normalized === "NO") return normalized;
+  return normalized || "";
+}
+
+function isValidPublicKeyString(value: string | null | undefined): boolean {
+  if (!value) return false;
+  try {
+    new PublicKey(value);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+function isSyntheticTestTicker(value: string | null | undefined): boolean {
+  return String(value ?? "").trim().toUpperCase() === "TEST";
+}
+
 async function fetchOnChainBalances(solanaAddress: string): Promise<OnChainBalances> {
   const connection = getConnection();
   const mainnetConnection = getMainnetConnection();
@@ -140,21 +162,62 @@ async function fetchOnChainBalances(solanaAddress: string): Promise<OnChainBalan
   let cusdcBalance = 0;
   let usdcBalance = 0;
   let mainnetUsdcBalance = 0;
+  let mainnetUsdtBalance = 0;
 
-  const [cusdcResult, usdcResult, mainnetResult] = await Promise.allSettled([
+  const [cusdcResult, usdcResult, mainnetUsdcResult, mainnetUsdtResult] = await Promise.allSettled([
     getAssociatedTokenAddress(CUSDC_MINT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(connection, ata)),
     getAssociatedTokenAddress(USDC_MINT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(connection, ata)),
     getAssociatedTokenAddress(MAINNET_USDC, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
       .then((ata) => getAccount(mainnetConnection, ata)),
+    getAssociatedTokenAddress(MAINNET_USDT, owner, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID)
+      .then((ata) => getAccount(mainnetConnection, ata)),
   ]);
 
   if (cusdcResult.status === "fulfilled") cusdcBalance = Number(cusdcResult.value.amount) / 1e6;
   if (usdcResult.status === "fulfilled") usdcBalance = Number(usdcResult.value.amount) / 1e6;
-  if (mainnetResult.status === "fulfilled") mainnetUsdcBalance = Number(mainnetResult.value.amount) / 1e6;
+  if (mainnetUsdcResult.status === "fulfilled") mainnetUsdcBalance = Number(mainnetUsdcResult.value.amount) / 1e6;
+  if (mainnetUsdtResult.status === "fulfilled") mainnetUsdtBalance = Number(mainnetUsdtResult.value.amount) / 1e6;
 
-  return { total_cusdc: cusdcBalance, usdc_balance: usdcBalance, mainnet_usdc_balance: mainnetUsdcBalance };
+  return { total_cusdc: cusdcBalance, usdc_balance: usdcBalance, mainnet_usdc_balance: mainnetUsdcBalance, mainnet_usdt_balance: mainnetUsdtBalance };
+}
+
+async function recoverFilledQuantityFromTransaction(params: {
+  signature: string;
+  outputMint: string;
+  walletAddress: string;
+}): Promise<number | null> {
+  try {
+    const tx = await getMainnetConnection().getTransaction(params.signature, {
+      maxSupportedTransactionVersion: 0,
+    });
+    if (!tx || tx.meta?.err) return null;
+
+    const preBalances = tx.meta.preTokenBalances ?? [];
+    const postBalances = tx.meta.postTokenBalances ?? [];
+
+    let bestDiff: number | null = null;
+
+    for (const post of postBalances) {
+      if (post.mint !== params.outputMint) continue;
+
+      const ownerMatches = post.owner === params.walletAddress;
+      const pre = preBalances.find((balance) => balance.accountIndex === post.accountIndex);
+      const preAmount = pre?.uiTokenAmount?.uiAmount ?? 0;
+      const postAmount = post.uiTokenAmount?.uiAmount ?? 0;
+      const diff = postAmount - preAmount;
+
+      if (diff <= 0) continue;
+      if (ownerMatches) return diff;
+      if (bestDiff == null || diff > bestDiff) bestDiff = diff;
+    }
+
+    return bestDiff;
+  } catch (error) {
+    console.warn("[portfolio] Failed to recover output amount from tx:", params.signature, error);
+    return null;
+  }
 }
 
 async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & { userId: string | null }> {
@@ -176,7 +239,13 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
     supabase.from("markets_cache").select("ticker, title, yes_price, no_price, yes_mint, no_mint"),
   ]);
 
-  const rawPositions = positionsRes.data ?? [];
+  const rawPositions = (positionsRes.data ?? []).filter((position) => {
+    if (isSyntheticTestTicker(position.market_ticker)) return false;
+    if (position.position_type === "direct" || position.position_type === "leveraged") {
+      return isValidPublicKeyString(position.outcome_mint);
+    }
+    return true;
+  });
 
   let rawExecutions: Array<Record<string, unknown>> = [];
   const positionIds = rawPositions.map((p) => p.id);
@@ -186,8 +255,37 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
       .select("*")
       .in("position_id", positionIds)
       .order("created_at", { ascending: false });
-    rawExecutions = (data ?? []) as Array<Record<string, unknown>>;
+    rawExecutions = ((data ?? []) as Array<Record<string, unknown>>).filter((execution) => {
+      if (execution.tx_signature === "test") return false;
+      if (execution.output_mint && !isValidPublicKeyString(execution.output_mint as string)) return false;
+      return true;
+    });
   }
+
+  const recoveredOutputAmountByPosition = new Map<string, number>();
+  await Promise.all(
+    rawExecutions.map(async (execution) => {
+      const positionId = execution.position_id as string | undefined;
+      if (!positionId) return;
+
+      const rawPosition = rawPositions.find((position) => position.id === positionId);
+      const recordedPositionQty = Number(rawPosition?.quantity) || 0;
+      const recordedOutputAmount = Number(execution.output_amount) || 0;
+      const signature = typeof execution.tx_signature === "string" ? execution.tx_signature : "";
+      const outputMint = typeof execution.output_mint === "string" ? execution.output_mint : "";
+
+      if (recordedPositionQty > 0 || recordedOutputAmount > 0 || !signature || !outputMint) return;
+
+      const recovered = await recoverFilledQuantityFromTransaction({
+        signature,
+        outputMint,
+        walletAddress,
+      });
+      if (recovered != null && recovered > 0) {
+        recoveredOutputAmountByPosition.set(positionId, recovered);
+      }
+    })
+  );
 
   const marketMap = new Map<string, { title: string; yes_price: number | null; no_price: number | null }>();
   for (const m of marketsRes.data ?? []) {
@@ -203,8 +301,13 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
   const positions: Position[] = rawPositions.map((p) => {
     const market = marketMap.get(p.market_ticker);
     const exec = execByPosition.get(p.id);
-    const currentPrice = p.side === "YES" ? (market?.yes_price ?? null) : (market?.no_price ?? null);
-    const qty = Number(p.quantity) || 0;
+    const side = normalizeOutcomeSide(p.side);
+    const currentPrice = side === "YES" ? (market?.yes_price ?? null) : side === "NO" ? (market?.no_price ?? null) : null;
+    const qty =
+      Number(p.quantity) ||
+      Number(exec?.output_amount) ||
+      recoveredOutputAmountByPosition.get(p.id) ||
+      0;
     const cost = Number(p.usdc_cost) || 0;
     const currentValue = currentPrice != null && qty > 0 ? qty * currentPrice : null;
     const unrealizedPnl = currentValue != null && cost > 0 ? currentValue - cost : null;
@@ -214,8 +317,8 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
       id: p.id,
       position_type: p.position_type,
       market_ticker: p.market_ticker,
-      side: p.side,
-      entry_price: Number(p.entry_price) || 0,
+      side,
+      entry_price: Number(p.entry_price) || (qty > 0 && cost > 0 ? cost / qty : 0),
       quantity: qty,
       usdc_cost: cost,
       outcome_mint: p.outcome_mint,
@@ -253,7 +356,7 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
       created_at: lt.created_at,
       closed_at: lt.closed_at ?? null,
       market_ticker: pos?.market_ticker ?? "",
-      side: pos?.side ?? "",
+      side: normalizeOutcomeSide(pos?.side),
       entry_price: pos?.entry_price ?? 0,
       quantity: pos?.quantity ?? 0,
       outcome_mint: pos?.outcome_mint ?? null,
@@ -272,13 +375,16 @@ async function fetchFromSupabase(walletAddress: string): Promise<DbPortfolio & {
       input_mint: e.input_mint as string,
       output_mint: e.output_mint as string,
       input_amount: Number(e.input_amount) || 0,
-      output_amount: Number(e.output_amount) || 0,
+      output_amount:
+        Number(e.output_amount) ||
+        recoveredOutputAmountByPosition.get(e.position_id as string) ||
+        0,
       tx_signature: (e.tx_signature as string) ?? null,
       dflow_order_status: (e.dflow_order_status as string) ?? null,
       status: e.status as string,
       created_at: e.created_at as string,
       market_ticker: pos?.market_ticker ?? "",
-      side: pos?.side ?? "",
+      side: normalizeOutcomeSide(pos?.side),
       position_type: pos?.position_type ?? "",
       market_title: market?.title ?? pos?.market_ticker ?? "",
     };
@@ -326,7 +432,8 @@ async function fetchPortfolio(solanaAddress: string): Promise<UserPortfolio & { 
     total_cusdc: onChain.total_cusdc,
     usdc_balance: onChain.usdc_balance,
     mainnet_usdc_balance: onChain.mainnet_usdc_balance,
-    unified_usdc_balance: onChain.usdc_balance + onChain.mainnet_usdc_balance,
+    mainnet_usdt_balance: onChain.mainnet_usdt_balance,
+    unified_usdc_balance: onChain.usdc_balance + onChain.mainnet_usdc_balance + onChain.mainnet_usdt_balance,
     total_invested: totalInvested,
     total_current_value: totalCurrentValue,
     unrealized_pnl: totalCurrentValue - totalInvested,
