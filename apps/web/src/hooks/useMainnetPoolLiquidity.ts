@@ -50,17 +50,30 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
   }, [queryClient]);
 
   const supply = useCallback(async (amountUsdc: number) => {
+    console.info("[mainnet-pool][supply] start", {
+      walletAddress,
+      poolPublicKey,
+      amountUsdc,
+      hasSolanaProvider: Boolean(solana),
+    });
+
     if (!solana || !walletAddress) {
+      console.warn("[mainnet-pool][supply] blocked: wallet not connected", {
+        walletAddress,
+        hasSolanaProvider: Boolean(solana),
+      });
       setError("Connect your wallet first");
       setStatus("error");
       return null;
     }
     if (!poolPublicKey) {
+      console.warn("[mainnet-pool][supply] blocked: pool public key missing");
       setError("Mainnet pool wallet is not configured");
       setStatus("error");
       return null;
     }
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
+      console.warn("[mainnet-pool][supply] blocked: invalid amount", { amountUsdc });
       setError("Enter a valid USDC amount");
       setStatus("error");
       return null;
@@ -84,17 +97,27 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
       const poolAta = await getAssociatedTokenAddress(
         MAINNET_USDC,
         poolPubkey,
-        false,
+        true,
         TOKEN_PROGRAM_ID,
         ASSOCIATED_TOKEN_PROGRAM_ID
       );
 
       const userTokenAccount = await getAccount(connection, userAta).catch(() => null);
       if (!userTokenAccount) {
+        console.warn("[mainnet-pool][supply] no user USDC token account", {
+          walletAddress,
+          userAta: userAta.toBase58(),
+        });
         throw new Error("No mainnet USDC token account found in the connected wallet.");
       }
 
       const userBalance = Number(userTokenAccount.amount) / 1e6;
+      console.info("[mainnet-pool][supply] token accounts ready", {
+        userAta: userAta.toBase58(),
+        poolAta: poolAta.toBase58(),
+        userBalance,
+        requestedAmount: amountUsdc,
+      });
       if (userBalance + 1e-9 < amountUsdc) {
         throw new Error(
           `Insufficient mainnet USDC. Wallet has ${userBalance.toFixed(2)} USDC, tried to supply ${amountUsdc.toFixed(2)} USDC.`
@@ -105,6 +128,10 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
       tx.feePayer = userPubkey;
       const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash("confirmed");
       tx.recentBlockhash = blockhash;
+      console.info("[mainnet-pool][supply] blockhash fetched", {
+        blockhash,
+        lastValidBlockHeight,
+      });
 
       tx.add(
         createAssociatedTokenAccountIdempotentInstruction(
@@ -129,6 +156,10 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
       );
 
       const signature = await solana.signAndSendTransaction(tx, connection);
+      console.info("[mainnet-pool][supply] wallet submitted transaction", {
+        signature,
+        amountUsdc,
+      });
       await connection.confirmTransaction(
         {
           signature,
@@ -137,6 +168,7 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
         },
         "confirmed"
       );
+      console.info("[mainnet-pool][supply] transaction confirmed", { signature });
 
       const result = await cuspApiFetch<DepositResponse>("/api/mainnet-pool/deposit", {
         method: "POST",
@@ -146,6 +178,10 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
           amount_usdc: amountUsdc,
         }),
       });
+      console.info("[mainnet-pool][supply] backend registration response", {
+        signature,
+        result,
+      });
 
       if (!result.success) {
         throw new Error(result.error || "Failed to register pool deposit");
@@ -154,9 +190,20 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
       setTxSignature(signature);
       setStatus("success");
       await invalidate();
+      console.info("[mainnet-pool][supply] success", {
+        signature,
+        amountUsdc,
+      });
       return signature;
     } catch (err) {
       const message = err instanceof Error ? err.message : "Pool deposit failed";
+      console.error("[mainnet-pool][supply] failed", {
+        walletAddress,
+        poolPublicKey,
+        amountUsdc,
+        error: err,
+        message,
+      });
       if (message.toLowerCase().includes("walletsendtransactionerror")) {
         setError("Wallet rejected the mainnet USDC supply transaction. Confirm the wallet is on mainnet and approve the transaction.");
       } else {
@@ -168,12 +215,18 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
   }, [invalidate, poolPublicKey, solana, walletAddress]);
 
   const withdraw = useCallback(async (amountUsdc: number) => {
+    console.info("[mainnet-pool][withdraw] start", {
+      walletAddress,
+      amountUsdc,
+    });
     if (!walletAddress) {
+      console.warn("[mainnet-pool][withdraw] blocked: wallet not connected");
       setError("Connect your wallet first");
       setStatus("error");
       return null;
     }
     if (!Number.isFinite(amountUsdc) || amountUsdc <= 0) {
+      console.warn("[mainnet-pool][withdraw] blocked: invalid amount", { amountUsdc });
       setError("Enter a valid USDC amount");
       setStatus("error");
       return null;
@@ -191,6 +244,7 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
           amount_usdc: amountUsdc,
         }),
       });
+      console.info("[mainnet-pool][withdraw] backend response", { result });
 
       if (!result.success || !result.withdraw_tx_signature) {
         throw new Error(result.error || "Pool withdraw failed");
@@ -199,8 +253,17 @@ export function useMainnetPoolLiquidity(poolPublicKey: string | null | undefined
       setTxSignature(result.withdraw_tx_signature);
       setStatus("success");
       await invalidate();
+      console.info("[mainnet-pool][withdraw] success", {
+        txSignature: result.withdraw_tx_signature,
+        amountUsdc,
+      });
       return result.withdraw_tx_signature;
     } catch (err) {
+      console.error("[mainnet-pool][withdraw] failed", {
+        walletAddress,
+        amountUsdc,
+        error: err,
+      });
       setError(err instanceof Error ? err.message : "Pool withdraw failed");
       setStatus("error");
       return null;

@@ -1,5 +1,5 @@
 import { useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useLocation, useNavigate, useParams } from "react-router-dom";
 import type { AnyQvacCommand, Asset, QvacAssistantIntent, QvacAssistantPreviewResult } from "@cusp/shared";
 import { usePhantom } from "@/lib/wallet";
 import { cuspApiFetch, cuspApiUrl } from "@/lib/cusp-api";
@@ -10,6 +10,10 @@ import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
 import { useBorrowPanelRows } from "@/hooks/useBorrowPanelRows";
 import type { BorrowPanelRow } from "@/hooks/useBorrowPanelRows";
 import { useQvac } from "@/components/qvac/QvacProvider";
+import { OUTCOME_LIQUIDATION_THRESHOLD_BPS, OUTCOME_MAX_LTV_BPS } from "@/lib/protocol-constants";
+import { useLendingPool } from "@/hooks/useLendingPool";
+import { useCreateOutcomeLoan } from "@/hooks/useCreateOutcomeLoan";
+import { useMainnetPoolLiquidity } from "@/hooks/useMainnetPoolLiquidity";
 
 interface AssistantEnvelope {
   assistant_message: string;
@@ -68,6 +72,7 @@ function formatBorrowCapacity(rows: BorrowPanelRow[]): string {
 
 function buildPrompt(params: {
   walletConnected: boolean;
+  currentPath: string;
   currentMarketTicker?: string;
   currentMarketTitle?: string;
   openPositions: Array<{ market_ticker: string; market_title?: string; side: string; position_type: string }>;
@@ -80,22 +85,36 @@ function buildPrompt(params: {
 
   return [
     "You are CUSP's local trading and lending copilot.",
-    "Return JSON only. No markdown.",
+    "Return JSON only. No markdown. No prose. No preface. No explanation.",
+    "Your entire reply must be exactly one valid JSON object.",
+    "Do not say words like 'Okay', 'Sure', or 'Here is the JSON'.",
     "Interpret the user's request into a single object with keys:",
     "assistant_message, intent, service, action, market_reference_text, position_reference_text, side, amount_ui, leverage, confidence, needs_confirmation, missing_fields.",
     "Optional keys when relevant: asset, pool, collateral_asset, borrow_asset, borrow_amount_ui, repay_asset, repay_amount_ui, risk_mode (safe|moderate|aggressive).",
     "Allowed intent values: direct_trade, leverage_open, leverage_close, lend_deposit, lend_withdraw, borrow_open, borrow_close, borrow_capacity, market_search, position_summary, risk_explain, unknown.",
+    "Every reply must include at least: assistant_message, intent, confidence, needs_confirmation, missing_fields.",
+    "missing_fields must always be an array.",
+    "If information is missing, set intent to the best matching intent and list the missing fields instead of asking a question outside JSON.",
+    'Example valid reply: {"assistant_message":"I can help with that.","intent":"borrow_open","service":"borrow","action":"open","amount_ui":200,"borrow_amount_ui":100,"collateral_asset":"USDC","borrow_asset":"USDC","confidence":0.86,"needs_confirmation":true,"missing_fields":[]}',
     "Rules:",
     "- Never execute anything.",
     "- If user wants to buy or trade on a market, prefer direct_trade unless leverage is explicit.",
     "- If user asks to close a leveraged trade position, prefer leverage_close.",
-    "- lend_deposit / lend_withdraw: service lend, pool conservative|moderate|growth, amount_ui is cUSDT amount.",
-    "- borrow_open: collateral in amount_ui, loan size in borrow_amount_ui, collateral_asset and borrow_asset USDT or USDC.",
+    "- lend_deposit / lend_withdraw: service lend, pool conservative|moderate|growth, amount_ui is USDC amount.",
+    "- Lending is not market-specific. For lend_deposit / lend_withdraw, do not ask for or infer a market unless the user explicitly asks to trade.",
+    "- borrow_open: collateral in amount_ui, loan size in borrow_amount_ui, collateral_asset and borrow_asset should be USDC for now.",
+    "- If the user says borrow, loan, collateral, against my positions, against my open positions, or against my outcome tokens, prefer borrow_open or borrow_capacity — not lend_deposit.",
+    "- If the user mentions open positions / my positions / outcome tokens but gives no borrow size, prefer borrow_capacity or borrow_open with missing_fields, not any lend intent.",
+    "- Only use lend_deposit / lend_withdraw when the user explicitly wants to lend, supply, deposit into a pool, or withdraw from a pool.",
     "- borrow_close: repay_amount_ui and amount_ui (collateral to unlock), repay_asset.",
     "- For questions like max loan, how much can I borrow on my positions, borrow_capacity intent — assistant_message should briefly tee up that numeric estimates follow client-side.",
     "- If the market is implied by current page context, you may omit market_reference_text.",
     "- needs_confirmation should be true for any financial action.",
     `Wallet connected: ${params.walletConnected ? "yes" : "no"}.`,
+    `Current path: ${params.currentPath}.`,
+    params.currentPath.startsWith("/lend")
+      ? "This is the lend/borrow page. 'Lend', 'supply', or 'deposit' here refers to supplying USDC into the lending pool / vault, not choosing a prediction market."
+      : "Page-specific lending override: none.",
     params.currentMarketTicker
       ? `Current market context: ${params.currentMarketTitle ?? params.currentMarketTicker} (${params.currentMarketTicker}).`
       : "Current market context: none.",
@@ -130,20 +149,159 @@ function toIntent(envelope: AssistantEnvelope): QvacAssistantIntent {
   };
 }
 
+function normalizeMessage(text: string): string {
+  return text.toLowerCase().replace(/\s+/g, " ").trim();
+}
+
+function sanitizeAssistantInput(message: string): string {
+  return message.replace(/\budsc\b/gi, "USDC");
+}
+
+function extractAmountFromMessage(message: string): number | undefined {
+  const matches = message.match(/\b\d+(?:\.\d+)?\b/g);
+  if (!matches?.length) return undefined;
+
+  for (const match of matches) {
+    const parsed = Number(match);
+    if (Number.isFinite(parsed) && parsed > 0) {
+      return parsed;
+    }
+  }
+
+  return undefined;
+}
+
+function repairIntentFromMessage(message: string, intent: QvacAssistantIntent, currentPath: string): QvacAssistantIntent {
+  const sanitizedMessage = sanitizeAssistantInput(message);
+  const normalized = normalizeMessage(sanitizedMessage);
+  const wantsBorrow = /\b(borrow|loan)\b/.test(normalized);
+  const wantsLend = /\b(lend|lending|supply)\b/.test(normalized) || /\bdeposit\b/.test(normalized);
+  const wantsWithdraw = /\b(withdraw|unstake|redeem)\b/.test(normalized);
+  const mentionsTrading = /\b(trade|buy|sell|market|yes|no|long|short)\b/.test(normalized);
+  const mentionsPool = /\b(pool|conservative|moderate|growth)\b/.test(normalized);
+  const mentionsVault = /\b(vault|earn)\b/.test(normalized);
+  const mentionsPositions = /(open positions|my positions|outcome tokens|against my position|against my open position|against my positions)/.test(normalized);
+  const hasBorrowAmount = typeof intent.borrow_amount_ui === "number" && intent.borrow_amount_ui > 0;
+  const extractedAmount = extractAmountFromMessage(sanitizedMessage);
+  const resolvedAmount = typeof intent.amount_ui === "number" && intent.amount_ui > 0 ? intent.amount_ui : extractedAmount;
+  const hasCollateralAmount = typeof resolvedAmount === "number" && resolvedAmount > 0;
+  const forceLendIntent =
+    currentPath.startsWith("/lend") &&
+    !wantsBorrow &&
+    !mentionsPositions &&
+    !mentionsTrading &&
+    (wantsLend || wantsWithdraw || mentionsPool || mentionsVault);
+
+  if ((wantsLend || wantsWithdraw || mentionsPool || mentionsVault || forceLendIntent) && !wantsBorrow) {
+    if (
+      forceLendIntent ||
+      intent.type === "unknown" ||
+      intent.type === "market_search" ||
+      intent.type === "direct_trade" ||
+      intent.type === "leverage_open"
+    ) {
+      return {
+        ...intent,
+        type: wantsWithdraw ? "lend_withdraw" : "lend_deposit",
+        service: "lend",
+        action: wantsWithdraw ? "withdraw" : "deposit",
+        amount_ui: resolvedAmount,
+        assistant_message: wantsWithdraw
+          ? "I can help withdraw from the lending pool directly."
+          : "I can help deposit into the lending pool directly.",
+        missing_fields: hasCollateralAmount ? (intent.missing_fields ?? []) : Array.from(new Set([...(intent.missing_fields ?? []), "amount_ui"])),
+      };
+    }
+
+    if ((intent.type === "lend_deposit" || intent.type === "lend_withdraw") && hasCollateralAmount) {
+      return {
+        ...intent,
+        amount_ui: resolvedAmount,
+        missing_fields: (intent.missing_fields ?? []).filter((field) => field !== "amount_ui"),
+      };
+    }
+  }
+
+  if (wantsBorrow && !wantsLend) {
+    if (intent.type === "lend_deposit" || intent.type === "lend_withdraw") {
+      return {
+        ...intent,
+        type: mentionsPositions && !hasBorrowAmount && !hasCollateralAmount ? "borrow_capacity" : "borrow_open",
+        service: "borrow",
+        action: "open",
+        borrow_asset: intent.borrow_asset ?? "USDC",
+        collateral_asset: intent.collateral_asset ?? "USDC",
+        borrow_amount_ui: hasBorrowAmount ? intent.borrow_amount_ui : extractedAmount,
+        missing_fields:
+          mentionsPositions && !hasBorrowAmount && !hasCollateralAmount
+            ? []
+            : Array.from(
+                new Set([
+                  ...(intent.missing_fields ?? []),
+                  ...(!hasBorrowAmount && !extractedAmount ? ["borrow_amount_ui"] : []),
+                ])
+              ),
+        assistant_message:
+          mentionsPositions && !hasBorrowAmount && !hasCollateralAmount
+            ? "I can estimate how much you can borrow against your open positions."
+            : intent.assistant_message,
+      };
+    }
+
+    if (mentionsPositions && intent.type === "unknown") {
+      return {
+        ...intent,
+        type: extractedAmount ? "borrow_open" : "borrow_capacity",
+        service: "borrow",
+        action: "open",
+        borrow_asset: intent.borrow_asset ?? "USDC",
+        collateral_asset: intent.collateral_asset ?? "USDC",
+        borrow_amount_ui: extractedAmount,
+        assistant_message: extractedAmount
+          ? `I can help borrow ${extractedAmount} USDC against one of your open positions.`
+          : "I can estimate how much you can borrow against your open positions.",
+        missing_fields: extractedAmount ? [] : [],
+      };
+    }
+  }
+
+  return intent;
+}
+
+function buildLocalFallbackIntent(message: string, currentPath: string): QvacAssistantIntent {
+  const extractedAmount = extractAmountFromMessage(sanitizeAssistantInput(message));
+  return repairIntentFromMessage(
+    message,
+    {
+      type: "unknown",
+      assistant_message: extractedAmount
+        ? `I interpreted this as a ${currentPath.startsWith("/lend") ? "lend/borrow" : "QVAC"} request for ${extractedAmount} USDC.`
+        : "I interpreted your request and prepared the closest matching QVAC action.",
+      confidence: 0.45,
+      needs_confirmation: true,
+      missing_fields: [],
+    },
+    currentPath
+  );
+}
+
 export function useQvacAssistant() {
   const { addresses, isConnected } = usePhantom();
   const { state } = useQvac();
   const { ticker } = useParams();
+  const location = useLocation();
   const navigate = useNavigate();
+  const wallet = addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address;
   const { data: currentMarket } = useKalshiMarket(ticker);
   const { data: portfolio } = useUserPortfolio();
   const { data: holdings = [] } = useOutcomeTokenHoldings(portfolio ?? undefined);
   const { rows: borrowRows } = useBorrowPanelRows(portfolio ?? undefined, holdings);
+  const { data: poolState } = useLendingPool(wallet);
+  const { supply, withdraw } = useMainnetPoolLiquidity(poolState?.poolPublicKey);
+  const { createLoan, reset: resetLoan } = useCreateOutcomeLoan();
   const [recording, setRecording] = useState(false);
   const recorderRef = useRef<MediaRecorder | null>(null);
   const chunksRef = useRef<Blob[]>([]);
-
-  const wallet = addresses?.find((a) => String(a.addressType || "").toLowerCase().includes("solana"))?.address;
 
   const borrowCapacityLines = useMemo(
     () =>
@@ -188,18 +346,27 @@ export function useQvacAssistant() {
 
     const prompt = buildPrompt({
       walletConnected: !!wallet && isConnected,
+      currentPath: location.pathname,
       currentMarketTicker: currentContext.current_market_ticker,
       currentMarketTitle: currentContext.current_market_title,
       openPositions: (portfolio?.positions ?? []).filter((position) => position.status === "open"),
       borrowCapacityLines,
     });
 
-    const envelope = await qvacChatJson<AssistantEnvelope>([
-      { role: "system", content: prompt },
-      { role: "user", content: message },
-    ]);
-
-    let intent = toIntent(envelope);
+    let intent: QvacAssistantIntent;
+    try {
+      const envelope = await qvacChatJson<AssistantEnvelope>([
+        { role: "system", content: prompt },
+        { role: "user", content: sanitizeAssistantInput(message) },
+      ]);
+      intent = repairIntentFromMessage(message, toIntent(envelope), location.pathname);
+    } catch (error) {
+      console.warn("[qvac][interpret] falling back to local intent inference", {
+        message,
+        error: error instanceof Error ? error.message : error,
+      });
+      intent = buildLocalFallbackIntent(message, location.pathname);
+    }
 
     if (intent.type === "borrow_capacity") {
       intent = {
@@ -209,12 +376,118 @@ export function useQvacAssistant() {
       return { success: true, intent };
     }
 
+    if (intent.type === "borrow_open") {
+      const hasExplicitBorrowAmount = typeof intent.borrow_amount_ui === "number" && intent.borrow_amount_ui > 0;
+      const hasSelectedPosition = !!intent.position_reference_text;
+
+      if (!hasSelectedPosition) {
+        return {
+          success: true,
+          intent: {
+            ...intent,
+            collateral_asset: intent.collateral_asset ?? "USDC",
+            borrow_asset: "USDC",
+            assistant_message: borrowRows.length
+              ? hasExplicitBorrowAmount
+                ? `Select one open position in the side panel. I’ll check whether ${intent.borrow_amount_ui?.toFixed?.(2) ?? intent.borrow_amount_ui} USDC fits that market.`
+                : "Select one open position in the side panel. I’ll show how much USDC you can borrow for that market."
+              : "I couldn't find any borrow-eligible open positions in your wallet.",
+            needs_confirmation: true,
+            missing_fields: borrowRows.length ? [] : ["open_position"],
+          },
+          candidates: borrowRows.map((row) => ({
+            kind: "position" as const,
+            id: row.id,
+            label: `${row.marketLabel} · ${row.side}`,
+            subtitle: `Max borrow $${row.maxBorrowUsd.toFixed(2)} USDC · collateral $${row.collateralUsd.toFixed(2)}`,
+          })),
+        };
+      }
+    }
+
     return previewIntent(intent);
   }
 
   async function execute(preview: QvacAssistantPreviewResult): Promise<{ navigateTo?: string; txSignature?: string; error?: string }> {
+    console.info("[qvac][execute] start", {
+      intentType: preview.intent.type,
+      intent: preview.intent,
+      hasCommand: Boolean(preview.command),
+    });
+
+    if (preview.intent.type === "borrow_open" && preview.intent.position_reference_text) {
+      const selected = borrowRows.find((row) => row.id === preview.intent.position_reference_text);
+      const borrowAmount = preview.intent.borrow_amount_ui ?? 0;
+      if (!selected) return { error: "Selected borrow position is no longer available." };
+      if (!(borrowAmount > 0)) return { error: "Missing borrow amount." };
+      if ((poolState?.availableLiquidity ?? 0) < borrowAmount) {
+        return { error: `Pool has only $${(poolState?.availableLiquidity ?? 0).toFixed(2)} USDC available.` };
+      }
+
+      resetLoan();
+      const loanId = await createLoan({
+        walletAddress: wallet ?? "",
+        marketTicker: selected.ticker ?? "unknown",
+        side: selected.side,
+        outcomeMint: selected.outcomeMint,
+        tokenQuantity: selected.quantity,
+        tokenDecimals: selected.decimals,
+        tokenProgram: selected.tokenProgram,
+        currentPrice: selected.currentPrice,
+        collateralValueUsdc: selected.collateralUsd,
+        borrowAmountUsdc: borrowAmount,
+        maxLtvBps: OUTCOME_MAX_LTV_BPS,
+        liquidationThresholdBps: OUTCOME_LIQUIDATION_THRESHOLD_BPS,
+        poolPublicKey: poolState?.poolPublicKey || "",
+      });
+
+      if (!loanId) return { error: "Borrow failed." };
+      return { txSignature: "confirmed" };
+    }
+
     if (!preview.command) {
+      console.warn("[qvac][execute] aborted: missing command", {
+        intentType: preview.intent.type,
+      });
       return { error: "No executable command prepared." };
+    }
+
+    if (preview.intent.type === "lend_deposit") {
+      const amount = preview.intent.amount_ui ?? preview.command.amount_ui ?? 0;
+      if (!(amount > 0)) return { error: "Missing lend amount." };
+      console.info("[qvac][execute] lend deposit via mainnet pool", {
+        amount,
+        poolPublicKey: poolState?.poolPublicKey ?? null,
+      });
+      const signature = await supply(amount);
+      if (!signature) {
+        console.error("[qvac][execute] lend deposit failed", {
+          amount,
+          poolPublicKey: poolState?.poolPublicKey ?? null,
+        });
+        return {
+          error:
+            "Lending deposit failed. Check browser console logs for [mainnet-pool][supply] to see whether it failed at wallet signing, on-chain confirmation, or backend registration.",
+        };
+      }
+      console.info("[qvac][execute] lend deposit success", { signature, amount });
+      return { txSignature: signature };
+    }
+
+    if (preview.intent.type === "lend_withdraw") {
+      const amount = preview.intent.amount_ui ?? preview.command.amount_ui ?? 0;
+      if (!(amount > 0)) return { error: "Missing withdraw amount." };
+      console.info("[qvac][execute] lend withdraw via mainnet pool", { amount });
+      const signature = await withdraw(amount);
+      if (!signature) {
+        console.error("[qvac][execute] lend withdraw failed", { amount });
+        return {
+          error:
+            "Lending withdraw failed. Check browser console logs for [mainnet-pool][withdraw] for the exact backend error.",
+        };
+      }
+      console.info("[qvac][execute] lend withdraw success", { signature, amount });
+      return { txSignature: signature };
     }
 
     if (preview.intent.type === "direct_trade" || preview.intent.type === "leverage_open") {
@@ -247,6 +520,10 @@ export function useQvacAssistant() {
         intent: preview.intent,
         command: preview.command,
       }),
+    });
+    console.info("[qvac][execute] assistant execute API response", {
+      intentType: preview.intent.type,
+      data,
     });
     const txSignature =
       typeof data.data?.tx_signature === "string"
@@ -296,6 +573,8 @@ export function useQvacAssistant() {
   return {
     currentContext,
     recording,
+    borrowRows,
+    poolState,
     interpret,
     previewIntent,
     execute,

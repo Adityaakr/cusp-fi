@@ -34,6 +34,7 @@ interface QvacContextValue {
   state: QvacState;
   openQvac: () => void;
   closeQvac: () => void;
+  dismissSidebar: () => void;
   selectFlow: (flow: QvacFlow) => void;
   setStepValue: (key: string, value: unknown) => void;
   nextStep: () => void;
@@ -82,6 +83,15 @@ export function QvacProvider({ children }: { children: ReactNode }) {
 
   const closeQvac = useCallback(() => {
     setState(initialState);
+  }, []);
+
+  const dismissSidebar = useCallback(() => {
+    setState((prev) => ({
+      ...prev,
+      executionPlan: null,
+      command: prev.flow ? prev.command : null,
+      phase: prev.flow ? "wizard" : "preview",
+    }));
   }, []);
 
   const selectFlow = useCallback((flow: QvacFlow) => {
@@ -145,7 +155,7 @@ export function QvacProvider({ children }: { children: ReactNode }) {
       assistantPreview: preview,
       executionPlan: preview?.execution_plan ?? null,
       command: preview?.command ?? null,
-      phase: preview?.execution_plan ? "preview" : preview === null && prev.phase === "preview" ? "selecting" : prev.phase,
+      phase: preview ? "preview" : preview === null && prev.phase === "preview" ? "selecting" : prev.phase,
     }));
   }, []);
 
@@ -176,6 +186,7 @@ export function QvacProvider({ children }: { children: ReactNode }) {
         state,
         openQvac,
         closeQvac,
+        dismissSidebar,
         selectFlow,
         setStepValue,
         nextStep,

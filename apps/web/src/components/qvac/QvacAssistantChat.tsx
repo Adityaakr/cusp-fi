@@ -25,12 +25,35 @@ export default function QvacAssistantChat() {
   const [input, setInput] = useState("");
   const [voiceBusy, setVoiceBusy] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement | null>(null);
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
 
   const contextPill = useMemo(() => {
     if (currentContext.current_market_title) return currentContext.current_market_title;
     if (currentContext.current_market_ticker) return currentContext.current_market_ticker;
     return "General assistant";
   }, [currentContext.current_market_ticker, currentContext.current_market_title]);
+
+
+  const presetPrompts = useMemo(
+    () => [
+      "Lend 10 USDC",
+      "Borrow against my open positions",
+      "What should I do with my idle balance?",
+    ],
+    [],
+  );
+
+  const applyPreset = (preset: string) => {
+    setInput(preset);
+    setAssistantPreview(null);
+    requestAnimationFrame(() => {
+      const textarea = textareaRef.current;
+      if (!textarea) return;
+      textarea.focus();
+      const end = preset.length;
+      textarea.setSelectionRange(end, end);
+    });
+  };
 
   const sendMessage = async (rawMessage: string) => {
     const message = rawMessage.trim();
@@ -111,8 +134,8 @@ export default function QvacAssistantChat() {
   };
 
   return (
-    <section className="rounded-xl border border-border bg-bg-1/70">
-      <div className="flex items-start justify-between gap-3 border-b border-border px-3 py-3">
+    <section className="flex flex-col gap-3">
+      <div className="flex items-start justify-between gap-3 px-1">
         <div className="min-w-0">
           <div className="flex items-center gap-2 text-sm font-medium text-foreground">
             <Sparkles className="size-4 text-cusp-teal" aria-hidden="true" />
@@ -127,44 +150,61 @@ export default function QvacAssistantChat() {
         </div>
       </div>
 
-      <ScrollArea className="h-56 px-3 py-3">
-        <div className="flex flex-col gap-2.5">
-          {state.messages.length === 0 ? (
-            <div className="rounded-xl border border-dashed border-border bg-bg-2/60 px-3 py-4 text-sm text-muted-foreground">
-              Try “lend 250 cUSDT in the moderate pool” or “borrow 100 USDC against 200 USDT”.
-            </div>
-          ) : (
-            state.messages.map((message, index) => (
-              <div
-                key={`${message.role}-${index}`}
-                className={cn(
-                  "max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-6",
-                  message.role === "assistant"
-                    ? "rounded-tl-sm bg-bg-2 text-foreground"
-                    : "ml-auto rounded-tr-sm bg-cusp-teal/15 text-cusp-teal"
-                )}
-              >
-                <p className="whitespace-pre-wrap break-words">{message.content}</p>
+      <div className="flex flex-wrap gap-2 px-1">
+        {presetPrompts.map((preset) => (
+          <button
+            key={preset}
+            type="button"
+            onClick={() => applyPreset(preset)}
+            disabled={state.assistantBusy || voiceBusy}
+            className="inline-flex min-h-9 items-center rounded-full border border-border bg-bg-2/70 px-3 py-2 text-xs font-medium text-muted-foreground transition-colors hover:border-cusp-teal/30 hover:bg-cusp-teal/8 hover:text-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-cusp-teal/50 disabled:opacity-50"
+          >
+            {preset}
+          </button>
+        ))}
+      </div>
+
+      <div className="overflow-hidden rounded-2xl border border-border bg-bg-1/50">
+        <ScrollArea type="always" className="h-52">
+          <div className="flex min-h-full flex-col gap-2.5 px-3 py-3 pr-4">
+            {state.messages.length === 0 ? (
+              <div className="rounded-xl border border-dashed border-border bg-bg-2/60 px-3 py-4 text-sm text-muted-foreground">
+                Try a quick prompt above, or type a custom command below.
               </div>
-            ))
-          )}
+            ) : (
+              state.messages.map((message, index) => (
+                <div
+                  key={`${message.role}-${index}`}
+                  className={cn(
+                    "max-w-[92%] rounded-2xl px-3 py-2 text-sm leading-6",
+                    message.role === "assistant"
+                      ? "rounded-tl-sm bg-bg-2 text-foreground"
+                      : "ml-auto rounded-tr-sm bg-cusp-teal/15 text-cusp-teal"
+                  )}
+                >
+                  <p className="whitespace-pre-wrap break-words">{message.content}</p>
+                </div>
+              ))
+            )}
 
-          {(state.assistantBusy || voiceBusy) && (
-            <div className="inline-flex max-w-fit items-center gap-2 rounded-2xl rounded-tl-sm bg-bg-2 px-3 py-2 text-sm text-muted-foreground">
-              <Loader2 className="size-4 animate-spin" aria-hidden="true" />
-              {voiceBusy ? "Transcribing voice note…" : "Thinking…"}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
-        </div>
-      </ScrollArea>
+            {(state.assistantBusy || voiceBusy) && (
+              <div className="inline-flex max-w-fit items-center gap-2 rounded-2xl rounded-tl-sm bg-bg-2 px-3 py-2 text-sm text-muted-foreground">
+                <Loader2 className="size-4 animate-spin" aria-hidden="true" />
+                {voiceBusy ? "Transcribing voice note…" : "Thinking…"}
+              </div>
+            )}
+            <div ref={messagesEndRef} />
+          </div>
+        </ScrollArea>
+      </div>
 
-      <div className="border-t border-border px-3 py-3">
+      <div className="rounded-2xl border border-border bg-bg-1/70 p-3">
         <label htmlFor="qvac-assistant-input" className="sr-only">
           Ask QVAC
         </label>
         <div className="rounded-xl border border-border bg-bg-0 p-2">
           <Textarea
+            ref={textareaRef}
             id="qvac-assistant-input"
             value={input}
             onChange={(event) => setInput(event.target.value)}
@@ -178,11 +218,11 @@ export default function QvacAssistantChat() {
             className="min-h-[88px] resize-none border-0 bg-transparent px-1 py-1 text-sm text-foreground shadow-none focus-visible:ring-0"
             disabled={state.assistantBusy || voiceBusy}
           />
-          <div className="mt-2 flex items-center justify-between gap-2">
+          <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <p className="text-[11px] text-muted-foreground">
               Enter to send · Shift+Enter for a new line
             </p>
-            <div className="flex items-center gap-2">
+            <div className="flex w-full items-center justify-end gap-2 sm:w-auto sm:shrink-0">
               <Button
                 type="button"
                 variant="outline"
@@ -201,7 +241,7 @@ export default function QvacAssistantChat() {
                 type="button"
                 onClick={() => void sendMessage(input)}
                 disabled={!input.trim() || state.assistantBusy || voiceBusy}
-                className="h-10 rounded-lg bg-cusp-teal px-3 text-primary-foreground hover:bg-cusp-teal/90"
+                className="h-10 min-w-10 shrink-0 rounded-lg bg-cusp-teal px-3 text-primary-foreground hover:bg-cusp-teal/90"
               >
                 {state.assistantBusy ? (
                   <Loader2 className="size-4 animate-spin" aria-hidden="true" />

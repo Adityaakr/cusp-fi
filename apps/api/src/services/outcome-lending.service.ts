@@ -809,9 +809,12 @@ export async function getMainnetPoolState(params?: {
   let onchainBalance = 0;
   try {
     poolPublicKey = getMainnetPoolPublicKey().toBase58();
-    onchainBalance = await getMainnetPoolUsdcBalance();
   } catch {
     poolPublicKey = null;
+  }
+  try {
+    onchainBalance = await getMainnetPoolUsdcBalance();
+  } catch {
     onchainBalance = 0;
   }
   const loansResult = await railwayQuery<{ count: string }>(
@@ -895,8 +898,14 @@ async function listOnchainCustodiedCollateral(walletAddress: string): Promise<On
   if (!walletAddress) return [];
 
   const connection = getConnection();
-  const wallet = new PublicKey(walletAddress);
-  const pool = getMainnetPoolPublicKey();
+  let wallet: PublicKey;
+  let pool: PublicKey;
+  try {
+    wallet = new PublicKey(walletAddress);
+    pool = getMainnetPoolPublicKey();
+  } catch {
+    return [];
+  }
   const excludedMints = new Set<string>([
     USDC_MINT_MAINNET,
     "Es9vMFrzaCERn2QytQkwT4NSr8F3rzA4XB9vNehqWj6q",
@@ -1020,7 +1029,13 @@ export async function listOutcomeCollateralPositions(params: {
     [params.wallet_address]
   );
 
-  const custodyWallet = getMainnetPoolPublicKey().toBase58();
+  const custodyWallet = (() => {
+    try {
+      return getMainnetPoolPublicKey().toBase58();
+    } catch {
+      return "";
+    }
+  })();
 
   if (result.rows.length > 0) {
     return Promise.all(
@@ -1140,14 +1155,29 @@ export async function registerMainnetPoolDeposit(params: {
 }): Promise<MainnetPoolDepositResult> {
   const { wallet_address, tx_signature } = params;
   const amountUsdc = toNumber(params.amount_usdc);
+  console.info("[service][mainnet-pool][deposit] start", {
+    wallet_address,
+    tx_signature,
+    amountUsdc,
+    pool_slug: params.pool_slug,
+  });
   if (!wallet_address || !tx_signature || amountUsdc <= 0) {
+    console.warn("[service][mainnet-pool][deposit] invalid params", {
+      wallet_address,
+      tx_signature,
+      amountUsdc,
+    });
     return { success: false, error: "wallet_address, tx_signature, and amount_usdc are required" };
   }
 
   const confirmed = await confirmTransaction(tx_signature);
   if (!confirmed) {
+    console.warn("[service][mainnet-pool][deposit] tx not confirmed", {
+      tx_signature,
+    });
     return { success: false, error: "Deposit transaction not confirmed" };
   }
+  console.info("[service][mainnet-pool][deposit] tx confirmed", { tx_signature });
 
   const validTransfer = await verifyUsdcTransfer(
     tx_signature,
@@ -1155,12 +1185,28 @@ export async function registerMainnetPoolDeposit(params: {
     amountUsdc
   );
   if (!validTransfer) {
+    console.warn("[service][mainnet-pool][deposit] transfer verification failed", {
+      tx_signature,
+      amountUsdc,
+    });
     return { success: false, error: "USDC transfer verification failed for mainnet pool" };
   }
+  console.info("[service][mainnet-pool][deposit] transfer verified", {
+    tx_signature,
+    amountUsdc,
+  });
 
   const pool = await getPool(params.pool_slug);
+  console.info("[service][mainnet-pool][deposit] pool loaded", {
+    poolId: pool.id,
+    poolSlug: pool.slug,
+  });
   const result = await withRailwayTransaction(async (client) => {
     const userId = await getOrCreateUserId(wallet_address, client);
+    console.info("[service][mainnet-pool][deposit] user resolved", {
+      wallet_address,
+      userId,
+    });
     const updatedPool = await client.query<{
       available_liquidity: string | number;
     }>(
@@ -1197,6 +1243,11 @@ export async function registerMainnetPoolDeposit(params: {
     return updatedPool.rows[0];
   });
 
+  console.info("[service][mainnet-pool][deposit] success", {
+    poolSlug: pool.slug,
+    amountUsdc,
+    availableLiquidity: toNumber(result?.available_liquidity),
+  });
   return {
     success: true,
     pool_slug: pool.slug,

@@ -92,14 +92,24 @@ router.get("/api/outcome-collateral/by-mint/:mint", async (req, res) => {
 router.post("/api/mainnet-pool/deposit", async (req, res) => {
   try {
     const { wallet_address, tx_signature, amount_usdc, pool_slug } = req.body;
+    console.info("[api][mainnet-pool][deposit] request", {
+      wallet_address,
+      tx_signature,
+      amount_usdc,
+      pool_slug,
+    });
     const result = await registerMainnetPoolDeposit({
       wallet_address,
       tx_signature,
       amount_usdc,
       pool_slug,
     });
+    console.info("[api][mainnet-pool][deposit] response", result);
     res.status(result.success ? 200 : 400).json(result);
   } catch (err) {
+    console.error("[api][mainnet-pool][deposit] failed", {
+      error: err instanceof Error ? err.message : err,
+    });
     res.status(500).json({
       success: false,
       error: err instanceof Error ? err.message : "Mainnet pool deposit failed",

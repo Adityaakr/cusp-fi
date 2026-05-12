@@ -222,16 +222,16 @@ export async function previewAssistantIntent(
       const command: AnyQvacCommand = {
         intent_id: crypto.randomUUID(),
         user_wallet: wallet,
-        input_accounting_asset: "USDT",
-        underlying_asset: "USDT",
-        execution_asset: "USDT",
+        input_accounting_asset: "USDC",
+        underlying_asset: "USDC",
+        execution_asset: "USDC",
         amount_ui: intent.amount_ui ?? 1,
         requires_user_confirmation: true,
         service: "leverage_trade",
         action: "close",
         margin_asset: "cUSDT",
         margin_amount_ui: intent.amount_ui ?? 1,
-        borrow_asset: "USDT",
+        borrow_asset: "USDC",
         leverage: 1.1,
         market_query: intent.resolved_market_ticker,
         side: intent.side ?? "yes",
@@ -273,16 +273,16 @@ export async function previewAssistantIntent(
     const command: AnyQvacCommand = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
-      input_accounting_asset: "USDT",
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      input_accounting_asset: "USDC",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: intent.amount_ui ?? 1,
       requires_user_confirmation: true,
       service: "leverage_trade",
       action: "close",
       margin_asset: "cUSDT",
       margin_amount_ui: intent.amount_ui ?? 1,
-      borrow_asset: "USDT",
+      borrow_asset: "USDC",
       leverage: 1.1,
       market_query: resolved.resolved.market_ticker,
       side: (intent.side ?? resolved.resolved.side.toLowerCase()) as TradeSide,
@@ -313,19 +313,19 @@ export async function previewAssistantIntent(
 
   if (intent.type === "lend_deposit") {
     const amount = intent.amount_ui ?? 0;
-    if (!amount || amount <= 0) return intentError(intent, "Specify how much cUSDT to lend (amount_ui).");
+    if (!amount || amount <= 0) return intentError(intent, "Specify how much USDC to lend (amount_ui).");
     const pool = normalizePoolSlug(intent.pool);
     const command: AnyQvacCommand = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
-      input_accounting_asset: "cUSDT",
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      input_accounting_asset: "USDC",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: amount,
       requires_user_confirmation: true,
       service: "lend",
       action: "deposit",
-      input_asset: "cUSDT",
+      input_asset: "USDC",
       pool,
     };
     const routeResult = await routeQvacCommand(command);
@@ -347,14 +347,14 @@ export async function previewAssistantIntent(
     const command: AnyQvacCommand = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
-      input_accounting_asset: "cUSDT",
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      input_accounting_asset: "USDC",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: amount,
       requires_user_confirmation: true,
       service: "lend",
       action: "withdraw",
-      input_asset: "cUSDT",
+      input_asset: "USDC",
       pool,
     };
     const routeResult = await routeQvacCommand(command);
@@ -374,15 +374,15 @@ export async function previewAssistantIntent(
     const borrowAmt = intent.borrow_amount_ui ?? 0;
     if (!collateralAmt || collateralAmt <= 0) return intentError(intent, "Specify how much collateral to provide.");
     if (!borrowAmt || borrowAmt <= 0) return intentError(intent, "Specify how much you want to borrow.");
-    const collateral_asset = (intent.collateral_asset ?? "USDT") as Asset;
-    const borrow_asset = (intent.borrow_asset ?? "USDT") as Asset;
+    const collateral_asset = (intent.collateral_asset ?? "USDC") as Asset;
+    const borrow_asset = (intent.borrow_asset ?? "USDC") as Asset;
     const risk_mode = normalizeRiskMode(intent.risk_mode);
     const command: AnyQvacCommand = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
       input_accounting_asset: collateral_asset,
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: collateralAmt,
       requires_user_confirmation: true,
       service: "borrow",
@@ -409,13 +409,13 @@ export async function previewAssistantIntent(
     const unlockAmt = intent.amount_ui ?? 0;
     if (!repayAmt || repayAmt <= 0) return intentError(intent, "Specify how much to repay.");
     if (!unlockAmt || unlockAmt <= 0) return intentError(intent, "Specify how much collateral to unlock.");
-    const repay_asset = (intent.repay_asset ?? "USDT") as Asset;
+    const repay_asset = (intent.repay_asset ?? "USDC") as Asset;
     const command: AnyQvacCommand = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
       input_accounting_asset: repay_asset,
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: unlockAmt,
       requires_user_confirmation: true,
       service: "borrow",
@@ -471,14 +471,14 @@ export async function previewAssistantIntent(
     command = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
-      input_accounting_asset: "USDT",
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      input_accounting_asset: "USDC",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: amount,
       requires_user_confirmation: true,
       service: "direct_trade",
       action: "buy",
-      input_asset: (intent.asset ?? "USDT") as Asset,
+      input_asset: (intent.asset ?? "USDC") as Asset,
       input_amount_ui: amount,
       market_query: resolvedMarket.ticker,
       side,
@@ -488,16 +488,16 @@ export async function previewAssistantIntent(
     command = {
       intent_id: crypto.randomUUID(),
       user_wallet: wallet,
-      input_accounting_asset: "USDT",
-      underlying_asset: "USDT",
-      execution_asset: "USDT",
+      input_accounting_asset: "USDC",
+      underlying_asset: "USDC",
+      execution_asset: "USDC",
       amount_ui: amount,
       requires_user_confirmation: true,
       service: "leverage_trade",
       action: "open",
       margin_asset: "cUSDT",
       margin_amount_ui: amount,
-      borrow_asset: "USDT",
+      borrow_asset: "USDC",
       leverage: Math.max(1.1, Math.min(intent.leverage ?? 2, 3)),
       market_query: resolvedMarket.ticker,
       side,
