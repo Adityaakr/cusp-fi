@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { hasInviteAccess, setInviteCode } from "@/lib/access";
+import { hasInviteAccess, isInviteGateBypassed, setInviteCode } from "@/lib/access";
 import { motion } from "framer-motion";
 import { FormEvent, ReactNode, useEffect, useState } from "react";
 
@@ -8,12 +8,16 @@ interface AccessGateProps {
 }
 
 const AccessGate = ({ children }: AccessGateProps) => {
-  const [status, setStatus] = useState<"checking" | "locked" | "unlocked">("checking");
+  const bypass = isInviteGateBypassed();
+  const [status, setStatus] = useState<"checking" | "locked" | "unlocked">(
+    bypass ? "unlocked" : "checking",
+  );
   const [inviteInput, setInviteInput] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
+    if (bypass) return;
     let cancelled = false;
     hasInviteAccess().then((ok) => {
       if (!cancelled) setStatus(ok ? "unlocked" : "locked");
@@ -21,7 +25,7 @@ const AccessGate = ({ children }: AccessGateProps) => {
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [bypass]);
 
   const handleSubmit = async (event: FormEvent) => {
     event.preventDefault();

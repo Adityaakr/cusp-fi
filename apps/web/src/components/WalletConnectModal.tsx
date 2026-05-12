@@ -7,10 +7,10 @@ interface WalletConnectModalProps {
 }
 
 const wallets = [
-  { name: "Phantom", icon: "👻" },
-  { name: "Solflare", icon: "☀️" },
-  { name: "Backpack", icon: "🎒" },
-  { name: "Ledger", icon: "🔐" },
+  { name: "Solflare", icon: "\u2600\uFE0F" },
+  { name: "Phantom", icon: "\uD83D\uDC7B" },
+  { name: "Backpack", icon: "\uD83C\uDF92" },
+  { name: "Ledger", icon: "\uD83D\uDD10" },
 ];
 
 const WalletConnectModal = ({ isOpen, onClose }: WalletConnectModalProps) => {
