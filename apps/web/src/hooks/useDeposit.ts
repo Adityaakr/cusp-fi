@@ -1,21 +1,20 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
-import { getConnection, USDC_MINT } from "@/lib/solana";
+import { usePhantom, useSolana } from "@/lib/wallet";
+import {
+  getConnection,
+  getCusdcMint,
+  getVaultPublicKey,
+  getVaultUsdcAccount,
+  USDC_MINT,
+} from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
   createAssociatedTokenAccountInstruction,
   TOKEN_PROGRAM_ID,
   ASSOCIATED_TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import {
-  PublicKey,
-  VersionedTransaction,
-  TransactionMessage,
-  TransactionInstruction,
-  SystemProgram,
-  SYSVAR_RENT_PUBKEY,
-} from "@solana/web3.js";
+import { PublicKey, VersionedTransaction, TransactionMessage, TransactionInstruction } from "@solana/web3.js";
 import { SOLANA_NETWORK } from "@/lib/network-config";
 import { supabase } from "@/lib/supabase";
 
@@ -23,13 +22,8 @@ const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
 );
 
-// Anchor discriminator for "deposit"
+// Legacy-compatible discriminator for "deposit"
 const DEPOSIT_DISCRIMINATOR = Buffer.from([242, 35, 198, 137, 82, 225, 242, 182]);
-
-// Derive vault PDAs
-const [VAULT_STATE] = PublicKey.findProgramAddressSync([Buffer.from("vault")], VAULT_PROGRAM_ID);
-const [CUSDC_MINT] = PublicKey.findProgramAddressSync([Buffer.from("cusdc-mint")], VAULT_PROGRAM_ID);
-const [VAULT_USDC_ACCOUNT] = PublicKey.findProgramAddressSync([Buffer.from("vault-usdc")], VAULT_PROGRAM_ID);
 
 export type DepositStatus =
   | "idle"
@@ -66,23 +60,35 @@ export function useDeposit() {
       const connection = getConnection();
       const userPubkey = new PublicKey(solanaAddress);
       const amountAtomic = Math.round(amountUsdc * 1e6);
+      const vaultState = getVaultPublicKey();
+      const cusdcMint = getCusdcMint();
+      const vaultUsdcAccount = getVaultUsdcAccount();
 
-      // Get user's USDC and cUSDC token accounts
+      if (!vaultState || !cusdcMint || !vaultUsdcAccount) {
+        throw new Error("Vault addresses are not configured");
+      }
+
+      // Get user's USDT and cUSDT token accounts
       const userUsdcAta = await getAssociatedTokenAddress(
         USDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
       const userCusdcAta = await getAssociatedTokenAddress(
-        CUSDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+        cusdcMint, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
+
+      const preCusdcBalancePromise = connection
+        .getTokenAccountBalance(userCusdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
 
       const instructions: TransactionInstruction[] = [];
 
-      // Create cUSDC ATA if it doesn't exist
+      // Create cUSDT ATA if it doesn't exist
       const cusdcAccount = await connection.getAccountInfo(userCusdcAta);
       if (!cusdcAccount) {
         instructions.push(
           createAssociatedTokenAccountInstruction(
-            userPubkey, userCusdcAta, userPubkey, CUSDC_MINT,
+            userPubkey, userCusdcAta, userPubkey, cusdcMint,
             TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
           )
         );
@@ -99,9 +105,9 @@ export function useDeposit() {
           programId: VAULT_PROGRAM_ID,
           keys: [
             { pubkey: userPubkey, isSigner: true, isWritable: true },       // user
-            { pubkey: VAULT_STATE, isSigner: false, isWritable: true },     // vault_state
-            { pubkey: CUSDC_MINT, isSigner: false, isWritable: true },      // cusdc_mint
-            { pubkey: VAULT_USDC_ACCOUNT, isSigner: false, isWritable: true }, // vault_usdc_account
+            { pubkey: vaultState, isSigner: false, isWritable: true },     // vault_state
+            { pubkey: cusdcMint, isSigner: false, isWritable: true },      // cusdc_mint
+            { pubkey: vaultUsdcAccount, isSigner: false, isWritable: true }, // vault_usdc_account
             { pubkey: userUsdcAta, isSigner: false, isWritable: true },     // user_usdc_account
             { pubkey: userCusdcAta, isSigner: false, isWritable: true },    // user_cusdc_account
             { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // token_program
@@ -120,17 +126,22 @@ export function useDeposit() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signResult = await solana.signAndSendTransaction(tx);
-      const signature =
-        typeof signResult === "string"
-          ? signResult
-          : signResult?.signature ?? "";
+      const signature = await solana.signAndSendTransaction(tx, connection);
 
       setTxSignature(signature);
       setStatus("confirming");
 
       // Wait for confirmation
       await connection.confirmTransaction(signature, "confirmed");
+
+      const postCusdcBalance = await connection
+        .getTokenAccountBalance(userCusdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
+      const preCusdcBalance = await preCusdcBalancePromise;
+      const cusdcMinted = Math.max(postCusdcBalance - preCusdcBalance, 0);
+      const realizedExchangeRate =
+        cusdcMinted > 0 ? amountUsdc / cusdcMinted : 1;
 
       // Record deposit in Supabase so portfolio & realtime pick it up
       if (supabase && solanaAddress) {
@@ -139,13 +150,12 @@ export function useDeposit() {
             p_wallet_address: solanaAddress,
           });
 
-          const cusdcMinted = amountUsdc; // 1:1 at launch exchange rate
           if (userId) {
             await supabase.from("deposits").insert({
               user_id: userId,
               amount_usdc: amountUsdc,
               cusdc_minted: cusdcMinted,
-              exchange_rate: 1,
+              exchange_rate: realizedExchangeRate,
               tx_signature: signature,
               status: "confirmed",
               deposit_type: "vault",
@@ -167,6 +177,7 @@ export function useDeposit() {
 
       await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["exchangeRateHistory"] }),
         queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
         queryClient.refetchQueries({ queryKey: ["protocolState"] }),
         queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),

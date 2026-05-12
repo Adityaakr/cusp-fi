@@ -1,7 +1,13 @@
 import { useState } from "react";
 import { useQueryClient } from "@tanstack/react-query";
-import { usePhantom, useSolana } from "@phantom/react-sdk";
-import { getConnection, USDC_MINT } from "@/lib/solana";
+import { usePhantom, useSolana } from "@/lib/wallet";
+import {
+  getConnection,
+  getCusdcMint,
+  getVaultPublicKey,
+  getVaultUsdcAccount,
+  USDC_MINT,
+} from "@/lib/solana";
 import {
   getAssociatedTokenAddress,
   TOKEN_PROGRAM_ID,
@@ -20,12 +26,8 @@ const VAULT_PROGRAM_ID = new PublicKey(
   import.meta.env.VITE_VAULT_PROGRAM_ID || "EtGTQ9pmcnkYtTdorACENJPBmYVeWo8vrDzH7kU1K7DQ"
 );
 
-// Anchor discriminator for "withdraw"
+// Legacy-compatible discriminator for "withdraw"
 const WITHDRAW_DISCRIMINATOR = Buffer.from([183, 18, 70, 156, 148, 109, 161, 34]);
-
-const [VAULT_STATE] = PublicKey.findProgramAddressSync([Buffer.from("vault")], VAULT_PROGRAM_ID);
-const [CUSDC_MINT] = PublicKey.findProgramAddressSync([Buffer.from("cusdc-mint")], VAULT_PROGRAM_ID);
-const [VAULT_USDC_ACCOUNT] = PublicKey.findProgramAddressSync([Buffer.from("vault-usdc")], VAULT_PROGRAM_ID);
 
 export type WithdrawStatus =
   | "idle"
@@ -62,13 +64,25 @@ export function useWithdraw() {
       const connection = getConnection();
       const userPubkey = new PublicKey(solanaAddress);
       const amountAtomic = Math.round(cusdcAmount * 1e6);
+      const vaultState = getVaultPublicKey();
+      const cusdcMint = getCusdcMint();
+      const vaultUsdcAccount = getVaultUsdcAccount();
+
+      if (!vaultState || !cusdcMint || !vaultUsdcAccount) {
+        throw new Error("Vault addresses are not configured");
+      }
 
       const userUsdcAta = await getAssociatedTokenAddress(
         USDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
       const userCusdcAta = await getAssociatedTokenAddress(
-        CUSDC_MINT, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
+        cusdcMint, userPubkey, false, TOKEN_PROGRAM_ID, ASSOCIATED_TOKEN_PROGRAM_ID
       );
+
+      const preUsdcBalancePromise = connection
+        .getTokenAccountBalance(userUsdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
 
       // Build withdraw instruction
       // Data: discriminator (8 bytes) + cusdc_amount (u64 LE, 8 bytes)
@@ -80,9 +94,9 @@ export function useWithdraw() {
         programId: VAULT_PROGRAM_ID,
         keys: [
           { pubkey: userPubkey, isSigner: true, isWritable: true },       // user
-          { pubkey: VAULT_STATE, isSigner: false, isWritable: true },     // vault_state
-          { pubkey: CUSDC_MINT, isSigner: false, isWritable: true },      // cusdc_mint
-          { pubkey: VAULT_USDC_ACCOUNT, isSigner: false, isWritable: true }, // vault_usdc_account
+          { pubkey: vaultState, isSigner: false, isWritable: true },     // vault_state
+          { pubkey: cusdcMint, isSigner: false, isWritable: true },      // cusdc_mint
+          { pubkey: vaultUsdcAccount, isSigner: false, isWritable: true }, // vault_usdc_account
           { pubkey: userUsdcAta, isSigner: false, isWritable: true },     // user_usdc_account
           { pubkey: userCusdcAta, isSigner: false, isWritable: true },    // user_cusdc_account
           { pubkey: TOKEN_PROGRAM_ID, isSigner: false, isWritable: false }, // token_program
@@ -100,16 +114,21 @@ export function useWithdraw() {
       const tx = new VersionedTransaction(messageV0);
 
       setStatus("signing");
-      const signResult = await solana.signAndSendTransaction(tx);
-      const signature =
-        typeof signResult === "string"
-          ? signResult
-          : signResult?.signature ?? "";
+      const signature = await solana.signAndSendTransaction(tx, connection);
 
       setTxSignature(signature);
       setStatus("confirming");
 
       await connection.confirmTransaction(signature, "confirmed");
+
+      const postUsdcBalance = await connection
+        .getTokenAccountBalance(userUsdcAta)
+        .then((result) => result.value.uiAmount ?? 0)
+        .catch(() => 0);
+      const preUsdcBalance = await preUsdcBalancePromise;
+      const usdcReceived = Math.max(postUsdcBalance - preUsdcBalance, 0);
+      const realizedExchangeRate =
+        cusdcAmount > 0 ? usdcReceived / cusdcAmount : 1;
 
       // Record withdrawal in Supabase
       if (supabase && solanaAddress) {
@@ -119,12 +138,11 @@ export function useWithdraw() {
           });
 
           if (userId) {
-            const usdcReceived = cusdcAmount; // 1:1 at launch
             await supabase.from("withdrawals").insert({
               user_id: userId,
               cusdc_amount: cusdcAmount,
               usdc_amount: usdcReceived,
-              exchange_rate: 1,
+              exchange_rate: realizedExchangeRate,
               withdrawal_type: "vault",
               status: "completed",
               tx_signature: signature,
@@ -141,6 +159,7 @@ export function useWithdraw() {
 
       await Promise.allSettled([
         queryClient.invalidateQueries({ queryKey: ["protocolState"] }),
+        queryClient.invalidateQueries({ queryKey: ["exchangeRateHistory"] }),
         queryClient.invalidateQueries({ queryKey: ["userPortfolio"] }),
         queryClient.refetchQueries({ queryKey: ["protocolState"] }),
         queryClient.refetchQueries({ queryKey: ["userPortfolio"] }),
