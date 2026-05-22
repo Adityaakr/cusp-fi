@@ -88,7 +88,7 @@ const Index = () => {
             <motion.div initial="hidden" animate="visible" variants={fadeUp} custom={0}>
               <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border bg-bg-1 text-[11px] font-mono text-muted-foreground mb-6">
                 <span className="w-1.5 h-1.5 rounded-full bg-cusp-teal animate-live-pulse" />
-                The DeFi layer for prediction markets
+                The DeFi capital layer for prediction markets
               </div>
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-semibold text-foreground leading-[1.1] tracking-tight mb-5">
                 Your prediction market positions shouldn't sit idle.
@@ -151,7 +151,7 @@ const Index = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-10">
           <div className="flex flex-col items-center justify-center gap-5 sm:flex-row sm:flex-wrap sm:gap-8 lg:-ml-20">
             <span className="shrink-0 text-[18px] font-mono uppercase tracking-[0.22em] text-muted-foreground">
-              Backed by
+              Supported by
             </span>
             <div className="flex flex-wrap items-center justify-center gap-5 text-2xl text-foreground">
               <a

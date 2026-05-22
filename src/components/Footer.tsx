@@ -11,7 +11,7 @@ const Footer = () => {
               <span className="font-semibold text-foreground text-sm">Cusp</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto sm:mx-0">
-              The DeFi layer for prediction markets. Borrow, lend, and leverage your Kalshi positions on Solana.
+              The DeFi capital layer for prediction markets. Borrow, lend, and leverage your Kalshi positions on Solana.
             </p>
           </div>
 
