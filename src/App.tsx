@@ -16,6 +16,7 @@ import Portfolio from "./pages/Portfolio";
 import Docs from "./pages/Docs";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
+import Waitlist from "./pages/Waitlist";
 
 const queryClient = new QueryClient();
 
@@ -37,6 +38,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Index />} />
+            <Route path="/waitlist" element={<Waitlist />} />
             <Route path="/vault" element={protectedRoute(<Vault />)} />
             <Route path="/lend" element={protectedRoute(<Lend />)} />
             <Route path="/markets" element={protectedRoute(<Markets />)} />

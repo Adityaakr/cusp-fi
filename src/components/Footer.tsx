@@ -38,9 +38,8 @@ const Footer = () => {
           <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Company</h4>
             <div className="space-y-2">
-              <a href="/#waitlist" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Waitlist</a>
-              <a href="#" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Twitter</a>
-              <a href="#" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Discord</a>
+              <Link to="/waitlist" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Waitlist</Link>
+              <a href="https://x.com/usecusp" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Twitter</a>
               <a href="mailto:hello@cusp.fi" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Contact</a>
             </div>
           </div>

@@ -1,13 +1,14 @@
 import APYBreakdown from "@/components/APYBreakdown";
 import Layout from "@/components/Layout";
 import ProbabilityBar from "@/components/ProbabilityBar";
+import WaitlistCapture from "@/components/WaitlistCapture";
 import YieldCounter from "@/components/YieldCounter";
 import { faqItems } from "@/data/mockData";
+import { useWaitlistSignup } from "@/hooks/useWaitlistSignup";
 import { useDflowMarkets } from "@/hooks/useDflowMarkets";
 import { useProtocolState } from "@/hooks/useProtocolState";
-import { supabase } from "@/lib/supabase";
 import { motion } from "framer-motion";
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 const fadeUp = {
@@ -61,37 +62,10 @@ const blurRevealUnderline = {
 
 const Index = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
-
-  const [waitlistEmail, setWaitlistEmail] = useState("");
-  const [waitlistStatus, setWaitlistStatus] = useState<"idle" | "loading" | "success" | "error">("idle");
-  const [waitlistError, setWaitlistError] = useState("");
-  const [waitlistCount, setWaitlistCount] = useState<number | null>(null);
+  const waitlist = useWaitlistSignup();
 
   const { data: markets = [] } = useDflowMarkets({ status: "active", limit: 50 });
   const { state: protocolState } = useProtocolState();
-
-  useEffect(() => {
-    if (!supabase) return;
-    supabase.rpc("get_waitlist_count").then(({ data }) => {
-      if (data !== null) setWaitlistCount(Number(data));
-    });
-  }, []);
-
-  const handleWaitlist = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!waitlistEmail.trim() || !supabase) return;
-    setWaitlistStatus("loading");
-    setWaitlistError("");
-    const { error } = await supabase.from("waitlist").insert({ email: waitlistEmail.trim().toLowerCase() });
-    if (error) {
-      setWaitlistStatus("error");
-      setWaitlistError(error.code === "23505" ? "Already registered." : "Something went wrong.");
-      return;
-    }
-    setWaitlistStatus("success");
-    setWaitlistEmail("");
-    setWaitlistCount((c) => (c !== null ? c + 1 : 1));
-  };
 
   const topMarkets = useMemo(
     () =>
@@ -450,40 +424,17 @@ const Index = () => {
       {/* Waitlist */}
       <section className="border-t border-border bg-bg-1/40" id="waitlist">
         <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
-          <h2 className="text-2xl md:text-3xl font-semibold text-foreground mb-3 tracking-tight">
-            Idle capital ends here
-          </h2>
-          {waitlistCount !== null && (
-            <p className="text-xs text-muted-foreground mb-2">
-              <span className="font-mono text-cusp-teal font-semibold">{(waitlistCount + 100).toLocaleString()}</span> people on the waitlist
-            </p>
-          )}
-          <p className="text-sm text-muted-foreground mb-6">Early access to Cusp. We'll reach out when you're in.</p>
-          {waitlistStatus === "success" ? (
-            <p className="text-sm text-cusp-green font-medium">You're in. We'll be in touch.</p>
-          ) : (
-            <form onSubmit={handleWaitlist} className="flex gap-2 max-w-sm mx-auto">
-              <input
-                type="email"
-                value={waitlistEmail}
-                onChange={(e) => setWaitlistEmail(e.target.value)}
-                placeholder="you@example.com"
-                required
-                className="flex-1 bg-bg-2 border border-border rounded-md px-4 py-2.5 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-cusp-teal/50"
-                disabled={waitlistStatus === "loading"}
-              />
-              <button
-                type="submit"
-                disabled={waitlistStatus === "loading"}
-                className="px-5 py-2.5 bg-cusp-teal text-primary-foreground rounded-md text-sm font-semibold hover:opacity-90 transition-opacity disabled:opacity-50"
-              >
-                {waitlistStatus === "loading" ? "Joining..." : "Join"}
-              </button>
-            </form>
-          )}
-          {waitlistStatus === "error" && (
-            <p className="text-xs text-cusp-red mt-2">{waitlistError}</p>
-          )}
+          <WaitlistCapture
+            waitlist={waitlist}
+            title="Idle capital ends here"
+            description="Early access to Cusp. We'll reach out when you're in."
+            className="text-center"
+          />
+          <div className="mt-4">
+            <Link to="/waitlist" className="text-sm text-cusp-teal transition-colors hover:text-cusp-teal/80">
+              Want the full alpha overview? Visit the waitlist page →
+            </Link>
+          </div>
         </div>
       </section>
     </Layout>
