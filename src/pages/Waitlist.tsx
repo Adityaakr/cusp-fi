@@ -299,13 +299,13 @@ const Waitlist = () => {
 
   const shareOnX = () => {
     const text = encodeURIComponent(
-      "Just joined the waitlist for @usecusp — the DeFi capital layer for prediction markets. Built on Solana.\n\nhttps://beta.cusp.fi/waitlist",
+      "Early on @usecusp 👀\n\nCUSP is building the DeFi capital layer on Solana starting with @Kalshi linked markets\n\nUse your prediction market position without closing it\n\nMore capital. better efficiency - all at once\n\nJoin now 👉 https://beta.cusp.fi/waitlist",
     );
     window.open(`https://x.com/intent/tweet?text=${text}`, "_blank");
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#060606] flex items-center justify-center px-4 py-16">
+    <div className="relative min-h-screen overflow-hidden bg-[#060606] flex items-center justify-center px-4 py-12 sm:py-16">
 
       {/* logo — top-left */}
       <Link
@@ -404,10 +404,10 @@ const Waitlist = () => {
         initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.3 }}
-        className="relative z-10 w-full max-w-[420px]"
+        className="relative z-10 w-full max-w-[420px] mt-10 sm:mt-0"
       >
         <div
-          className="rounded-2xl bg-[#070707]/[0.96] p-8 backdrop-blur-2xl"
+          className="rounded-2xl bg-[#070707]/[0.96] p-5 sm:p-8 backdrop-blur-2xl"
           style={{
             border: "0.5px solid hsl(160 67% 48% / 0.35)",
             boxShadow: "0 0 18px hsl(160 67% 48% / 0.06), 0 8px 32px rgba(0,0,0,0.45)",
@@ -423,13 +423,12 @@ const Waitlist = () => {
             Early Access
           </span>
 
-          <h1 className="mt-5 text-[1.85rem] font-bold leading-[1.08] tracking-tight text-white">
+          <h1 className="mt-4 text-[1.45rem] sm:text-[1.85rem] font-bold leading-[1.1] tracking-tight text-white">
             The DeFi capital layer for prediction markets.
           </h1>
 
-          <p className="mt-3 text-sm leading-relaxed text-white/46">
+          <p className="mt-2.5 text-sm leading-relaxed text-white/46">
             Yield, credit, and portfolio tooling for event-market positions.
-            Private alpha. Join the queue.
           </p>
 
           {/* live count */}
@@ -451,7 +450,7 @@ const Waitlist = () => {
           )}
 
           {/* form / success */}
-          <div className="mt-6">
+          <div className="mt-4 sm:mt-6">
             {waitlist.status === "success" ? (
               <motion.div
                 initial={{ opacity: 0, y: 6 }}
@@ -518,7 +517,7 @@ const Waitlist = () => {
           </div>
         </div>
 
-        <p className="mt-5 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-white/16">
+        <p className="mt-4 text-center font-mono text-[10px] uppercase tracking-[0.18em] text-white/16">
           Built on Solana · Private alpha
         </p>
       </motion.div>
