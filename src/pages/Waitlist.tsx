@@ -254,27 +254,30 @@ const TEXT_FRAGMENTS = [
 
 const BgTextLayer = ({ reduceMotion }: { reduceMotion: boolean | null }) => (
   <>
-    {TEXT_FRAGMENTS.map(({ text, opacity, size, rotate, ...pos }, i) => (
-      <motion.span
-        key={i}
-        aria-hidden
-        initial={{ opacity: 0 }}
-        animate={{ opacity: Math.min(opacity * 1.9, 0.72) }}
-        transition={reduceMotion ? { duration: 0 } : { delay: 0.06 + i * 0.022, duration: 1.0 }}
-        className="pointer-events-none absolute font-mono uppercase tracking-widest whitespace-nowrap"
-        style={{
-          color: TEAL,
-          fontSize: size,
-          rotate,
-          opacity: 0,
-          ...("left" in pos ? { left: pos.left } : {}),
-          ...("right" in pos ? { right: pos.right } : {}),
-          top: pos.top,
-        }}
-      >
-        {text}
-      </motion.span>
-    ))}
+    {TEXT_FRAGMENTS.map(({ text, opacity, size, rotate, top, ...pos }, i) => {
+      const style: React.CSSProperties & { rotate?: string } = {
+        color: TEAL,
+        fontSize: size,
+        rotate,
+        opacity: 0,
+        top,
+      };
+      if ("left" in pos) style.left = (pos as { left: string }).left;
+      if ("right" in pos) style.right = (pos as { right: string }).right;
+      return (
+        <motion.span
+          key={i}
+          aria-hidden
+          initial={{ opacity: 0 }}
+          animate={{ opacity: Math.min(opacity * 1.9, 0.72) }}
+          transition={reduceMotion ? { duration: 0 } : { delay: 0.06 + i * 0.022, duration: 1.0 }}
+          className="pointer-events-none absolute font-mono uppercase tracking-widest whitespace-nowrap"
+          style={style}
+        >
+          {text}
+        </motion.span>
+      );
+    })}
   </>
 );
 
