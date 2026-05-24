@@ -305,7 +305,7 @@ const Waitlist = () => {
   };
 
   return (
-    <div className="relative min-h-screen overflow-hidden bg-[#060606] flex items-center justify-center px-4 py-12 sm:py-16">
+    <div className="relative h-[100dvh] sm:min-h-screen overflow-y-auto overflow-x-hidden bg-[#060606] flex items-center justify-center px-4 py-10 sm:py-16">
 
       {/* logo — top-left */}
       <Link
@@ -404,7 +404,7 @@ const Waitlist = () => {
         initial={reduceMotion ? false : { opacity: 0, y: 20, filter: "blur(8px)" }}
         animate={{ opacity: 1, y: 0, filter: "blur(0px)" }}
         transition={{ type: "spring", stiffness: 200, damping: 26, delay: 0.3 }}
-        className="relative z-10 w-full max-w-[420px] mt-10 sm:mt-0"
+        className="relative z-10 w-full max-w-[420px] mt-8 sm:mt-0"
       >
         <div
           className="rounded-2xl bg-[#070707]/[0.96] p-5 sm:p-8 backdrop-blur-2xl"
@@ -514,6 +514,21 @@ const Waitlist = () => {
                 )}
               </form>
             )}
+          </div>
+
+          <div className="mt-3 pt-2 border-t border-white/[0.06] flex items-center justify-center">
+            <a
+              href="https://x.com/usecusp"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="flex items-center gap-1.5 text-white/36 hover:text-white/70 transition-colors text-xs"
+            >
+              Follow us on{" "}
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+                <path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-4.714-6.231-5.401 6.231H2.744l7.73-8.835L1.254 2.25H8.08l4.253 5.622 5.911-5.622Zm-1.161 17.52h1.833L7.084 4.126H5.117z" />
+              </svg>{" "}
+              <span className="font-semibold">@usecusp</span>
+            </a>
           </div>
         </div>
 
