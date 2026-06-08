@@ -1,13 +1,14 @@
 import APYBreakdown from "@/components/APYBreakdown";
+import HowItWorks from "@/components/HowItWorks";
 import Layout from "@/components/Layout";
 import PlasmaBackdrop from "@/components/PlasmaBackdrop";
-import ProbabilityBar from "@/components/ProbabilityBar";
 import WaitlistCapture from "@/components/WaitlistCapture";
+import PlasmaCard from "@/components/ui/plasma-card";
 import { faqItems } from "@/data/mockData";
 import { useWaitlistSignup } from "@/hooks/useWaitlistSignup";
-import { useDflowMarkets } from "@/hooks/useDflowMarkets";
-import { motion, useMotionValue, useReducedMotion, useSpring, useTransform } from "framer-motion";
-import { useMemo, useRef, useState } from "react";
+import { AnimatePresence, motion } from "framer-motion";
+import { AlertTriangle, ArrowRight, ChevronDown, Gauge, Hourglass } from "lucide-react";
+import { useState } from "react";
 import { Link } from "react-router-dom";
 
 const fadeUp = {
@@ -59,56 +60,26 @@ const blurRevealUnderline = {
   },
 };
 
-/** Pointer-driven 3D tilt + scroll-reveal wrapper for cards. */
-const Tilt = ({
-  children,
-  className,
-  custom = 0,
-  max = 9,
-}: {
-  children: React.ReactNode;
-  className?: string;
-  custom?: number;
-  max?: number;
-}) => {
-  const reduce = useReducedMotion();
-  const ref = useRef<HTMLDivElement>(null);
-  const px = useMotionValue(0);
-  const py = useMotionValue(0);
-  const rotateX = useSpring(useTransform(py, [-0.5, 0.5], [max, -max]), { stiffness: 150, damping: 18 });
-  const rotateY = useSpring(useTransform(px, [-0.5, 0.5], [-max, max]), { stiffness: 150, damping: 18 });
-
-  const onMove = (e: React.MouseEvent<HTMLDivElement>) => {
-    if (reduce) return;
-    const rect = ref.current?.getBoundingClientRect();
-    if (!rect) return;
-    px.set((e.clientX - rect.left) / rect.width - 0.5);
-    py.set((e.clientY - rect.top) / rect.height - 0.5);
-  };
-  const onLeave = () => {
-    px.set(0);
-    py.set(0);
-  };
-
-  return (
-    <div style={{ perspective: 900 }}>
-      <motion.div
-        ref={ref}
-        onMouseMove={onMove}
-        onMouseLeave={onLeave}
-        initial="hidden"
-        whileInView="visible"
-        viewport={{ once: true, margin: "-60px" }}
-        variants={fadeUp}
-        custom={custom}
-        style={reduce ? undefined : { rotateX, rotateY, transformStyle: "preserve-3d" }}
-        className={className}
-      >
-        {children}
-      </motion.div>
-    </div>
-  );
-};
+const PROBLEMS = [
+  {
+    key: "risk",
+    Icon: AlertTriangle,
+    title: "Risk that's mispriced",
+    desc: "A claim at $0.90 isn't 90% safe — one headline can gap it to zero. Financed like spot collateral, the loan is underwater before anyone can react.",
+  },
+  {
+    key: "liquidation",
+    Icon: Gauge,
+    title: "Liquidations that can't clear",
+    desc: "Thin, event-driven books often have no bid to liquidate into. Forced unwinds slip badly or stall, and the loss lands on depositors.",
+  },
+  {
+    key: "settlement",
+    Icon: Hourglass,
+    title: "Settlement that lags the outcome",
+    desc: "A market resolves, but cash arrives days later over venue-specific rails. Capital sits frozen between “decided” and “paid.”",
+  },
+];
 
 const SUPPORTED_STRUCTURES = [
   { key: "binary", name: "Binary", desc: "One outcome pays, the other goes to zero." },
@@ -172,26 +143,56 @@ const StructureGlyph = ({ kind }: { kind: string }) => {
   }
 };
 
+/** Enlarged payoff curve for the collateral-coverage explorer panel. */
+const PayoffCurve = ({ kind }: { kind: string }) => {
+  const teal = "hsl(var(--cusp-teal))";
+  const muted = "hsl(var(--border))";
+  const line = {
+    fill: "none",
+    stroke: teal,
+    strokeWidth: 3,
+    strokeLinejoin: "round" as const,
+    strokeLinecap: "round" as const,
+  };
+  return (
+    <svg viewBox="0 0 240 130" className="h-full w-full" aria-hidden>
+      {/* axes */}
+      <line x1="20" y1="14" x2="20" y2="110" stroke={muted} strokeWidth="1.5" />
+      <line x1="20" y1="110" x2="226" y2="110" stroke={muted} strokeWidth="1.5" />
+      {kind === "binary" && <path d="M30 102 H120 V28 H216" {...line} />}
+      {kind === "scalar" && <path d="M30 102 L216 26" {...line} />}
+      {kind === "ladder" && <path d="M30 102 H74 V80 H118 V54 H162 V30 H216" {...line} />}
+      {kind === "categorical" &&
+        [
+          { x: 36, h: 24 },
+          { x: 84, h: 76 },
+          { x: 132, h: 34 },
+          { x: 180, h: 20 },
+        ].map((b, i) => (
+          <rect key={i} x={b.x} y={110 - b.h} width="26" height={b.h} rx="3" fill={b.h > 60 ? teal : muted} />
+        ))}
+      {kind === "conditional" && (
+        <>
+          <path d="M30 80 L112 80" {...line} />
+          <path d="M112 80 L216 30" {...line} />
+          <path d="M112 80 L216 92" fill="none" stroke={muted} strokeWidth="3" strokeDasharray="6 6" strokeLinecap="round" />
+          <circle cx="112" cy="80" r="4.5" fill={teal} />
+        </>
+      )}
+    </svg>
+  );
+};
+
 const Index = () => {
   const [openFaq, setOpenFaq] = useState<number | null>(null);
+  const [activeStruct, setActiveStruct] = useState(0);
   const waitlist = useWaitlistSignup();
 
-  const { data: markets = [] } = useDflowMarkets({ status: "active", limit: 50 });
-
-  const topMarkets = useMemo(
-    () =>
-      [...markets]
-        .filter((m) => m.probability >= 70)
-        .sort((a, b) => b.volume - a.volume)
-        .slice(0, 4),
-    [markets]
-  );
-
   return (
-    <Layout>
-      {/* Hero — immersive plasma backdrop */}
-      <section className="relative flex min-h-[88vh] items-center justify-center overflow-hidden bg-background dark:bg-black">
-        <PlasmaBackdrop />
+    <Layout fullBleed>
+      {/* Hero — immersive plasma backdrop, full-bleed behind the navbar */}
+      <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background dark:bg-black">
+        <PlasmaBackdrop interactive />
         {/* texture + legibility scrim over the plasma */}
         <div className="cusp-hero-grid pointer-events-none absolute inset-0 opacity-30" />
         <div
@@ -208,7 +209,7 @@ const Index = () => {
           initial="hidden"
           animate="visible"
           variants={blurRevealContainer}
-          className="relative z-10 mx-auto max-w-3xl px-4 py-28 text-center sm:px-6"
+          className="relative z-10 mx-auto max-w-3xl px-4 pb-28 pt-36 text-center sm:px-6"
         >
           <motion.div
             variants={fadeUp}
@@ -239,54 +240,122 @@ const Index = () => {
 
           <motion.div variants={fadeUp} custom={3} className="mt-9 flex flex-wrap items-center justify-center gap-3">
             <Link
-              to="/vault"
-              className="glow-teal inline-flex items-center rounded-md bg-cusp-teal px-6 py-2.5 text-sm font-semibold text-primary-foreground transition-opacity hover:opacity-90"
-            >
-              Launch App
-            </Link>
-            <Link
               to="/waitlist"
-              className="inline-flex items-center rounded-md border border-cusp-teal/40 bg-bg-0/40 px-6 py-2.5 text-sm font-medium text-cusp-teal backdrop-blur-sm transition-colors hover:bg-cusp-teal/5"
+              className="group glow-teal inline-flex items-center gap-2 rounded-full bg-cusp-teal px-7 py-3 text-sm font-semibold text-primary-foreground shadow-lg shadow-cusp-teal/25 ring-1 ring-inset ring-white/15 transition-all hover:bg-cusp-teal/90 hover:shadow-xl hover:shadow-cusp-teal/35"
             >
               Join the waitlist
+              <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
+            </Link>
+            <Link
+              to="/vault"
+              className="group inline-flex items-center gap-2 rounded-full border border-border bg-bg-0/40 px-6 py-3 text-sm font-medium text-foreground backdrop-blur-md transition-colors hover:border-cusp-teal/40 hover:text-cusp-teal"
+            >
+              Launch App
+              <span aria-hidden className="text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-cusp-teal">→</span>
             </Link>
           </motion.div>
         </motion.div>
       </section>
 
-      {/* Supported structures */}
+      {/* Problem — why event-driven assets break credit */}
       <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20">
-          <div className="mb-10 max-w-2xl">
-            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">Collateral support</span>
-            <h2 className="text-xl md:text-2xl font-semibold text-foreground tracking-tight mb-3">
-              Built for every payoff structure
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, margin: "-80px" }}
+            variants={fadeUp}
+            custom={0}
+            className="mb-12 max-w-2xl"
+          >
+            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">The problem</span>
+            <h2 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight mb-3">
+              Event-driven positions don't behave like normal collateral.
             </h2>
             <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
-              How a claim pays out decides how Cusp values and finances it.
+              Prediction-market claims jump, gap, and expire. The rails to lend against them safely don't exist yet.
             </p>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-3">
-            {SUPPORTED_STRUCTURES.map((s, i) => (
-              <Tilt
-                key={s.key}
+          </motion.div>
+          <div className="grid gap-3 md:grid-cols-3">
+            {PROBLEMS.map(({ key, Icon, title, desc }, i) => (
+              <motion.div
+                key={key}
+                initial="hidden"
+                whileInView="visible"
+                viewport={{ once: true, margin: "-60px" }}
+                variants={fadeUp}
                 custom={i}
-                className="flex h-full flex-col rounded-lg border border-border bg-bg-1 p-4 transition-colors hover:border-cusp-teal/40"
+                className="h-full"
               >
-                <div className="mb-4 flex h-6 items-center" style={{ transform: "translateZ(28px)" }}>
-                  <StructureGlyph kind={s.key} />
-                </div>
-                <div className="mb-1.5 text-sm font-semibold text-foreground" style={{ transform: "translateZ(18px)" }}>{s.name}</div>
-                <p className="text-xs leading-relaxed text-muted-foreground" style={{ transform: "translateZ(12px)" }}>{s.desc}</p>
-              </Tilt>
+                <PlasmaCard className="flex h-full flex-col p-6">
+                  <div className="mb-5 flex h-10 w-10 items-center justify-center rounded-lg border border-cusp-teal/30 bg-cusp-teal/10 text-cusp-teal">
+                    <Icon className="h-5 w-5" />
+                  </div>
+                  <h3 className="mb-2 text-lg font-semibold tracking-tight text-foreground">{title}</h3>
+                  <p className="text-sm leading-relaxed text-muted-foreground">{desc}</p>
+                </PlasmaCard>
+              </motion.div>
             ))}
           </div>
         </div>
       </section>
 
-      {/* Capabilities */}
-      <section className="border-t border-border bg-bg-1/40">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20">
+      {/* Principle interstitial — the thesis that answers the problem */}
+      <section className="relative overflow-hidden border-t border-border">
+        {/* contained plasma accent — feathered so it reads as a glow, not a panel */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-50 [mask-image:radial-gradient(ellipse_70%_60%_at_50%_45%,black,transparent_72%)]"
+        >
+          <PlasmaBackdrop />
+        </div>
+        <div className="relative z-10 mx-auto max-w-5xl px-4 py-24 text-center sm:px-6 md:py-32">
+          <motion.h2
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.45 }}
+            variants={blurRevealContainer}
+            className="mx-auto block max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl md:text-4xl"
+          >
+            {PRINCIPLE_LINE.split(" ").map((word, i) => (
+              <motion.span key={`${i}-${word}`} variants={blurRevealWord} className="mr-[0.25em] inline-block">
+                {word}
+              </motion.span>
+            ))}
+          </motion.h2>
+          <motion.div
+            initial="hidden"
+            whileInView="visible"
+            viewport={{ once: true, amount: 0.45 }}
+            variants={blurRevealUnderline}
+            className="mx-auto mt-12 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
+            aria-hidden
+          />
+        </div>
+      </section>
+
+      {/* How it works — animated step carousel */}
+      <section className="border-t border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-24">
+          <div className="mb-12 max-w-2xl">
+            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">How it works</span>
+            <h2 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">
+              From idle position to settled cash, in four moves.
+            </h2>
+          </div>
+          <HowItWorks />
+        </div>
+      </section>
+
+      {/* Capabilities — plasma-filled (alternating rhythm) */}
+      <section className="relative overflow-hidden border-t border-border">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-40 [mask-image:linear-gradient(to_bottom,transparent,black_14%,black_86%,transparent)]"
+        >
+          <PlasmaBackdrop />
+        </div>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20">
           <div className="mb-10">
             <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em]">What you can do</span>
           </div>
@@ -365,146 +434,197 @@ const Index = () => {
         </div>
       </section>
 
-      {/* Principle interstitial */}
+      {/* Supported structures — collateral coverage detail */}
+      <section className="border-t border-border">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16 md:py-20">
+          <div className="mb-10 max-w-2xl">
+            <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">Collateral coverage</span>
+            <h2 className="text-xl md:text-2xl font-semibold text-foreground tracking-tight mb-3">
+              Every payoff structure, priced for how it behaves.
+            </h2>
+            <p className="text-sm md:text-base text-muted-foreground leading-relaxed">
+              How a claim pays out decides how Cusp values and finances it.
+            </p>
+          </div>
+          <div className="grid items-start gap-8 md:grid-cols-[minmax(0,0.85fr)_minmax(0,1.15fr)] md:gap-12">
+            {/* selectable list */}
+            <div className="flex flex-col">
+              {SUPPORTED_STRUCTURES.map((s, i) => {
+                const active = activeStruct === i;
+                return (
+                  <button
+                    key={s.key}
+                    type="button"
+                    onMouseEnter={() => setActiveStruct(i)}
+                    onClick={() => setActiveStruct(i)}
+                    className={`group flex items-center justify-between gap-4 border-b py-4 text-left transition-colors ${
+                      active ? "border-cusp-teal/40" : "border-border hover:border-cusp-teal/25"
+                    }`}
+                  >
+                    <span className="flex items-center gap-3.5">
+                      <span className={`font-mono text-xs transition-colors ${active ? "text-cusp-teal" : "text-muted-foreground/50"}`}>
+                        {String(i + 1).padStart(2, "0")}
+                      </span>
+                      <span className={`text-lg font-medium transition-colors ${active ? "text-foreground" : "text-muted-foreground"}`}>
+                        {s.name}
+                      </span>
+                    </span>
+                    <ArrowRight
+                      className={`size-4 transition-all ${
+                        active
+                          ? "translate-x-0 text-cusp-teal opacity-100"
+                          : "-translate-x-1 text-muted-foreground/40 opacity-0 group-hover:opacity-60"
+                      }`}
+                    />
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* preview panel — pulled up into the heading's whitespace on desktop */}
+            <div className="md:-mt-24 lg:-mt-32">
+            <PlasmaCard persistent className="px-6 pb-6 pt-4 sm:px-8 sm:pb-8 sm:pt-5">
+              <AnimatePresence mode="wait">
+                <motion.div
+                  key={SUPPORTED_STRUCTURES[activeStruct].key}
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -10 }}
+                  transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                >
+                  <div className="mb-6 h-44 w-full rounded-lg border border-border/60 bg-bg-2/40 p-4">
+                    <PayoffCurve kind={SUPPORTED_STRUCTURES[activeStruct].key} />
+                  </div>
+                  <div className="mb-3 flex items-center gap-3">
+                    <StructureGlyph kind={SUPPORTED_STRUCTURES[activeStruct].key} />
+                    <span className="font-mono text-[11px] uppercase tracking-[0.2em] text-muted-foreground">
+                      Payoff
+                    </span>
+                  </div>
+                  <h3 className="text-xl font-semibold tracking-tight text-foreground">
+                    {SUPPORTED_STRUCTURES[activeStruct].name}
+                  </h3>
+                  <p className="mt-2 text-sm leading-relaxed text-muted-foreground">
+                    {SUPPORTED_STRUCTURES[activeStruct].desc}
+                  </p>
+                </motion.div>
+              </AnimatePresence>
+            </PlasmaCard>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      {/* FAQ — plasma-filled (alternating rhythm) */}
       <section className="relative overflow-hidden border-t border-border">
         <div
-          className="pointer-events-none absolute inset-0 opacity-40"
-          style={{
-            background:
-              "radial-gradient(ellipse 85% 55% at 50% 45%, hsl(var(--cusp-teal) / 0.12), transparent 65%)",
-          }}
-        />
-        <div className="relative mx-auto max-w-5xl px-4 py-24 text-center sm:px-6 md:py-32">
-          <motion.h2
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.45 }}
-            variants={blurRevealContainer}
-            className="mx-auto block max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl md:text-4xl"
-          >
-            {PRINCIPLE_LINE.split(" ").map((word, i) => (
-              <motion.span key={`${i}-${word}`} variants={blurRevealWord} className="inline-block">
-                {word}
-                {i < PRINCIPLE_LINE.split(" ").length - 1 ? " " : ""}
-              </motion.span>
-            ))}
-          </motion.h2>
-          <motion.div
-            initial="hidden"
-            whileInView="visible"
-            viewport={{ once: true, amount: 0.45 }}
-            variants={blurRevealUnderline}
-            className="mx-auto mt-12 h-px max-w-md origin-center bg-gradient-to-r from-transparent via-cusp-teal/45 to-transparent"
-            aria-hidden
-          />
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-40 [mask-image:linear-gradient(to_bottom,transparent,black_14%,black_86%,transparent)]"
+        >
+          <PlasmaBackdrop />
         </div>
-      </section>
-
-      {/* Live Markets */}
-      <section className="border-t border-border">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 py-16">
-          <motion.div initial="hidden" whileInView="visible" viewport={{ once: true }} variants={fadeUp} custom={0}>
-            <h2 className="text-xl md:text-2xl font-semibold text-foreground mb-1">Markets you can collateralize</h2>
-            <p className="text-sm text-muted-foreground mb-6">Live prediction markets you can collateralize</p>
-          </motion.div>
-
-          <div className="grid sm:grid-cols-2 lg:grid-cols-4 gap-3">
-            {topMarkets.map((market, i) => {
-              const daysLeft = Math.ceil((new Date(market.resolutionDate).getTime() - Date.now()) / 86400000);
-              return (
-                <Link key={market.id} to="/markets">
-                  <motion.div
-                    initial="hidden"
-                    whileInView="visible"
-                    viewport={{ once: true }}
-                    variants={fadeUp}
-                    custom={i}
-                    whileHover={{ y: -6, scale: 1.02 }}
-                    transition={{ type: "spring", stiffness: 300, damping: 22 }}
-                    className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 hover:border-cusp-teal/40 hover:shadow-xl hover:shadow-cusp-teal/5 transition-colors"
-                  >
-                    <div className="flex items-center gap-2 mb-2">
-                      <span className="text-[10px] font-mono px-1.5 py-0.5 rounded-sm bg-cusp-green/10 text-cusp-green">
-                        YES
-                      </span>
-                      <span className="font-mono text-xs text-cusp-teal">
-                        {market.estimatedYield > 0 ? `${market.estimatedYield.toFixed(1)}% yield` : ""}
-                      </span>
-                    </div>
-                    <h4 className="text-sm text-foreground mb-2 leading-snug">{market.name}</h4>
-                    <ProbabilityBar probability={market.probability} size="sm" />
-                    <div className="flex justify-between mt-2">
-                      <span className="font-mono text-xs text-muted-foreground">${market.yesPrice.toFixed(2)}</span>
-                      <span className="font-mono text-xs text-muted-foreground">{daysLeft}d left</span>
-                    </div>
-                  </motion.div>
-                </Link>
-              );
-            })}
-          </div>
-          {topMarkets.length === 0 && (
-            <p className="text-sm text-muted-foreground text-center py-8">Loading markets...</p>
-          )}
-        </div>
-      </section>
-
-      {/* FAQ */}
-      <section className="border-t border-border bg-bg-1/40">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-20">
+        <div className="relative z-10 max-w-3xl mx-auto px-4 sm:px-6 py-20">
           <div className="mb-10 text-center">
             <span className="text-[11px] font-mono text-cusp-teal uppercase tracking-[0.2em] block mb-3">Frequently Asked Questions</span>
             <h2 className="text-2xl md:text-3xl font-semibold text-foreground tracking-tight">Everything you wanted to know</h2>
           </div>
-          <div className="space-y-2">
-            {faqItems.slice(0, 5).map((item, i) => (
-              <div key={i} className="bg-bg-1 border border-border rounded-lg overflow-hidden">
-                <button
-                  onClick={() => setOpenFaq(openFaq === i ? null : i)}
-                  className="w-full text-left p-4 flex items-center justify-between hover:bg-bg-2 transition-colors"
+          <div className="space-y-2.5">
+            {faqItems.slice(0, 5).map((item, i) => {
+              const open = openFaq === i;
+              return (
+                <div
+                  key={i}
+                  className={`overflow-hidden rounded-xl border bg-bg-1 transition-colors ${
+                    open ? "border-cusp-teal/40" : "border-border hover:border-cusp-teal/30"
+                  }`}
                 >
-                  <span className="text-sm text-foreground pr-4 font-medium">{item.q}</span>
-                  <span className="text-muted-foreground text-lg shrink-0">{openFaq === i ? "−" : "+"}</span>
-                </button>
-                {openFaq === i && (
-                  <div className="px-4 pb-4">
-                    <p className="text-sm text-muted-foreground leading-relaxed">{item.a}</p>
-                  </div>
-                )}
-              </div>
-            ))}
+                  <button
+                    onClick={() => setOpenFaq(open ? null : i)}
+                    className="flex w-full items-center justify-between gap-4 p-4 text-left transition-colors hover:bg-bg-2/50"
+                  >
+                    <span className="text-sm font-medium text-foreground">{item.q}</span>
+                    <ChevronDown
+                      className={`size-4 shrink-0 text-muted-foreground transition-transform duration-300 ${open ? "rotate-180 text-cusp-teal" : ""}`}
+                    />
+                  </button>
+                  <AnimatePresence initial={false}>
+                    {open && (
+                      <motion.div
+                        initial={{ height: 0, opacity: 0 }}
+                        animate={{ height: "auto", opacity: 1 }}
+                        exit={{ height: 0, opacity: 0 }}
+                        transition={{ duration: 0.3, ease: [0.16, 1, 0.3, 1] }}
+                        className="overflow-hidden"
+                      >
+                        <p className="px-4 pb-4 text-sm leading-relaxed text-muted-foreground">{item.a}</p>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              );
+            })}
           </div>
         </div>
       </section>
 
       {/* About */}
       <section className="border-t border-border">
-        <div className="max-w-3xl mx-auto px-4 sm:px-6 py-16 text-center">
-          <p className="text-lg sm:text-xl text-foreground leading-snug font-medium tracking-tight">
-            Prediction markets move billions a year. The positions just sit there.
+        <div className="mx-auto max-w-3xl px-4 py-20 text-center sm:px-6">
+          <span className="mb-5 block font-mono text-[11px] uppercase tracking-[0.2em] text-cusp-teal">Why we're building Cusp</span>
+          <p className="text-2xl font-semibold leading-snug tracking-tight text-foreground sm:text-3xl">
+            Prediction markets move billions a month.
           </p>
-          <p className="mt-4 text-sm sm:text-base text-muted-foreground leading-relaxed">
+          <p className="mx-auto mt-5 max-w-2xl text-sm leading-relaxed text-muted-foreground sm:text-base">
             Cusp is the capital market that turns them into productive collateral: priced for how they really behave, financed without putting depositors at risk, and verifiable end to end.
           </p>
-          <p className="mt-4 text-sm text-foreground">
-            We are hiring founding engineers.{" "}
-            <a href="mailto:contact@cusp.fi" className="text-cusp-teal hover:underline">
-              Mail us at contact@cusp.fi
+          <div className="mx-auto mt-8 h-px max-w-xs bg-gradient-to-r from-transparent via-cusp-teal/40 to-transparent" />
+          <div className="mt-8 inline-flex flex-wrap items-center justify-center gap-x-2 gap-y-1 rounded-full border border-border bg-bg-1 px-5 py-2.5 text-sm">
+            <span className="text-muted-foreground">We're hiring founding engineers.</span>
+            <a href="mailto:contact@cusp.fi" className="font-medium text-cusp-teal transition-colors hover:text-cusp-teal/80">
+              contact@cusp.fi →
             </a>
-            .
-          </p>
+          </div>
         </div>
       </section>
 
-      {/* Waitlist */}
-      <section className="border-t border-border bg-bg-1/40" id="waitlist">
-        <div className="max-w-xl mx-auto px-4 sm:px-6 py-16 text-center">
-          <WaitlistCapture
-            waitlist={waitlist}
-            title="Get early access"
-            description="Cusp is in private alpha. We'll reach out when you're in."
-            className="text-center"
-          />
-          <div className="mt-4">
+      {/* Waitlist — plasma field, type on top (no container) */}
+      <section className="relative overflow-hidden border-t border-border" id="waitlist">
+        {/* full plasma field, faded into the page at the seams */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0 opacity-70 [mask-image:linear-gradient(to_bottom,transparent,black_16%,black_84%,transparent)]"
+        >
+          <PlasmaBackdrop />
+        </div>
+        {/* legibility scrim */}
+        <div
+          aria-hidden
+          className="pointer-events-none absolute inset-0"
+          style={{
+            background:
+              "radial-gradient(ellipse 55% 60% at 50% 50%, hsl(var(--background) / 0.55), transparent 75%)",
+          }}
+        />
+        <div className="relative z-10 mx-auto max-w-3xl px-4 py-28 text-center sm:px-6 sm:py-36">
+          <span className="mb-5 block font-mono text-[11px] uppercase tracking-[0.22em] text-cusp-teal">
+            Private alpha
+          </span>
+          <h2
+            className="text-5xl font-semibold leading-[1.02] tracking-tight text-foreground sm:text-6xl md:text-7xl"
+            style={{ textShadow: "0 2px 24px hsl(var(--background) / 0.85), 0 0 48px hsl(var(--background) / 0.5)" }}
+          >
+            Get early access
+          </h2>
+          <p
+            className="mx-auto mt-6 max-w-md text-base leading-relaxed text-muted-foreground sm:text-lg"
+            style={{ textShadow: "0 1px 16px hsl(var(--background) / 0.8)" }}
+          >
+            The capital layer for prediction markets. We'll reach out when you're in.
+          </p>
+          <div className="mx-auto mt-10 max-w-md">
+            <WaitlistCapture waitlist={waitlist} variant="editorial" />
+          </div>
+          <div className="mt-8">
             <Link to="/waitlist" className="text-sm text-cusp-teal transition-colors hover:text-cusp-teal/80">
               Want the full overview? Visit the waitlist page →
             </Link>
@@ -525,19 +645,27 @@ interface CapabilityCardProps {
 }
 
 const CapabilityCard = ({ eyebrow, title, body, href, cta, visual, index = 0 }: CapabilityCardProps & { index?: number }) => (
-  <Tilt custom={index} max={7} className="flex h-full flex-col rounded-lg border border-border bg-bg-1 p-5 transition-colors hover:border-cusp-teal/40">
-    <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.2em] text-cusp-teal" style={{ transform: "translateZ(30px)" }}>{eyebrow}</span>
-    <h3 className="mb-2 text-xl font-semibold tracking-tight text-foreground" style={{ transform: "translateZ(24px)" }}>{title}</h3>
-    <p className="mb-5 text-sm leading-relaxed text-muted-foreground" style={{ transform: "translateZ(16px)" }}>{body}</p>
-    <div className="mb-5 mt-auto rounded-md border border-border/60 bg-bg-2/50 p-4 shadow-lg" style={{ transform: "translateZ(40px)" }}>{visual}</div>
-    <Link
-      to={href}
-      className="inline-flex items-center gap-1.5 text-sm font-medium text-cusp-teal transition-all hover:gap-2.5"
-      style={{ transform: "translateZ(20px)" }}
-    >
-      {cta} <span aria-hidden>→</span>
-    </Link>
-  </Tilt>
+  <motion.div
+    initial="hidden"
+    whileInView="visible"
+    viewport={{ once: true, margin: "-60px" }}
+    variants={fadeUp}
+    custom={index}
+    className="h-full"
+  >
+    <PlasmaCard className="flex h-full flex-col p-5">
+      <span className="mb-2 block font-mono text-[11px] uppercase tracking-[0.2em] text-cusp-teal">{eyebrow}</span>
+      <h3 className="mb-2 text-xl font-semibold tracking-tight text-foreground">{title}</h3>
+      <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{body}</p>
+      <div className="mb-5 mt-auto rounded-md border border-border/60 bg-bg-2/50 p-4 shadow-lg">{visual}</div>
+      <Link
+        to={href}
+        className="inline-flex items-center gap-1.5 text-sm font-medium text-cusp-teal transition-all hover:gap-2.5"
+      >
+        {cta} <span aria-hidden>→</span>
+      </Link>
+    </PlasmaCard>
+  </motion.div>
 );
 
 export default Index;

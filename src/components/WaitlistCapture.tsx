@@ -1,11 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import CountUp from "@/components/ui/count-up";
 import type { WaitlistSignupState } from "@/hooks/useWaitlistSignup";
 import { cn } from "@/lib/utils";
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
 
 interface WaitlistCaptureProps {
   waitlist: WaitlistSignupState;
-  variant?: "compact" | "immersive";
+  variant?: "compact" | "immersive" | "editorial";
   title?: string;
   description?: string;
   className?: string;
@@ -31,6 +34,74 @@ const WaitlistCapture = ({
   submitLabel = "Join",
 }: WaitlistCaptureProps) => {
   const isImmersive = variant === "immersive";
+
+  // Editorial — underline input on the plasma, no container.
+  if (variant === "editorial") {
+    return (
+      <div className={cn("w-full", className)}>
+        {showCount && (
+          <div className="mb-6 flex h-5 items-center justify-center">
+            {!waitlist.countLoading && waitlist.displayCount > 0 && (
+              <motion.div
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ duration: 0.3 }}
+                className="flex items-center gap-2"
+              >
+                <span aria-hidden className="size-1.5 rounded-full bg-cusp-teal motion-safe:animate-pulse" />
+                <span className="font-mono text-xs text-muted-foreground">
+                  <CountUp value={waitlist.displayCount} className="font-semibold text-foreground/80" /> {countLabel}
+                </span>
+              </motion.div>
+            )}
+          </div>
+        )}
+
+        {waitlist.status === "success" ? (
+          <div className="text-center">
+            <p className="text-lg font-medium text-foreground">{successTitle}</p>
+            <p className="mt-1 text-sm text-muted-foreground">{successDescription}</p>
+          </div>
+        ) : (
+          <form
+            onSubmit={async (e) => {
+              e.preventDefault();
+              await waitlist.submit();
+            }}
+            className={cn("group", formClassName)}
+          >
+            <div className="flex items-center gap-3 border-b-2 border-foreground/15 py-3 transition-colors focus-within:border-cusp-teal">
+              <input
+                type="email"
+                value={waitlist.email}
+                onChange={(e) => waitlist.setEmail(e.target.value)}
+                placeholder="contact@cusp.fi"
+                autoComplete="email"
+                required
+                disabled={waitlist.status === "loading"}
+                aria-label="Email address"
+                aria-busy={waitlist.status === "loading"}
+                className="min-w-0 flex-1 bg-transparent text-lg text-foreground outline-none placeholder:text-muted-foreground/50 sm:text-xl"
+              />
+              <button
+                type="submit"
+                disabled={waitlist.status === "loading"}
+                aria-label="Join the waitlist"
+                className="flex size-11 shrink-0 items-center justify-center rounded-full bg-cusp-teal text-primary-foreground shadow-[0_0_22px_hsl(var(--cusp-teal)/0.35)] transition-all hover:opacity-90 active:scale-95 disabled:opacity-50"
+              >
+                {waitlist.status === "loading" ? (
+                  <span className="text-sm">…</span>
+                ) : (
+                  <ArrowRight className="size-5" />
+                )}
+              </button>
+            </div>
+            {waitlist.status === "error" && <p className="mt-3 text-xs text-cusp-red">{waitlist.error}</p>}
+          </form>
+        )}
+      </div>
+    );
+  }
 
   return (
     <div

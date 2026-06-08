@@ -114,37 +114,21 @@ const Navbar = () => {
       : "Connect Wallet";
 
   return (
-    <div className="pointer-events-none fixed inset-x-0 top-3 z-40 flex justify-center px-3 sm:top-4">
-      <motion.nav
-        initial={false}
-        animate={{
-          paddingLeft: scrolled ? 10 : 16,
-          paddingRight: scrolled ? 10 : 16,
-          paddingTop: scrolled ? 6 : 9,
-          paddingBottom: scrolled ? 6 : 9,
-          gap: scrolled ? 8 : 16,
-        }}
-        transition={{ type: "spring", stiffness: 360, damping: 30 }}
-        className={`pointer-events-auto flex items-center rounded-full border backdrop-blur-xl transition-[background-color,border-color,box-shadow] duration-300 ${
-          scrolled
-            ? "border-border bg-bg-0/85 shadow-xl shadow-black/40"
-            : "border-border/60 bg-bg-0/55 shadow-lg shadow-black/20"
-        }`}
-      >
-        {/* Logo — wordmark collapses on scroll for a circular feel */}
+    <div
+      className={`fixed inset-x-0 top-0 z-[100] transition-[background-color,border-color,backdrop-filter] duration-300 ${
+        scrolled
+          ? "border-b border-border bg-bg-0/80 backdrop-blur-xl"
+          : "border-b border-transparent bg-transparent"
+      }`}
+    >
+      <nav className="flex h-16 items-center justify-between px-4 sm:px-6">
+        {/* Logo */}
         <Link to="/" className="flex items-center gap-2">
           <img src="/cusp.png" alt="Cusp" className="h-6 w-6 shrink-0 rounded-full object-contain" />
-          <motion.span
-            initial={false}
-            animate={{ width: scrolled ? 0 : "auto", opacity: scrolled ? 0 : 1, marginRight: scrolled ? 0 : 2 }}
-            transition={{ type: "spring", stiffness: 360, damping: 30 }}
-            className="overflow-hidden whitespace-nowrap text-sm font-semibold tracking-tight text-foreground"
-          >
+          <span className="whitespace-nowrap text-sm font-semibold tracking-tight text-foreground">
             Cusp
-          </motion.span>
+          </span>
         </Link>
-
-        <span className="hidden h-5 w-px bg-border/70 md:block" />
 
         {/* Nav links */}
         <div className="hidden items-center gap-1 md:flex">
@@ -173,11 +157,9 @@ const Navbar = () => {
           })}
         </div>
 
-        <span className="hidden h-5 w-px bg-border/70 md:block" />
-
         {/* Wallet + mobile toggle */}
         <div className="flex items-center gap-2">
-          {isConnected && usdc !== null && !scrolled && (
+          {isConnected && usdc !== null && (
             <span className="hidden items-center gap-1.5 font-mono text-xs text-muted-foreground sm:flex">
               <span className="text-foreground/80">{usdc.toFixed(2)}</span>
               <span>USDC</span>
@@ -206,9 +188,9 @@ const Navbar = () => {
             {mobileOpen ? <X className="size-5" /> : <Menu className="size-5" />}
           </button>
         </div>
-      </motion.nav>
+      </nav>
 
-      {/* Mobile menu — floating panel under the pill */}
+      {/* Mobile menu — floating panel under the bar */}
       <AnimatePresence>
         {mobileOpen && (
           <motion.div

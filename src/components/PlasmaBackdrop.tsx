@@ -17,6 +17,8 @@ uniform vec3  u_bg;
 uniform vec3  u_c1;
 uniform vec3  u_c2;
 uniform vec3  u_c3;
+uniform vec2  u_mouse;     // normalized cursor (0..1, y-up), -1 when absent
+uniform float u_mouseGlow; // 0..1, ramps up while the pointer holds still
 
 vec2 hash(vec2 p){
   p = vec2(dot(p, vec2(127.1, 311.7)), dot(p, vec2(269.5, 183.3)));
@@ -39,8 +41,19 @@ float fbm(vec2 p){
 }
 void main(){
   vec2 uv = gl_FragCoord.xy / u_res.xy;
+  float aspect = u_res.x / u_res.y;
+
+  // aspect-corrected distance from the cursor (skipped when u_mouse is offscreen)
+  vec2 av = vec2(uv.x * aspect, uv.y);
+  vec2 am = vec2(u_mouse.x * aspect, u_mouse.y);
+  float md = distance(av, am);
+  float present = step(0.0, u_mouse.x);
+  // localized pull: domain warps toward the cursor with a soft falloff
+  float pull = present * exp(-md * 4.5);
+
   vec2 p = uv * 3.0;
-  p.x *= u_res.x / u_res.y;
+  p.x *= aspect;
+  p += (am - av) * pull * 0.9;
   float t = u_time * 0.05;
 
   vec2 q = vec2(fbm(p + t), fbm(p + vec2(5.2, 1.3) - t));
@@ -55,6 +68,11 @@ void main(){
 
   float vig = smoothstep(1.15, 0.25, distance(uv, vec2(0.5)));
   col = mix(u_bg, col, vig * 0.88 + 0.12);
+
+  // cursor bloom: a soft green halo that grows when the pointer holds still
+  float bloom = present * u_mouseGlow * smoothstep(0.32, 0.0, md);
+  col += u_c2 * bloom * 0.55;
+  col += u_c3 * bloom * bloom * 0.25;
 
   gl_FragColor = vec4(col, 1.0);
 }
@@ -100,7 +118,13 @@ function isDarkTheme(resolvedTheme: string | undefined): boolean {
   return true;
 }
 
-const PlasmaBackdrop = ({ className = "" }: { className?: string }) => {
+const PlasmaBackdrop = ({
+  className = "",
+  interactive = false,
+}: {
+  className?: string;
+  interactive?: boolean;
+}) => {
   const reduce = useReducedMotion();
   const { resolvedTheme } = useTheme();
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -175,6 +199,8 @@ const PlasmaBackdrop = ({ className = "" }: { className?: string }) => {
     const uC1 = gl.getUniformLocation(prog, "u_c1");
     const uC2 = gl.getUniformLocation(prog, "u_c2");
     const uC3 = gl.getUniformLocation(prog, "u_c3");
+    const uMouse = gl.getUniformLocation(prog, "u_mouse");
+    const uMouseGlow = gl.getUniformLocation(prog, "u_mouseGlow");
 
     const resize = () => {
       const dpr = Math.min(window.devicePixelRatio || 1, 2);
@@ -191,6 +217,31 @@ const PlasmaBackdrop = ({ className = "" }: { className?: string }) => {
     let running = true;
     let last = performance.now();
     const start = last;
+
+    // cursor reactivity (interactive hero only): normalized target/display in
+    // 0..1 with y-up to match gl_FragCoord; `present` flags pointer over canvas.
+    const mTarget = { x: 0.5, y: 0.5 };
+    const mDisplay = { x: 0.5, y: 0.5 };
+    let present = false;
+    let glow = 0;
+    let lastMoveMs = start;
+    const onPointerMove = (e: PointerEvent) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = (e.clientX - rect.left) / rect.width;
+      const y = (e.clientY - rect.top) / rect.height;
+      const inside = x >= 0 && x <= 1 && y >= 0 && y <= 1;
+      present = inside;
+      if (inside) {
+        mTarget.x = x;
+        mTarget.y = 1 - y; // flip to y-up
+        lastMoveMs = performance.now();
+      }
+    };
+    const onPointerLeaveWin = () => (present = false);
+    if (interactive) {
+      window.addEventListener("pointermove", onPointerMove, { passive: true });
+      window.addEventListener("pointerout", onPointerLeaveWin, { passive: true });
+    }
 
     // ease each color channel toward the target; framerate-independent smoothing.
     const easeChannel = (cur: number, tgt: number, k: number) => cur + (tgt - cur) * k;
@@ -214,12 +265,22 @@ const PlasmaBackdrop = ({ className = "" }: { className?: string }) => {
       easeColor(d.c2, t.c2, k);
       easeColor(d.c3, t.c3, k);
 
+      // ease cursor position + glow (glow floors while moving, swells when idle)
+      mDisplay.x = easeChannel(mDisplay.x, mTarget.x, 1 - Math.exp(-dt / 0.08));
+      mDisplay.y = easeChannel(mDisplay.y, mTarget.y, 1 - Math.exp(-dt / 0.08));
+      const idle = (now - lastMoveMs) / 1000;
+      const idleRamp = Math.max(0, Math.min(1, (idle - 0.12) / 0.6));
+      const glowTarget = present ? 0.4 + 0.6 * idleRamp : 0;
+      glow = easeChannel(glow, glowTarget, 1 - Math.exp(-dt / 0.18));
+
       gl.uniform1f(uTime, (now - start) / 1000);
       gl.uniform2f(uRes, canvas.width, canvas.height);
       gl.uniform3f(uBg, d.bg[0], d.bg[1], d.bg[2]);
       gl.uniform3f(uC1, d.c1[0], d.c1[1], d.c1[2]);
       gl.uniform3f(uC2, d.c2[0], d.c2[1], d.c2[2]);
       gl.uniform3f(uC3, d.c3[0], d.c3[1], d.c3[2]);
+      gl.uniform2f(uMouse, interactive ? mDisplay.x : -1, interactive ? mDisplay.y : -1);
+      gl.uniform1f(uMouseGlow, interactive ? glow : 0);
       gl.drawArrays(gl.TRIANGLES, 0, 3);
       raf = requestAnimationFrame(render);
     };
@@ -250,12 +311,16 @@ const PlasmaBackdrop = ({ className = "" }: { className?: string }) => {
       pause();
       io.disconnect();
       document.removeEventListener("visibilitychange", onVis);
+      if (interactive) {
+        window.removeEventListener("pointermove", onPointerMove);
+        window.removeEventListener("pointerout", onPointerLeaveWin);
+      }
       gl.deleteProgram(prog);
       gl.deleteShader(vs);
       gl.deleteShader(fs);
       gl.deleteBuffer(buf);
     };
-  }, [reduce]);
+  }, [reduce, interactive]);
 
   if (useFallback) {
     return (
