@@ -11,7 +11,7 @@ const Footer = () => {
               <span className="font-semibold text-foreground text-sm">Cusp</span>
             </div>
             <p className="text-xs text-muted-foreground leading-relaxed max-w-xs mx-auto sm:mx-0">
-              The DeFi capital layer for prediction markets. Borrow, lend, and leverage your Kalshi positions on Solana.
+              The capital markets layer for prediction markets. Risk, credit, settlement, and liquidation infrastructure for event-driven positions on Solana.
             </p>
           </div>
 
@@ -19,8 +19,7 @@ const Footer = () => {
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Product</h4>
             <div className="space-y-2">
               <Link to="/lend" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Borrow</Link>
-              <Link to="/vault" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Lend</Link>
-              <a href="/#leverage" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Leverage</a>
+              <Link to="/vault" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Earn</Link>
               <Link to="/markets" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Markets</Link>
               <Link to="/portfolio" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Portfolio</Link>
             </div>
@@ -29,8 +28,6 @@ const Footer = () => {
           <div className="text-center sm:text-left">
             <h4 className="text-[11px] text-muted-foreground uppercase tracking-[0.15em] mb-3">Protocol</h4>
             <div className="space-y-2">
-              <a href="https://dflow.net" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">DFlow</a>
-              <a href="https://kalshi.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Kalshi</a>
               <a href="https://solana.com" target="_blank" rel="noopener noreferrer" className="block text-sm text-foreground hover:text-cusp-teal transition-colors">Solana</a>
             </div>
           </div>
@@ -47,8 +44,6 @@ const Footer = () => {
 
         <div className="mt-10 pt-6 border-t border-border flex flex-col items-center gap-4 sm:flex-row sm:items-center sm:justify-between">
           <span className="text-xs text-muted-foreground text-center sm:text-left">© 2026 Cusp Protocol. All rights reserved.</span>
-
-          <span className="text-[10px] font-mono text-muted-foreground text-center sm:text-right">Powered by Kalshi & dFlow</span>
         </div>
       </div>
     </footer>

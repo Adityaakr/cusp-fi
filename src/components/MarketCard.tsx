@@ -14,7 +14,7 @@ const MarketCard = ({ market, onClick }: MarketCardProps) => {
       tabIndex={0}
       onClick={onClick}
       onKeyDown={(e) => (e.key === "Enter" || e.key === " ") && onClick?.()}
-      className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 transition-colors group cursor-pointer"
+      className="cusp-card-hover bg-bg-1 border border-border rounded-xl p-4 group cursor-pointer"
     >
       <div className="flex items-start justify-between gap-3 mb-3">
         <h3 className="text-sm font-medium text-foreground leading-snug flex-1">{market.name}</h3>

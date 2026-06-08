@@ -36,7 +36,7 @@ const WaitlistCapture = ({
     <div
       className={cn(
         isImmersive
-          ? "relative overflow-hidden rounded-[28px] border border-white/10 bg-[linear-gradient(180deg,hsl(var(--bg-1)),hsl(var(--bg-0)))] p-6 shadow-[0_0_0_1px_hsl(var(--border)/0.15),0_24px_80px_hsl(var(--cusp-teal)/0.08)] backdrop-blur-xl sm:p-8"
+          ? "relative overflow-hidden rounded-[28px] border border-border bg-[linear-gradient(180deg,hsl(var(--bg-1)),hsl(var(--bg-0)))] p-6 shadow-[0_0_0_1px_hsl(var(--border)/0.15),0_24px_80px_hsl(var(--cusp-teal)/0.08)] backdrop-blur-xl sm:p-8"
           : "text-center",
         className,
       )}
@@ -123,8 +123,8 @@ const WaitlistCapture = ({
               aria-label="Email address"
               aria-busy={waitlist.status === "loading"}
               className={cn(
-                "border-border/60 bg-white/[0.06] placeholder:text-muted-foreground text-foreground",
-                isImmersive && "h-12 rounded-xl border-white/10 bg-white/5 px-4",
+                "border-border/60 bg-foreground/[0.06] placeholder:text-muted-foreground text-foreground",
+                isImmersive && "h-12 rounded-xl border-border bg-foreground/5 px-4",
               )}
             />
             <Button

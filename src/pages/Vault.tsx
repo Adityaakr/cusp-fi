@@ -167,44 +167,44 @@ const VaultPage = () => {
                       <XAxis
                         dataKey="date"
                         tick={{
-                          fill: "#4A5068",
+                          fill: "hsl(var(--muted-foreground))",
                           fontSize: 10,
-                          fontFamily: "'Geist Mono'",
+                          fontFamily: "'Inter'",
                         }}
-                        axisLine={{ stroke: "#1E2235" }}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
                         tickLine={false}
                         tickFormatter={(v) => v.slice(5)}
                       />
                       <YAxis
                         tick={{
-                          fill: "#4A5068",
+                          fill: "hsl(var(--muted-foreground))",
                           fontSize: 10,
-                          fontFamily: "'Geist Mono'",
+                          fontFamily: "'Inter'",
                         }}
-                        axisLine={{ stroke: "#1E2235" }}
+                        axisLine={{ stroke: "hsl(var(--border))" }}
                         tickLine={false}
                         domain={["auto", "auto"]}
                         tickFormatter={(v: number) => `$${v.toFixed(4)}`}
                       />
                       <Tooltip
                         contentStyle={{
-                          backgroundColor: "#141720",
-                          border: "1px solid #1E2235",
+                          backgroundColor: "hsl(var(--card))",
+                          border: "1px solid hsl(var(--border))",
                           borderRadius: "6px",
                           fontSize: "12px",
-                          fontFamily: "'Geist Mono'",
+                          fontFamily: "'Inter'",
                         }}
-                        labelStyle={{ color: "#8B92A8" }}
-                        itemStyle={{ color: "#28cc95" }}
+                        labelStyle={{ color: "hsl(var(--muted-foreground))" }}
+                        itemStyle={{ color: "hsl(var(--cusp-teal))" }}
                         formatter={(v: number) => [`$${v.toFixed(6)}`, "Rate"]}
                       />
                       <Line
                         type="monotone"
                         dataKey="nav"
-                        stroke="#28cc95"
+                        stroke="hsl(var(--cusp-teal))"
                         strokeWidth={2}
                         dot={false}
-                        activeDot={{ r: 3, fill: "#28cc95" }}
+                        activeDot={{ r: 3, fill: "hsl(var(--cusp-teal))" }}
                       />
                     </LineChart>
                   </ResponsiveContainer>
@@ -349,11 +349,12 @@ const VaultPage = () => {
                 Risk Disclosure
               </h4>
               <p className="text-[11px] text-muted-foreground leading-relaxed">
-                Prediction market outcomes carry inherent binary risk. The vault
-                manages this through position sizing, probability thresholds, and
-                diversification. Yield is variable and not guaranteed. cUSDC
-                exchange rate reflects net protocol performance after fees and
-                reserves.
+                Event collateral can gap and go illiquid on the same news. The
+                vault manages this through stressed valuation, capacity that
+                decays toward resolution, and a first-loss junior tranche that
+                protects senior capital by arithmetic. Yield is variable and not
+                guaranteed. cUSDC exchange rate reflects net protocol performance
+                after fees and reserves.
               </p>
             </div>
           </div>

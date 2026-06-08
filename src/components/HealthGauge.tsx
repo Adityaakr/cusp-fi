@@ -7,9 +7,9 @@ interface HealthGaugeProps {
 
 const HealthGauge = ({ healthFactor, size = 80 }: HealthGaugeProps) => {
   const getColor = (hf: number) => {
-    if (hf >= 1.5) return "#10B981";
-    if (hf >= 1.1) return "#F59E0B";
-    return "#EF4444";
+    if (hf >= 1.5) return "hsl(var(--cusp-green))";
+    if (hf >= 1.1) return "hsl(var(--cusp-amber))";
+    return "hsl(var(--cusp-red))";
   };
 
   const color = getColor(healthFactor);

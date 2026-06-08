@@ -9,7 +9,7 @@ const LendPage = () => {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
           <h1 className="text-xl font-semibold text-foreground mb-1">Cusp Lend</h1>
-          <p className="text-sm text-muted-foreground">Borrow against your YES/NO tokens. Keep your position open.</p>
+          <p className="text-sm text-muted-foreground">Borrow against eligible live positions on short, repriced terms. Keep your position open.</p>
         </div>
 
         <div className="grid lg:grid-cols-3 gap-6">
@@ -37,9 +37,9 @@ const LendPage = () => {
               <h3 className="text-sm font-medium text-foreground mb-3">How Lending Works</h3>
               <div className="space-y-3">
                 {[
-                  { title: "Dynamic LTV", desc: "LTV adjusts based on implied probability and time to resolution. Tokens >85% probability with <48hrs to resolve get up to 82% LTV." },
-                  { title: "Hard Expiry Rule", desc: "All loans are automatically closed 2 hours before market resolution. This protects both borrowers and the protocol from binary settlement risk." },
-                  { title: "Liquidation", desc: "If health factor drops below 1.0, collateral is liquidated to repay the loan. Monitor your health factor closely on volatile markets." },
+                  { title: "Stressed valuation", desc: "Collateral is marked at stressed recoverable value, the worst of several prices under stress, never the last print. Health factor is computed from that value." },
+                  { title: "Origination gate", desc: "Borrowing capacity decays as a market nears resolution, and a gate stops new credit just before the event, so nothing is freshly financed through the window where it can gap." },
+                  { title: "Liquidation", desc: "If health factor drops below 1.0, the position clears through a descending-price auction among bonded specialists, opening at the conservative mark and settling atomically." },
                 ].map((item) => (
                   <div key={item.title} className="p-3 bg-bg-2 rounded-md">
                     <h4 className="text-xs font-medium text-foreground mb-1">{item.title}</h4>

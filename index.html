@@ -6,22 +6,32 @@
     <link rel="shortcut icon" type="image/png" href="/cusp.png" />
     <link rel="apple-touch-icon" href="/cusp.png" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Cusp — The DeFi Capital Layer for Prediction Markets</title>
-    <meta name="description" content="Cusp is the DeFi capital layer for prediction markets on Solana. Deposit USDC for 15-25% APY or borrow against your prediction market positions.">
+    <script>
+      // Apply the persisted/system theme before paint to avoid a flash.
+      (function () {
+        try {
+          var t = localStorage.getItem("theme");
+          var dark = t === "dark" || ((!t || t === "system") && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          document.documentElement.classList.toggle("dark", dark);
+        } catch (e) {}
+      })();
+    </script>
+    <title>Cusp — The capital markets layer for prediction markets</title>
+    <meta name="description" content="Cusp is the capital markets layer for prediction markets on Solana. Borrow against live positions, earn on idle capital, and get paid the moment a market resolves.">
     <link rel="canonical" href="https://cusp.fi" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link
       rel="stylesheet"
-      href="https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=DM+Sans:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,100..900&display=swap"
     />
 
     <meta property="og:type" content="website" />
 
     <meta name="twitter:card" content="summary_large_image" />
-    <meta property="og:title" content="Cusp — The DeFi Capital Layer for Prediction Markets">
-  <meta name="twitter:title" content="Cusp — The DeFi Capital Layer for Prediction Markets">
-  <meta property="og:description" content="Cusp is the DeFi capital layer for prediction markets on Solana. Deposit USDC for 15-25% APY or borrow against your prediction market positions.">
-  <meta name="twitter:description" content="Cusp is the DeFi capital layer for prediction markets on Solana. Deposit USDC for 15-25% APY or borrow against your prediction market positions.">
+    <meta property="og:title" content="Cusp — The capital markets layer for prediction markets">
+  <meta name="twitter:title" content="Cusp — The capital markets layer for prediction markets">
+  <meta property="og:description" content="Cusp is the capital markets layer for prediction markets on Solana. Borrow against live positions, earn on idle capital, and get paid the moment a market resolves.">
+  <meta name="twitter:description" content="Cusp is the capital markets layer for prediction markets on Solana. Borrow against live positions, earn on idle capital, and get paid the moment a market resolves.">
   <meta property="og:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/80451f1e-6892-44a8-ad75-26e9a1e1095a/id-preview-cc6f246f--e093e645-3f5e-463e-94b7-d504ae9d0eb9.lovable.app-1772906205093.png">
   <meta name="twitter:image" content="https://pub-bb2e103a32db4e198524a2e9ed8f35b4.r2.dev/80451f1e-6892-44a8-ad75-26e9a1e1095a/id-preview-cc6f246f--e093e645-3f5e-463e-94b7-d504ae9d0eb9.lovable.app-1772906205093.png">
 </head>

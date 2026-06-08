@@ -15,8 +15,12 @@ export default {
     },
     extend: {
       fontFamily: {
-        body: ["'DM Sans'", "sans-serif"],
-        mono: ["'Geist Mono'", "monospace"],
+        body: ["'Inter'", "system-ui", "sans-serif"],
+        sans: ["'Inter'", "system-ui", "sans-serif"],
+        display: ["'Satoshi'", "'Inter'", "system-ui", "sans-serif"],
+        // Back-compat: legacy `font-mono` now renders as Inter (use the
+        // .font-mono-data utility for tabular figures). No monospace.
+        mono: ["'Inter'", "system-ui", "sans-serif"],
       },
       colors: {
         border: "hsl(var(--border))",
@@ -58,6 +62,7 @@ export default {
           teal: "hsl(var(--cusp-teal))",
           amber: "hsl(var(--cusp-amber))",
           green: "hsl(var(--cusp-green))",
+          "green-bright": "hsl(var(--cusp-green-bright))",
           red: "hsl(var(--cusp-red))",
           purple: "hsl(var(--cusp-purple))",
         },

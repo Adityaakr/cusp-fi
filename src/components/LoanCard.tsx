@@ -8,7 +8,7 @@ interface LoanCardProps {
 
 const LoanCard = ({ loan }: LoanCardProps) => {
   return (
-    <div className="bg-bg-1 border border-border rounded-lg p-4 hover:bg-bg-2 transition-colors">
+    <div className="cusp-card-hover bg-bg-1 border border-border rounded-xl p-4">
       <div className="flex items-start justify-between mb-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 mb-1">

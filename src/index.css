@@ -1,68 +1,158 @@
-@import url('https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,100..1000;1,9..40,100..1000&family=Geist+Mono:wght@100..900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,100..900;1,14..32,100..900&display=swap');
+
+@font-face {
+  font-family: 'Satoshi';
+  src: url('/fonts/Satoshi-Variable.woff2') format('woff2');
+  font-weight: 300 900;
+  font-style: normal;
+  font-display: swap;
+}
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
 
+/* ================================================================== *
+ * Cusp theme — green + black, keyed to the logo. Dark-first, with a
+ * soft green gradient glow behind the page. See /cusp/DESIGN.md.
+ * ================================================================== */
+
 @layer base {
+  /* ---------------------------------------------------------------- *
+   * LIGHT theme (default). Dark overrides live in `.dark` below.
+   * Theme-agnostic tokens (fonts, radius) are declared once here.
+   * ---------------------------------------------------------------- */
   :root {
-    --font-body: 'DM Sans', sans-serif;
-    --font-mono: 'Geist Mono', monospace;
+    --font-body: 'Inter', system-ui, sans-serif;
+    --font-display: 'Satoshi', 'Inter', system-ui, sans-serif;
+    --radius: 0.75rem;
 
-    --background: 0 0% 0%;
-    --foreground: 0 0% 100%;
+    color-scheme: light;
 
-    --card: 0 0% 4%;
-    --card-foreground: 0 0% 100%;
+    --background: 150 24% 99%;
+    --foreground: 155 26% 10%;
 
-    --popover: 0 0% 7%;
-    --popover-foreground: 0 0% 100%;
+    --card: 150 30% 98%;
+    --card-foreground: 155 26% 12%;
 
-    --primary: 160 67% 48%;
-    --primary-foreground: 0 0% 0%;
+    --popover: 150 30% 98%;
+    --popover-foreground: 155 26% 12%;
 
-    --secondary: 0 0% 7%;
-    --secondary-foreground: 0 0% 100%;
+    --primary: 155 66% 30%;
+    --primary-foreground: 150 30% 98%;
 
-    --muted: 0 0% 10%;
-    --muted-foreground: 0 0% 60%;
+    --secondary: 150 16% 94%;
+    --secondary-foreground: 155 22% 18%;
 
-    --accent: 0 0% 10%;
-    --accent-foreground: 0 0% 100%;
+    --muted: 150 16% 95%;
+    --muted-foreground: 155 8% 40%;
 
-    --destructive: 0 84% 60%;
+    --accent: 150 24% 93%;
+    --accent-foreground: 155 26% 16%;
+
+    --destructive: 0 72% 46%;
     --destructive-foreground: 0 0% 100%;
 
-    --border: 0 0% 14%;
-    --border-subtle: 0 0% 18%;
-    --border-active: 160 67% 48%;
-    --input: 0 0% 14%;
-    --ring: 160 67% 48%;
+    --border: 150 16% 88%;
+    --border-subtle: 150 14% 91%;
+    --border-active: 155 66% 38%;
+    --input: 150 16% 86%;
+    --ring: 155 66% 38%;
 
-    --radius: 6px;
-
-    /* Cusp accent system — Kalshi palette */
-    --cusp-teal: 160 67% 48%;
-    --cusp-amber: 38 92% 50%;
-    --cusp-green: 160 84% 39%;
-    --cusp-red: 0 84% 60%;
-    --cusp-purple: 258 90% 66%;
+    /* Cusp accent system — darkened for legibility on light surfaces */
+    --cusp-green: 155 60% 32%;
+    --cusp-green-bright: 152 64% 38%;
+    --cusp-amber: 36 88% 40%;
+    --cusp-red: 0 72% 46%;
+    --cusp-purple: 258 60% 50%;
+    --cusp-teal: 155 60% 32%;
 
     /* Background layers */
-    --bg-0: 0 0% 0%;
-    --bg-1: 0 0% 4%;
-    --bg-2: 0 0% 7%;
-    --bg-3: 0 0% 12%;
+    --bg-0: 150 24% 99%;
+    --bg-1: 150 24% 97%;
+    --bg-2: 150 20% 95.5%;
+    --bg-3: 150 18% 92%;
+
+    /* Waitlist splash surfaces */
+    --splash-bg: 150 24% 99%;
+    --splash-card: 150 30% 98%;
+    --splash-vignette: 150 18% 90%;
 
     /* Sidebar */
-    --sidebar-background: 0 0% 4%;
-    --sidebar-foreground: 0 0% 100%;
-    --sidebar-primary: 160 67% 48%;
-    --sidebar-primary-foreground: 0 0% 0%;
-    --sidebar-accent: 0 0% 10%;
-    --sidebar-accent-foreground: 0 0% 100%;
-    --sidebar-border: 0 0% 14%;
-    --sidebar-ring: 160 67% 48%;
+    --sidebar-background: 150 24% 97%;
+    --sidebar-foreground: 155 26% 12%;
+    --sidebar-primary: 155 66% 30%;
+    --sidebar-primary-foreground: 150 30% 98%;
+    --sidebar-accent: 150 24% 93%;
+    --sidebar-accent-foreground: 155 26% 16%;
+    --sidebar-border: 150 16% 88%;
+    --sidebar-ring: 155 66% 38%;
+  }
+
+  /* ---------------------------------------------------------------- *
+   * DARK theme — the original green-on-black palette.
+   * ---------------------------------------------------------------- */
+  .dark {
+    color-scheme: dark;
+
+    --background: 156 18% 4.5%;
+    --foreground: 150 12% 93%;
+
+    --card: 156 16% 7%;
+    --card-foreground: 150 12% 95%;
+
+    --popover: 155 16% 7.5%;
+    --popover-foreground: 150 12% 92%;
+
+    --primary: 154 74% 47%;
+    --primary-foreground: 156 40% 6%;
+
+    --secondary: 154 12% 13%;
+    --secondary-foreground: 150 12% 92%;
+
+    --muted: 154 12% 12%;
+    --muted-foreground: 150 8% 64%;
+
+    --accent: 150 20% 14%;
+    --accent-foreground: 150 16% 93%;
+
+    --destructive: 0 74% 55%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 150 14% 16%;
+    --border-subtle: 150 12% 20%;
+    --border-active: 154 74% 47%;
+    --input: 150 14% 16%;
+    --ring: 154 74% 47%;
+
+    /* Cusp accent system — keyed to the logo green */
+    --cusp-green: 154 70% 50%;
+    --cusp-green-bright: 152 80% 56%;
+    --cusp-amber: 40 84% 56%;
+    --cusp-red: 0 74% 55%;
+    --cusp-purple: 258 90% 66%;
+    --cusp-teal: 154 74% 47%;
+
+    /* Background layers — green-tinted, never pure black */
+    --bg-0: 156 18% 4.5%;
+    --bg-1: 156 16% 7%;
+    --bg-2: 155 16% 7.5%;
+    --bg-3: 154 12% 12%;
+
+    /* Waitlist splash surfaces */
+    --splash-bg: 156 20% 3.5%;
+    --splash-card: 156 16% 6.5%;
+    --splash-vignette: 0 0% 2.5%;
+
+    /* Sidebar */
+    --sidebar-background: 156 16% 7%;
+    --sidebar-foreground: 150 12% 93%;
+    --sidebar-primary: 154 74% 47%;
+    --sidebar-primary-foreground: 156 40% 6%;
+    --sidebar-accent: 150 20% 14%;
+    --sidebar-accent-foreground: 150 16% 93%;
+    --sidebar-border: 150 14% 16%;
+    --sidebar-ring: 154 74% 47%;
   }
 }
 
@@ -73,16 +163,63 @@
 
   body {
     @apply bg-background text-foreground font-body antialiased;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    /* Green gradient glow behind everything (Abstract / Tempo style). */
+    background-image: radial-gradient(
+      ellipse 70% 50% at 50% -8%,
+      color-mix(in oklab, hsl(var(--cusp-green)) 20%, transparent),
+      transparent 62%
+    );
+    background-repeat: no-repeat;
+    background-attachment: fixed;
+  }
+
+  /* Thin brand line at the very top edge. */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0 0 auto 0;
+    height: 2px;
+    z-index: 60;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent,
+      color-mix(in oklab, hsl(var(--cusp-green-bright)) 80%, transparent) 50%,
+      transparent
+    );
+  }
+
+  /* Display font + tight tracking on headings. */
+  h1,
+  h2,
+  h3,
+  .cusp-display {
+    font-family: var(--font-display);
+    letter-spacing: -0.02em;
+  }
+
+  /* Underlined emphasis — green, offset underline (the key phrase). */
+  u {
+    text-decoration-line: underline;
+    text-decoration-color: color-mix(in oklab, hsl(var(--cusp-green-bright)) 75%, transparent);
+    text-decoration-thickness: 2px;
+    text-underline-offset: 4px;
+    text-decoration-skip-ink: none;
   }
 }
 
 @layer utilities {
+  /* Financial data — Inter with tabular figures (no monospace). */
   .font-mono-data {
-    font-family: var(--font-mono);
+    font-family: var(--font-body);
+    font-variant-numeric: tabular-nums;
+    font-feature-settings: 'tnum' 1;
   }
 
   .text-teal {
-    color: hsl(var(--cusp-teal));
+    color: hsl(var(--cusp-green));
   }
 
   .text-amber-yield {
@@ -121,12 +258,97 @@
     border-color: hsl(var(--border-active) / 0.4);
   }
 
+  /* Green glow (legacy `glow-teal*` names kept for compatibility). */
   .glow-teal {
-    box-shadow: 0 0 24px hsl(var(--cusp-teal) / 0.25), 0 0 80px hsl(var(--cusp-teal) / 0.08);
+    box-shadow: 0 0 24px hsl(var(--cusp-green) / 0.25), 0 0 80px hsl(var(--cusp-green) / 0.08);
   }
 
   .glow-teal-sm {
-    box-shadow: 0 0 12px hsl(var(--cusp-teal) / 0.3);
+    box-shadow: 0 0 12px hsl(var(--cusp-green) / 0.3);
+  }
+
+  .glow-green {
+    box-shadow: 0 0 24px hsl(var(--cusp-green) / 0.25), 0 0 80px hsl(var(--cusp-green) / 0.08);
+  }
+
+  .glow-green-sm {
+    box-shadow: 0 0 12px hsl(var(--cusp-green) / 0.3);
+  }
+
+  /* Landing-page hero treatments (ported from cusp-docs). */
+  .cusp-hero-grid {
+    background-image:
+      linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px),
+      linear-gradient(to bottom, hsl(var(--border)) 1px, transparent 1px);
+    background-size: 54px 54px;
+    -webkit-mask-image: radial-gradient(ellipse 75% 60% at 50% 0%, #000 35%, transparent 78%);
+    mask-image: radial-gradient(ellipse 75% 60% at 50% 0%, #000 35%, transparent 78%);
+  }
+
+  .cusp-hero-glow {
+    background: radial-gradient(
+      ellipse 50% 45% at 50% 0%,
+      color-mix(in oklab, hsl(var(--cusp-green)) 32%, transparent),
+      transparent 70%
+    );
+  }
+
+  .cusp-gradient-text {
+    background: linear-gradient(
+      120deg,
+      hsl(var(--foreground)) 28%,
+      hsl(var(--cusp-green-bright))
+    );
+    -webkit-background-clip: text;
+    background-clip: text;
+    color: transparent;
+  }
+}
+
+/* Light-mode softening for glow/grid treatments tuned for a dark bg. */
+:root:not(.dark) body {
+  background-image: radial-gradient(
+    ellipse 70% 50% at 50% -8%,
+    color-mix(in oklab, hsl(var(--cusp-green)) 9%, transparent),
+    transparent 58%
+  );
+}
+:root:not(.dark) .cusp-hero-glow {
+  background: radial-gradient(
+    ellipse 50% 45% at 50% 0%,
+    color-mix(in oklab, hsl(var(--cusp-green)) 14%, transparent),
+    transparent 70%
+  );
+}
+:root:not(.dark) .glow-teal,
+:root:not(.dark) .glow-green {
+  box-shadow: 0 0 24px hsl(var(--cusp-green) / 0.16), 0 0 60px hsl(var(--cusp-green) / 0.05);
+}
+:root:not(.dark) .glow-teal-sm,
+:root:not(.dark) .glow-green-sm {
+  box-shadow: 0 0 12px hsl(var(--cusp-green) / 0.18);
+}
+
+/* Card hover — border/bg shift + lift, motion-safe. */
+.cusp-card-hover {
+  transition:
+    border-color 150ms ease-out,
+    background-color 150ms ease-out,
+    transform 150ms ease-out;
+}
+@media (hover: hover) {
+  .cusp-card-hover:hover {
+    border-color: color-mix(in oklab, hsl(var(--cusp-green)) 55%, hsl(var(--border)));
+    background-color: color-mix(in oklab, hsl(var(--cusp-green)) 5%, hsl(var(--card)));
+    transform: translateY(-2px);
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .cusp-card-hover {
+    transition: none;
+  }
+  .cusp-card-hover:hover {
+    transform: none;
   }
 }
 
@@ -147,7 +369,7 @@ div[style*="z-index: 9999"] > div {
 
 /* Flash on update */
 @keyframes flash-update {
-  0% { background-color: hsl(var(--cusp-teal) / 0.15); }
+  0% { background-color: hsl(var(--cusp-green) / 0.15); }
   100% { background-color: transparent; }
 }
 .animate-flash {
