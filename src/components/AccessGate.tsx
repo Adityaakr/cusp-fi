@@ -75,7 +75,7 @@ const AccessGate = ({ children }: AccessGateProps) => {
                 Private Access
               </div>
               <div className="flex h-9 w-9 items-center justify-center rounded-full bg-[hsl(var(--cusp-teal))] shadow-[0_0_22px_rgba(40,204,149,0.22)]">
-                <img src="/cusp.png" alt="" className="h-6 w-6 rounded-full" />
+                <img src="/cusp-logo.png" alt="" className="h-6 w-6 rounded-full" />
               </div>
             </div>
 

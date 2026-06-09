@@ -39,7 +39,7 @@ const Footer = () => {
           {/* Brand */}
           <div className="col-span-2 text-center sm:text-left">
             <div className="mb-4 flex items-center justify-center gap-2 sm:justify-start">
-              <img src="/cusp.png" alt="Cusp" className="h-6 w-6 rounded-full object-contain" />
+              <img src="/cusp-logo.png" alt="Cusp" className="h-6 w-6 rounded-full object-contain" />
               <span className="text-base font-semibold tracking-tight text-foreground">Cusp</span>
             </div>
             <p className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground sm:mx-0">
@@ -67,13 +67,12 @@ const Footer = () => {
             <h4 className="mb-3 text-[11px] uppercase tracking-[0.18em] text-muted-foreground">Product</h4>
             <div className="space-y-2.5">
               {productLinks.map((l) => (
-                <Link
+                <span
                   key={l.label}
-                  to={l.to}
-                  className="block text-sm text-foreground/90 transition-colors hover:text-cusp-teal"
+                  className="block text-sm text-foreground/90"
                 >
                   {l.label}
-                </Link>
+                </span>
               ))}
             </div>
           </div>

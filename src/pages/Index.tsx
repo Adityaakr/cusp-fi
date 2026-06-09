@@ -228,7 +228,7 @@ const Index = () => {
             className="text-4xl font-semibold leading-[1.05] tracking-tight text-foreground sm:text-5xl md:text-6xl lg:text-7xl"
             style={{ textShadow: "0 2px 20px hsl(var(--background) / 0.85), 0 0 40px hsl(var(--background) / 0.5)" }}
           >
-            Capital markets for event-driven positions.
+            Capital markets layer for event-driven positions.
           </motion.h1>
 
           <motion.p
@@ -248,13 +248,15 @@ const Index = () => {
               Join the waitlist
               <span aria-hidden className="transition-transform duration-200 group-hover:translate-x-0.5">→</span>
             </Link>
-            <Link
-              to="/vault"
+            <a
+              href="https://docs.cusp.fi"
+              target="_blank"
+              rel="noopener noreferrer"
               className="group inline-flex items-center gap-2 rounded-full border border-border bg-bg-0/40 px-6 py-3 text-sm font-medium text-foreground backdrop-blur-md transition-colors hover:border-cusp-teal/40 hover:text-cusp-teal"
             >
-              Launch App
+              Docs
               <span aria-hidden className="text-muted-foreground transition-transform duration-200 group-hover:translate-x-0.5 group-hover:text-cusp-teal">→</span>
-            </Link>
+            </a>
           </motion.div>
         </motion.div>
       </section>
@@ -646,7 +648,7 @@ interface CapabilityCardProps {
   visual: React.ReactNode;
 }
 
-const CapabilityCard = ({ eyebrow, title, body, href, cta, visual, index = 0 }: CapabilityCardProps & { index?: number }) => (
+const CapabilityCard = ({ eyebrow, title, body, cta, visual, index = 0 }: CapabilityCardProps & { index?: number }) => (
   <motion.div
     initial="hidden"
     whileInView="visible"
@@ -660,12 +662,9 @@ const CapabilityCard = ({ eyebrow, title, body, href, cta, visual, index = 0 }: 
       <h3 className="mb-2 text-xl font-semibold tracking-tight text-foreground">{title}</h3>
       <p className="mb-5 text-sm leading-relaxed text-muted-foreground">{body}</p>
       <div className="mb-5 mt-auto rounded-md border border-border/60 bg-bg-2/50 p-4 shadow-lg">{visual}</div>
-      <Link
-        to={href}
-        className="inline-flex items-center gap-1.5 text-sm font-medium text-cusp-teal transition-all hover:gap-2.5"
-      >
+      <span className="inline-flex items-center gap-1.5 text-sm font-medium text-cusp-teal">
         {cta} <span aria-hidden>→</span>
-      </Link>
+      </span>
     </PlasmaCard>
   </motion.div>
 );

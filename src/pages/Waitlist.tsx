@@ -44,7 +44,7 @@ const Waitlist = () => {
         to="/"
         className="fixed left-5 top-5 z-50 flex items-center gap-2 opacity-70 transition-opacity hover:opacity-100"
       >
-        <img src="/cusp.png" alt="Cusp" className="h-6 w-6 rounded-full object-contain" />
+        <img src="/cusp-logo.png" alt="Cusp" className="h-6 w-6 rounded-full object-contain" />
         <span className="text-sm font-semibold tracking-tight text-foreground">Cusp</span>
       </Link>
 
