@@ -9,7 +9,7 @@ import { faqItems } from "@/data/mockData";
 import { useWaitlistSignup } from "@/hooks/useWaitlistSignup";
 import { AnimatePresence, motion } from "framer-motion";
 import { AlertTriangle, ArrowRight, ChevronDown, Gauge, Hourglass } from "lucide-react";
-import { useState } from "react";
+import { Fragment, useState } from "react";
 import { Link } from "react-router-dom";
 
 const fadeUp = {
@@ -319,13 +319,22 @@ const Index = () => {
             whileInView="visible"
             viewport={{ once: true, amount: 0.45 }}
             variants={blurRevealContainer}
-            className="mx-auto block max-w-3xl text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl md:text-4xl"
+            className="mx-auto block text-2xl font-semibold leading-tight tracking-tight text-foreground sm:text-3xl md:text-4xl"
           >
-            {PRINCIPLE_LINE.split(" ").map((word, i) => (
-              <motion.span key={`${i}-${word}`} variants={blurRevealWord} className="mr-[0.25em] inline-block">
-                {word}
-              </motion.span>
-            ))}
+            {(() => {
+              const words = PRINCIPLE_LINE.split(" ");
+              // keep the last two words as one atomic token so a wrap never
+              // orphans the final word onto its own line
+              const tokens = [...words.slice(0, -2), words.slice(-2).join(" ")];
+              return tokens.map((token, i, arr) => (
+                <Fragment key={`${i}-${token}`}>
+                  <motion.span variants={blurRevealWord} className="inline-block">
+                    {token}
+                  </motion.span>
+                  {i < arr.length - 1 ? " " : null}
+                </Fragment>
+              ));
+            })()}
           </motion.h2>
           <motion.div
             initial="hidden"
