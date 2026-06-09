@@ -1,8 +1,7 @@
 import docSource from "../docs/cusp-technical-docs.html?raw";
 import { useEffect, useLayoutEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
-
-const DOCS_PAGE_TITLE = "CUSP - Technical Documentation";
+import SEO from "@/components/SEO";
 
 function parseDoc(html: string) {
   const styleMatch = html.match(/<style>([\s\S]*?)<\/style>/i);
@@ -84,15 +83,17 @@ const Docs = () => {
     });
   }, [location.pathname, location.hash]);
 
-  useEffect(() => {
-    const previous = document.title;
-    document.title = DOCS_PAGE_TITLE;
-    return () => {
-      document.title = previous;
-    };
-  }, []);
-
-  return <div ref={hostRef} className="fixed inset-0 z-0 h-full w-full" aria-label="Technical documentation" />;
+  return (
+    <>
+      <SEO
+        title="Technical Documentation"
+        description="Technical documentation for Cusp — the capital markets layer for prediction markets on Solana."
+        path="/docs"
+        noindex
+      />
+      <div ref={hostRef} className="fixed inset-0 z-0 h-full w-full" aria-label="Technical documentation" />
+    </>
+  );
 };
 
 export default Docs;

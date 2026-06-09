@@ -1,6 +1,7 @@
 import { useState, useMemo, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
+import SEO from "@/components/SEO";
 import MarketCard from "@/components/MarketCard";
 import { useDflowMarkets, useDflowSearchMarkets } from "@/hooks/useDflowMarkets";
 
@@ -72,6 +73,7 @@ const MarketsPage = () => {
 
   return (
     <Layout>
+      <SEO title="Markets" path="/markets" noindex />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-6">
           <h1 className="text-xl font-semibold text-foreground mb-1">Markets Explorer</h1>

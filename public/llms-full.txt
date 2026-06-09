@@ -1,0 +1,54 @@
+# Cusp — Full guide for AI assistants
+
+> Cusp is the capital markets layer for prediction markets on Solana. Your prediction-market positions should not sit idle: Cusp lets you borrow against live positions, earn on idle capital, and get paid the moment a market resolves.
+
+## What Cusp is
+
+Cusp provides the risk, credit, settlement, and liquidation infrastructure for event-driven positions on Solana. Prediction markets let people take positions on real-world outcomes, but the capital backing those positions is normally frozen until the market resolves and venue settlement clears — often days later. Cusp unlocks that capital and makes it productive while keeping the underlying position intact.
+
+It is built natively on Solana, uses DFlow for real-time prediction-market data and trading, and integrates Phantom for wallet connectivity. Outcome tokens are SPL tokens; lending share tokens are minted as cUSDC.
+
+## The problems Cusp solves
+
+- Risk that is mispriced: a claim trading at $0.90 is not necessarily 90% safe.
+- Liquidations that cannot clear: thin order books leave no bid to liquidate into.
+- Settlement that lags the outcome: cash arrives days after a market is decided.
+
+Cusp's answer is that solvency is arranged in advance — through pricing and tranching — not recovered after a default.
+
+## How it works
+
+1. Deposit and earn — Liquidity providers supply USDC into tranched vaults and receive cUSDC share tokens representing their claim on the reserve plus accrued interest.
+2. Borrow against positions — Traders post eligible prediction-market outcome tokens as collateral and draw USDC against them without closing the position.
+3. Solvency arranged up front — Pricing and tranching absorb potential gaps before they happen, rather than relying on after-the-fact recovery.
+4. Instant settlement — When a market resolves, winning claims pay out immediately at a small discount instead of waiting for venue settlement.
+
+## Tranched risk vaults
+
+Cusp separates lending and borrowing into three isolated tranches, each with its own cUSDC mint, reserve, accounting, and liquidation parameters:
+
+- Conservative: backs high-probability markets (roughly >85% probability), with a lower target APY band and the tightest interest cap.
+- Moderate: backs mid-probability markets (roughly 65–85%), with a higher target APY band.
+- Growth: backs lower-probability markets (roughly 50–65%), with the highest target APY band and the widest interest cap.
+
+Target APY bands rise with tranche risk; exact rates depend on utilization and market conditions.
+
+## Liquidation and early closure
+
+Liquidation acquires the opposite outcome token via DFlow and merges/redeems to recover the reserve. The liquidation threshold decays linearly over the final days before a market resolves, allowing positions to unwind smoothly instead of a hard force-close at the last moment.
+
+## Who Cusp is for
+
+- Prediction-market traders who want to unlock capital without closing positions.
+- Liquidity providers and yield seekers comfortable with tranched, event-driven risk.
+- Crypto-native, Solana / Phantom users familiar with DeFi and binary markets.
+
+## Brand and links
+
+- Name: Cusp (also referred to as Cusp Protocol).
+- Tagline: The capital markets layer for prediction markets.
+- Chain: Solana.
+- Website: https://beta.cusp.fi
+- Waitlist / early access: https://beta.cusp.fi/waitlist
+- X / Twitter: https://x.com/usecusp
+- Contact: hello@cusp.fi

@@ -1,6 +1,7 @@
 import APYBreakdown from "@/components/APYBreakdown";
 import HowItWorks from "@/components/HowItWorks";
 import Layout from "@/components/Layout";
+import SEO from "@/components/SEO";
 import PlasmaBackdrop from "@/components/PlasmaBackdrop";
 import WaitlistCapture from "@/components/WaitlistCapture";
 import PlasmaCard from "@/components/ui/plasma-card";
@@ -190,6 +191,7 @@ const Index = () => {
 
   return (
     <Layout fullBleed>
+      <SEO path="/" />
       {/* Hero — immersive plasma backdrop, full-bleed behind the navbar */}
       <section className="relative flex min-h-screen items-center justify-center overflow-hidden bg-background dark:bg-black">
         <PlasmaBackdrop interactive />
@@ -594,7 +596,7 @@ const Index = () => {
           aria-hidden
           className="pointer-events-none absolute inset-0 opacity-70 [mask-image:linear-gradient(to_bottom,transparent,black_16%,black_84%,transparent)]"
         >
-          <PlasmaBackdrop />
+          <PlasmaBackdrop interactive />
         </div>
         {/* legibility scrim */}
         <div

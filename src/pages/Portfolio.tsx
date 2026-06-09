@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import Layout from "@/components/Layout";
+import SEO from "@/components/SEO";
 import { useUserPortfolio, type Position, type LeveragedTrade, type TradeExecution } from "@/hooks/useUserPortfolio";
 import { useOutcomeTokenHoldings } from "@/hooks/useOutcomeTokenHoldings";
 import { useProtocolState } from "@/hooks/useProtocolState";
@@ -354,6 +355,7 @@ const PortfolioPage = () => {
   if (!isConnected) {
     return (
       <Layout>
+        <SEO title="Portfolio" path="/portfolio" noindex />
         <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
           <h1 className="text-xl font-semibold text-foreground mb-6">Portfolio</h1>
           <div className="bg-bg-1 border border-border rounded-xl p-12 text-center">
@@ -368,6 +370,7 @@ const PortfolioPage = () => {
 
   return (
     <Layout>
+      <SEO title="Portfolio" path="/portfolio" noindex />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="flex items-center justify-between mb-6">
           <h1 className="text-xl font-semibold text-foreground">Portfolio</h1>

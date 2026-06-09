@@ -1,6 +1,7 @@
 import { useParams, Link } from "react-router-dom";
 import { useMemo, useState, useEffect, useRef } from "react";
 import Layout from "@/components/Layout";
+import SEO from "@/components/SEO";
 import ProbabilityBar from "@/components/ProbabilityBar";
 import CountdownTimer from "@/components/CountdownTimer";
 import {
@@ -395,6 +396,7 @@ const MarketDetail = () => {
 
   return (
     <Layout>
+      <SEO title={market.name ?? "Market"} path={`/markets/${ticker}`} noindex />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Breadcrumb */}
         <Link

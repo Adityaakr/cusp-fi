@@ -1,4 +1,5 @@
 import Layout from "@/components/Layout";
+import SEO from "@/components/SEO";
 import LoanCard from "@/components/LoanCard";
 import BorrowPanel from "@/components/BorrowPanel";
 import { mockActiveLoans } from "@/data/mockData";
@@ -6,6 +7,7 @@ import { mockActiveLoans } from "@/data/mockData";
 const LendPage = () => {
   return (
     <Layout>
+      <SEO title="Lend & Borrow" path="/lend" noindex />
       <div className="max-w-7xl mx-auto px-4 sm:px-6 py-8">
         <div className="mb-8">
           <h1 className="text-xl font-semibold text-foreground mb-1">Cusp Lend</h1>

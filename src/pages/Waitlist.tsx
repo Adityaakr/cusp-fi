@@ -1,5 +1,5 @@
 import PlasmaBackdrop from "@/components/PlasmaBackdrop";
-import ThemeToggle from "@/components/ThemeToggle";
+import SEO from "@/components/SEO";
 import CountUp from "@/components/ui/count-up";
 import { useWaitlistSignup } from "@/hooks/useWaitlistSignup";
 import { motion, useReducedMotion } from "framer-motion";
@@ -21,6 +21,11 @@ const Waitlist = () => {
 
   return (
     <div className="relative flex min-h-[100dvh] flex-col overflow-hidden bg-background dark:bg-black">
+      <SEO
+        title="Join the waitlist"
+        description="Request early access to Cusp — the capital markets layer for prediction markets on Solana. Borrow against live positions and earn on idle capital."
+        path="/waitlist"
+      />
       {/* full-bleed plasma field */}
       <PlasmaBackdrop interactive />
       {/* legibility scrim */}
@@ -42,11 +47,6 @@ const Waitlist = () => {
         <img src="/cusp.png" alt="Cusp" className="h-6 w-6 rounded-full object-contain" />
         <span className="text-sm font-semibold tracking-tight text-foreground">Cusp</span>
       </Link>
-
-      {/* theme toggle — top-right */}
-      <div className="fixed right-4 top-4 z-50">
-        <ThemeToggle />
-      </div>
 
       <main className="relative z-10 flex flex-1 items-center justify-center px-5 py-24">
         <motion.div

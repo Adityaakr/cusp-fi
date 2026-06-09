@@ -1,9 +1,12 @@
 import { PhantomProvider, type PhantomTheme } from "@phantom/react-sdk";
 import { AddressType } from "@phantom/browser-sdk";
-import { useTheme } from "next-themes";
 
 const PHANTOM_APP_ID = "f734e0e3-6d52-443b-a710-2b2d53225fe0";
 
+// Site is dark-only — keep the wallet modal deterministically dark. Reading
+// next-themes' resolvedTheme here was unreliable: forcedTheme="dark" forces the
+// page dark but resolvedTheme still reflects a returning user's stored "light"
+// preference, which made the popup render light.
 const cuspThemeDark = {
   background: "#0f1512",
   text: "#e8efec",
@@ -15,19 +18,7 @@ const cuspThemeDark = {
   overlay: "#000000cc",
 } as const satisfies Partial<PhantomTheme>;
 
-const cuspThemeLight = {
-  background: "#fbfdfc",
-  text: "#121f1a",
-  secondary: "#5a6b64",
-  brand: "#1c8a5b",
-  error: "#cc3b3b",
-  success: "#1c8a5b",
-  borderRadius: "6px",
-  overlay: "#0a1410aa",
-} as const satisfies Partial<PhantomTheme>;
-
 export function PhantomProviderWrapper({ children }: { children: React.ReactNode }) {
-  const { resolvedTheme } = useTheme();
   const redirectUrl =
     typeof window !== "undefined"
       ? `${window.location.origin}/auth/callback`
@@ -43,7 +34,7 @@ export function PhantomProviderWrapper({ children }: { children: React.ReactNode
           redirectUrl,
         },
       }}
-      theme={resolvedTheme === "light" ? cuspThemeLight : cuspThemeDark}
+      theme={cuspThemeDark}
       appName="Cusp"
     >
       {children}

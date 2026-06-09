@@ -1,0 +1,23 @@
+# Cusp
+
+> Cusp is the capital markets layer for prediction markets on Solana. It lets traders borrow against live prediction-market positions without closing them, earn yield on idle capital through tranched risk vaults, and get paid the moment a market resolves instead of waiting for venue settlement.
+
+Cusp turns event-driven positions into productive collateral. It provides the risk, credit, settlement, and liquidation infrastructure that prediction markets lack, built natively on Solana and powered by DFlow market data with Phantom wallet support.
+
+Key facts:
+- Category: DeFi on Solana — capital markets / lending for prediction markets.
+- Borrow: draw USDC against eligible YES/NO outcome-token collateral without exiting the position.
+- Earn: supply USDC into tranched vaults (Conservative, Moderate, Growth) and receive cUSDC; each tranche has its own APY profile and isolated risk.
+- Settle: winning claims pay out immediately at a small discount rather than days later.
+- Principle: solvency is arranged in advance through pricing and tranching, not recovered after a default.
+
+## Pages
+- [Home](https://beta.cusp.fi/): Product overview, how it works, and the thesis.
+- [Waitlist](https://beta.cusp.fi/waitlist): Request early access to the private alpha.
+
+## Detailed context
+- [Full LLM guide](https://beta.cusp.fi/llms-full.txt): Expanded description of the product, vault tranches, settlement and liquidation mechanics, and integrations.
+
+## Contact
+- X / Twitter: https://x.com/usecusp
+- Email: hello@cusp.fi

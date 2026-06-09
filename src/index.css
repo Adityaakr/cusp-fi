@@ -67,6 +67,14 @@
     --cusp-purple: 258 60% 50%;
     --cusp-teal: 155 60% 32%;
 
+    /* Plasma backdrop palette (WebGL). Linear 0..1 RGB triplets, read directly
+     * by PlasmaBackdrop.tsx. Kept here so the canvas stays in sync with the
+     * theme and survives rebrand deploys. Light: soft pastel greens on near-white. */
+    --plasma-bg: 0.985 0.992 0.988;
+    --plasma-c1: 0.56 0.82 0.69;
+    --plasma-c2: 0.40 0.74 0.58;
+    --plasma-c3: 0.72 0.90 0.81;
+
     /* Background layers */
     --bg-0: 150 24% 99%;
     --bg-1: 150 24% 97%;
@@ -132,6 +140,23 @@
     --cusp-red: 0 74% 55%;
     --cusp-purple: 258 90% 66%;
     --cusp-teal: 154 74% 47%;
+
+    /* Plasma backdrop palette (WebGL) — see :root note. Dark: rich deep greens
+     * glowing on a near-black field (never washed/bright-white-green). */
+    --plasma-bg: 0.013 0.020 0.016;
+    --plasma-c1: 0.05 0.38 0.25;
+    --plasma-c2: 0.10 0.62 0.40;
+    --plasma-c3: 0.06 0.30 0.32;
+
+    /* Baked CSS-fallback plasma fields. feTurbulence+feDisplacementMap warp the
+     * green blobs into organic noise shapes (the shader's domain-warped FBM,
+     * approximated). Colors are the on-screen sRGB equivalents of --plasma-*
+     * (the shader writes raw to the framebuffer, so 0.05→rgb(13,..)). Rasterized
+     * once by the browser; motion is cheap CSS transforms only. Shared by the
+     * fallback and the card glow so both match the hero. */
+    --plasma-svg-a: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27640%27%20height%3D%27640%27%20viewBox%3D%270%200%20640%20640%27%3E%3Cdefs%3E%3Cfilter%20id%3D%27f%27%20x%3D%27-25%25%27%20y%3D%27-25%25%27%20width%3D%27150%25%27%20height%3D%27150%25%27%20color-interpolation-filters%3D%27sRGB%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.011%200.014%27%20numOctaves%3D%274%27%20seed%3D%277%27%20result%3D%27n%27%2F%3E%3CfeDisplacementMap%20in%3D%27SourceGraphic%27%20in2%3D%27n%27%20scale%3D%27140%27%20xChannelSelector%3D%27R%27%20yChannelSelector%3D%27G%27%2F%3E%3CfeGaussianBlur%20stdDeviation%3D%2710%27%2F%3E%3C%2Ffilter%3E%3CradialGradient%20id%3D%27a%27%20cx%3D%2732%25%27%20cy%3D%2730%25%27%20r%3D%2755%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2836%2C199%2C128%29%27%20stop-opacity%3D%270.95%27%2F%3E%3Cstop%20offset%3D%2755%25%27%20stop-color%3D%27rgb%2815%2C102%2C71%29%27%20stop-opacity%3D%270.55%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%27b%27%20cx%3D%2772%25%27%20cy%3D%2766%25%27%20r%3D%2755%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2826%2C158%2C102%29%27%20stop-opacity%3D%270.9%27%2F%3E%3Cstop%20offset%3D%2755%25%27%20stop-color%3D%27rgb%2815%2C77%2C82%29%27%20stop-opacity%3D%270.5%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%27c%27%20cx%3D%2758%25%27%20cy%3D%2715%25%27%20r%3D%2750%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2815%2C117%2C102%29%27%20stop-opacity%3D%270.8%27%2F%3E%3Cstop%20offset%3D%2760%25%27%20stop-color%3D%27rgb%2810%2C56%2C56%29%27%20stop-opacity%3D%270.4%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27640%27%20height%3D%27640%27%20fill%3D%27rgb%283%2C5%2C4%29%27%2F%3E%3Cg%20filter%3D%27url%28%23f%29%27%3E%3Cellipse%20cx%3D%27205%27%20cy%3D%27200%27%20rx%3D%27250%27%20ry%3D%27210%27%20fill%3D%27url%28%23a%29%27%2F%3E%3Cellipse%20cx%3D%27470%27%20cy%3D%27430%27%20rx%3D%27270%27%20ry%3D%27230%27%20fill%3D%27url%28%23b%29%27%2F%3E%3Cellipse%20cx%3D%27380%27%20cy%3D%27120%27%20rx%3D%27230%27%20ry%3D%27190%27%20fill%3D%27url%28%23c%29%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    --plasma-svg-b: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27640%27%20height%3D%27640%27%20viewBox%3D%270%200%20640%20640%27%3E%3Cdefs%3E%3Cfilter%20id%3D%27f%27%20x%3D%27-25%25%27%20y%3D%27-25%25%27%20width%3D%27150%25%27%20height%3D%27150%25%27%20color-interpolation-filters%3D%27sRGB%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.013%200.010%27%20numOctaves%3D%274%27%20seed%3D%2723%27%20result%3D%27n%27%2F%3E%3CfeDisplacementMap%20in%3D%27SourceGraphic%27%20in2%3D%27n%27%20scale%3D%27150%27%20xChannelSelector%3D%27R%27%20yChannelSelector%3D%27G%27%2F%3E%3CfeGaussianBlur%20stdDeviation%3D%2712%27%2F%3E%3C%2Ffilter%3E%3CradialGradient%20id%3D%27a%27%20cx%3D%2768%25%27%20cy%3D%2728%25%27%20r%3D%2755%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2826%2C158%2C102%29%27%20stop-opacity%3D%270.85%27%2F%3E%3Cstop%20offset%3D%2755%25%27%20stop-color%3D%27rgb%2815%2C77%2C82%29%27%20stop-opacity%3D%270.5%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%27b%27%20cx%3D%2728%25%27%20cy%3D%2772%25%27%20r%3D%2758%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2820%2C128%2C84%29%27%20stop-opacity%3D%270.85%27%2F%3E%3Cstop%20offset%3D%2755%25%27%20stop-color%3D%27rgb%2813%2C64%2C60%29%27%20stop-opacity%3D%270.45%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3CradialGradient%20id%3D%27c%27%20cx%3D%2750%25%27%20cy%3D%2750%25%27%20r%3D%2748%25%27%3E%3Cstop%20offset%3D%270%25%27%20stop-color%3D%27rgb%2815%2C97%2C71%29%27%20stop-opacity%3D%270.6%27%2F%3E%3Cstop%20offset%3D%2760%25%27%20stop-color%3D%27rgb%288%2C46%2C46%29%27%20stop-opacity%3D%270.3%27%2F%3E%3Cstop%20offset%3D%27100%25%27%20stop-color%3D%27rgb%285%2C8%2C7%29%27%20stop-opacity%3D%270%27%2F%3E%3C%2FradialGradient%3E%3C%2Fdefs%3E%3Crect%20width%3D%27640%27%20height%3D%27640%27%20fill%3D%27rgb%283%2C5%2C4%29%27%2F%3E%3Cg%20filter%3D%27url%28%23f%29%27%3E%3Cellipse%20cx%3D%27450%27%20cy%3D%27190%27%20rx%3D%27260%27%20ry%3D%27220%27%20fill%3D%27url%28%23a%29%27%2F%3E%3Cellipse%20cx%3D%27190%27%20cy%3D%27470%27%20rx%3D%27280%27%20ry%3D%27240%27%20fill%3D%27url%28%23b%29%27%2F%3E%3Cellipse%20cx%3D%27330%27%20cy%3D%27330%27%20rx%3D%27240%27%20ry%3D%27200%27%20fill%3D%27url%28%23c%29%27%2F%3E%3C%2Fg%3E%3C%2Fsvg%3E");
+    --plasma-grain: url("data:image/svg+xml,%3Csvg%20xmlns%3D%27http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%27%20width%3D%27180%27%20height%3D%27180%27%3E%3Cfilter%20id%3D%27g%27%3E%3CfeTurbulence%20type%3D%27fractalNoise%27%20baseFrequency%3D%270.8%27%20numOctaves%3D%272%27%20stitchTiles%3D%27stitch%27%20result%3D%27n%27%2F%3E%3CfeColorMatrix%20in%3D%27n%27%20type%3D%27matrix%27%20values%3D%270%200%200%200%200%200%200%200%200%200%200%200%200%200%200%200%200%200%200.6%200%27%2F%3E%3C%2Ffilter%3E%3Crect%20width%3D%27180%27%20height%3D%27180%27%20filter%3D%27url%28%23g%29%27%2F%3E%3C%2Fsvg%3E");
 
     /* Background layers — green-tinted, never pure black */
     --bg-0: 156 18% 4.5%;
@@ -293,16 +318,76 @@
     );
   }
 
-  /* Contained "plasma" fill for cards — a CSS echo of the hero's flowing green. */
+  /* Contained "plasma" fill for cards — shares the baked plasma field so card
+   * interiors match the hero + the CSS fallback. Softer/blurred for small areas. */
   .plasma-fill {
+    background: var(--plasma-svg-a) center / 150% 150% no-repeat, rgb(3 5 4);
+    filter: blur(10px) saturate(1.1);
+    animation: plasma-pan 26s ease-in-out infinite;
+  }
+
+  /* Full-bleed CSS plasma — the fallback when WebGL is unavailable / reduced
+   * motion / context lost. Baked SVG noise fields (organic, fine-grained) drift
+   * via cheap GPU transforms to approximate the hero shader. */
+  .plasma-css-fallback {
+    position: absolute;
+    inset: 0;
+    overflow: hidden;
+    isolation: isolate;
+    /* bottom field + a faint tiling grain over it + the near-black base */
     background:
-      radial-gradient(40% 50% at 20% 30%, hsl(var(--cusp-green) / 0.55), transparent 70%),
-      radial-gradient(45% 55% at 80% 60%, hsl(var(--cusp-green-bright) / 0.5), transparent 70%),
-      radial-gradient(50% 60% at 60% 20%, hsl(var(--cusp-teal) / 0.45), transparent 70%),
-      radial-gradient(55% 65% at 35% 80%, hsl(var(--cusp-teal) / 0.4), transparent 70%);
-    background-size: 200% 200%;
-    filter: blur(14px);
-    animation: plasma-drift 14s ease-in-out infinite;
+      var(--plasma-grain) repeat 0 0 / 180px 180px,
+      var(--plasma-svg-b) center / 200% 200% no-repeat,
+      rgb(3 5 4);
+    background-blend-mode: overlay, normal, normal;
+    animation: plasma-pan 48s ease-in-out infinite;
+  }
+  /* primary warped field, screened on top so the greens add like light */
+  .plasma-css-fallback::before {
+    content: "";
+    position: absolute;
+    inset: -20%;
+    background: var(--plasma-svg-a) center / cover no-repeat;
+    mix-blend-mode: screen;
+    animation: plasma-warp 34s ease-in-out infinite;
+    will-change: transform;
+  }
+  /* vignette — matches the shader's edge falloff toward the base color */
+  .plasma-css-fallback::after {
+    content: "";
+    position: absolute;
+    inset: 0;
+    background: radial-gradient(120% 120% at 50% 45%, transparent 30%, rgb(3 5 4 / 0.55) 100%);
+  }
+
+  /* cursor bloom — parity with the WebGL interactive halo. Sits above the
+   * vignette (z-index) and adds light (screen). Position fed by JS via --mx/--my;
+   * opacity rises on hover and swells when the pointer holds still (data-idle). */
+  .plasma-cursor-glow {
+    position: absolute;
+    inset: 0;
+    z-index: 1;
+    pointer-events: none;
+    mix-blend-mode: screen;
+    opacity: 0;
+    transition: opacity 600ms ease;
+    background: radial-gradient(
+      38vmin 38vmin at var(--mx, 50%) var(--my, 50%),
+      rgba(36, 199, 128, 0.22),
+      rgba(15, 117, 102, 0.12) 45%,
+      transparent 72%
+    );
+  }
+  .plasma-css-fallback[data-hover="1"] .plasma-cursor-glow {
+    opacity: 0.6;
+  }
+  .plasma-css-fallback[data-idle="1"] .plasma-cursor-glow {
+    opacity: 1;
+  }
+  @media (prefers-reduced-motion: reduce) {
+    .plasma-cursor-glow {
+      display: none;
+    }
   }
 
   .cusp-gradient-text {
@@ -388,12 +473,22 @@ div[style*="z-index: 9999"] > div {
   animation: flash-update 0.6s ease-out;
 }
 
-/* Flowing plasma drift for card interiors (.plasma-fill) */
-@keyframes plasma-drift {
-  0%, 100% { background-position: 0% 0%, 100% 100%, 50% 0%, 0% 100%; }
-  50% { background-position: 50% 100%, 0% 0%, 100% 50%, 100% 0%; }
+/* Plasma motion — slow, to echo the hero shader's drift (u_time * 0.05). */
+@keyframes plasma-warp {
+  0%, 100% { transform: translate3d(-3%, -2%, 0) scale(1.08) rotate(0deg); }
+  50% { transform: translate3d(2%, 3%, 0) scale(1.14) rotate(2deg); }
+}
+@keyframes plasma-pan {
+  /* uniform pan so it works regardless of layer order/count; the base color
+   * layer is unaffected, the field + grain drift corner-to-corner */
+  0%, 100% { background-position: 0% 0%; }
+  50% { background-position: 100% 100%; }
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .plasma-fill { animation: none; }
+  .plasma-fill,
+  .plasma-css-fallback,
+  .plasma-css-fallback::before {
+    animation: none;
+  }
 }

@@ -4,7 +4,6 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { MAINNET_RPC_URL, MAINNET_USDC_MINT } from "@/lib/network-config";
 import { Menu, X } from "lucide-react";
 import { AnimatePresence, motion } from "framer-motion";
-import ThemeToggle from "./ThemeToggle";
 
 // Always use mainnet for wallet balance — user funds live on mainnet.
 const RPC_URL = MAINNET_RPC_URL;
@@ -166,8 +165,6 @@ const Navbar = () => {
             </span>
           )}
 
-          <ThemeToggle className="hidden md:inline-flex" />
-
           <button
             onClick={open}
             disabled={isLoading}
@@ -232,10 +229,6 @@ const Navbar = () => {
                 </div>
               </div>
             )}
-            <div className="mt-1 flex items-center justify-between rounded-xl px-3 py-1.5">
-              <span className="text-[11px] text-muted-foreground">Theme</span>
-              <ThemeToggle />
-            </div>
           </motion.div>
         )}
       </AnimatePresence>

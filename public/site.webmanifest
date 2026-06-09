@@ -1,0 +1,24 @@
+{
+  "name": "Cusp — Capital markets layer for prediction markets",
+  "short_name": "Cusp",
+  "description": "Cusp is the capital markets layer for prediction markets on Solana. Borrow against live positions, earn on idle capital, and get paid the moment a market resolves.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0a0a0a",
+  "theme_color": "#1fd184",
+  "icons": [
+    {
+      "src": "/cusp.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/cusp.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
