@@ -17,12 +17,16 @@ import Portfolio from "./pages/Portfolio";
 import Docs from "./pages/Docs";
 import AuthCallback from "./pages/AuthCallback";
 import NotFound from "./pages/NotFound";
-import Waitlist from "./pages/Waitlist";
 
 const queryClient = new QueryClient();
 
+// Wallet SDK mounts only on routes that use it: PhantomProvider eagerly calls
+// sdk.autoConnect() on mount (no opt-out), which makes injected wallets like
+// Solflare pop their unlock window on the public landing page.
 const protectedRoute = (element: React.ReactNode) => (
-  <AccessGate>{element}</AccessGate>
+  <PhantomProviderWrapper>
+    <AccessGate>{element}</AccessGate>
+  </PhantomProviderWrapper>
 );
 
 const App = () => {
@@ -32,7 +36,6 @@ const App = () => {
 
   return (
   <HelmetProvider>
-  <PhantomProviderWrapper>
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
         <Toaster />
@@ -40,20 +43,22 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/waitlist" element={<Waitlist />} />
+            <Route path="/waitlist" element={<Navigate to="/" replace />} />
             <Route path="/vault" element={protectedRoute(<Vault />)} />
             <Route path="/lend" element={protectedRoute(<Lend />)} />
             <Route path="/markets" element={protectedRoute(<Markets />)} />
             <Route path="/markets/:ticker" element={protectedRoute(<MarketDetail />)} />
             <Route path="/portfolio" element={protectedRoute(<Portfolio />)} />
             <Route path="/docs" element={protectedRoute(<Docs />)} />
-            <Route path="/auth/callback" element={<AuthCallback />} />
+            <Route
+              path="/auth/callback"
+              element={<PhantomProviderWrapper><AuthCallback /></PhantomProviderWrapper>}
+            />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </BrowserRouter>
       </TooltipProvider>
     </QueryClientProvider>
-  </PhantomProviderWrapper>
   </HelmetProvider>
   );
 };
