@@ -8,7 +8,7 @@ import { HelmetProvider } from "react-helmet-async";
 import { PhantomProviderWrapper } from "@/lib/phantom";
 import { getOrCreateApiKey } from "@/lib/access";
 import AccessGate from "@/components/AccessGate";
-import Index from "./pages/Index";
+import Landing from "./pages/Landing";
 import Vault from "./pages/Vault";
 import Lend from "./pages/Lend";
 import Markets from "./pages/Markets";
@@ -39,7 +39,7 @@ const App = () => {
         <Sonner />
         <BrowserRouter>
           <Routes>
-            <Route path="/" element={<Index />} />
+            <Route path="/" element={<Landing />} />
             <Route path="/waitlist" element={<Waitlist />} />
             <Route path="/vault" element={protectedRoute(<Vault />)} />
             <Route path="/lend" element={protectedRoute(<Lend />)} />
