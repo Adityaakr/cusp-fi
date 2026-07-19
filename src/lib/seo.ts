@@ -2,7 +2,7 @@
 export const SITE_URL = "https://beta.cusp.fi";
 export const SITE_NAME = "Cusp";
 export const TWITTER_HANDLE = "@usecusp";
-export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image.png`;
+export const DEFAULT_OG_IMAGE = `${SITE_URL}/og-image-v2.png`;
 
 export const DEFAULT_TITLE = "Cusp — Open capital for markets that price the future";
 export const DEFAULT_DESCRIPTION =

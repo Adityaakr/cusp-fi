@@ -1,5 +1,5 @@
 /**
- * Generates the branded Open Graph share image at public/og-image.png (1200x630).
+ * Generates the branded Open Graph share image at public/og-image-v2.png (1200x630).
  *
  * The card is composed to match the redesigned landing hero: brand dark-green
  * (#002816) field with a soft plasma glow, the Cusp logo + wordmark top-left, a
@@ -15,7 +15,7 @@ import sharp from "sharp";
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const ROOT = join(__dirname, "..");
-const OUT = join(ROOT, "public", "og-image.png");
+const OUT = join(ROOT, "public", "og-image-v2.png");
 const LOGO = join(ROOT, "public", "cusp.png");
 
 const W = 1200;
