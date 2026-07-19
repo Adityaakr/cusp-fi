@@ -3,12 +3,13 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
+import { BrowserRouter, Routes, Route } from "react-router-dom";
 import { HelmetProvider } from "react-helmet-async";
 import { PhantomProviderWrapper } from "@/lib/phantom";
 import { getOrCreateApiKey } from "@/lib/access";
 import AccessGate from "@/components/AccessGate";
 import Landing from "./pages/Landing";
+import Waitlist from "./pages/Waitlist";
 import Vault from "./pages/Vault";
 import Lend from "./pages/Lend";
 import Markets from "./pages/Markets";
@@ -43,7 +44,7 @@ const App = () => {
         <BrowserRouter>
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/waitlist" element={<Navigate to="/" replace />} />
+            <Route path="/waitlist" element={<Waitlist />} />
             <Route path="/vault" element={protectedRoute(<Vault />)} />
             <Route path="/lend" element={protectedRoute(<Lend />)} />
             <Route path="/markets" element={protectedRoute(<Markets />)} />

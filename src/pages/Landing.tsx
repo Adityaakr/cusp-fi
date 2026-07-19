@@ -1,4 +1,6 @@
 import { useEffect } from "react";
+import { Link } from "react-router-dom";
+import { ArrowRight } from "lucide-react";
 import SEO from "@/components/SEO";
 
 const BG_VIDEO =
@@ -39,14 +41,25 @@ const Landing = () => {
 
         {/* Hero content */}
         <div className="absolute bottom-0 left-0 right-0 sm:right-auto z-20 px-4 sm:px-12 pb-8 sm:pb-16 max-w-2xl">
-          <h1 className="text-white text-[2rem] leading-[1.15] sm:text-5xl lg:text-6xl font-medium sm:leading-tight tracking-tight mb-3 sm:mb-4">
-            Capital markets for assets that resolve
+          <span className="block text-white/50 text-xs sm:text-sm font-medium uppercase tracking-[0.2em] mb-3 sm:mb-4">
+            The Open Capital Network
+          </span>
+          <h1 className="text-white font-medium tracking-[-0.02em] leading-[0.97] text-[clamp(1.75rem,5.5vw,3rem)] mb-3 sm:mb-4">
+            <span className="block whitespace-normal sm:whitespace-nowrap">Capital for markets</span>
+            <span className="block whitespace-normal sm:whitespace-nowrap">that price the future.</span>
           </h1>
           <p className="text-white/60 text-sm leading-relaxed max-w-lg">
-            Cusp turns prediction market positions into productive collateral. Borrow against them
-            while markets are live, get paid at resolution instead of waiting on settlement, &amp;
-            earn on the capital that funds&nbsp;both.
+            Prediction markets created a new asset class. Cusp makes its positions productive through
+            risk-aware vaults, credit, and&nbsp;settlement.
           </p>
+
+          <Link
+            to="/waitlist"
+            className="group mt-6 sm:mt-8 inline-flex items-center gap-2 rounded-full bg-white px-5 py-2.5 text-sm font-medium text-black transition-all hover:opacity-90 active:scale-[0.98]"
+          >
+            Join the waitlist
+            <ArrowRight className="size-4 transition-transform group-hover:translate-x-0.5" />
+          </Link>
         </div>
       </div>
     </div>

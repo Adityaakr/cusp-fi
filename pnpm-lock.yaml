@@ -14,6 +14,9 @@ importers:
       '@hookform/resolvers':
         specifier: ^3.10.0
         version: 3.10.0(react-hook-form@7.76.0(react@18.3.1))
+      '@phantom/browser-sdk':
+        specifier: ^1.0.7
+        version: 1.0.7(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.25.76)
       '@phantom/react-sdk':
         specifier: ^1.0.7
         version: 1.0.7(bufferutil@4.1.0)(fastestsmallesttextencoderdecoder@1.0.22)(react@18.3.1)(typescript@5.9.3)(utf-8-validate@6.0.6)(zod@3.25.76)

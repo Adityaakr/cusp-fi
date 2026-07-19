@@ -13,6 +13,15 @@ coming-soon/dist
 coming-soon/.env
 vault-keypair.json
 .devnet-config.json
+.keys/
+*.bak
+
+# Turborepo cache
+.turbo/
+
+# AI / agent tooling scratch
+.agents/
+.superstack/
 
 # Solana / Anchor build
 programs/target/
