@@ -43,7 +43,7 @@ const Footer = () => {
               <span className="text-base font-semibold tracking-tight text-foreground">Cusp</span>
             </div>
             <p className="mx-auto max-w-xs text-xs leading-relaxed text-muted-foreground sm:mx-0">
-              The capital markets layer for prediction markets. Risk, credit, settlement, and liquidation
+              Open capital for markets that price the future. Risk, credit, settlement, and liquidation
               infrastructure for event-driven positions on Solana.
             </p>
             <div className="mt-5 flex items-center justify-center gap-2 sm:justify-start">

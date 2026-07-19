@@ -219,7 +219,7 @@ const Index = () => {
             className="mb-7 inline-flex items-center gap-2 rounded-full border border-border bg-bg-1/70 px-3 py-1 font-mono text-[11px] text-muted-foreground backdrop-blur-sm"
           >
             <span className="h-1.5 w-1.5 rounded-full bg-cusp-teal animate-live-pulse" />
-            The capital markets layer for prediction markets
+            Open capital for markets that price the future
           </motion.div>
 
           <motion.h1
